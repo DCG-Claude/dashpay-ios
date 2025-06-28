@@ -1,6 +1,8 @@
 import Foundation
 import SwiftData
 import DashSDKFFI
+import DashSPVFFI
+import Combine
 
 // SDK type placeholders
 // Simple SDK wrapper for TokenService
@@ -107,7 +109,7 @@ class AppState: ObservableObject {
     
     @Published var dataStatistics: (identities: Int, documents: Int, contracts: Int, tokenBalances: Int)?
     
-    private let testSigner = TestSigner()
+    private let keychainSigner = KeychainSigner()
     private var _dataManager: DataManager?
     private var modelContext: ModelContext?
     
@@ -119,8 +121,14 @@ class AppState: ObservableObject {
     @Published var tokenService: TokenService?
     @Published var platformSigner: PlatformSigner?
     
+    // Identity service integration
+    @Published var identityService: IdentityService?
+    
     // Document system integration
     @Published var documentService: DocumentService?
+    
+    // Combine subscriptions for sync events
+    private var cancellables = Set<AnyCancellable>()
     
     init() {
         // Load saved network preference or use default
@@ -133,41 +141,132 @@ class AppState: ObservableObject {
     }
     
     func initializeSDK(modelContext: ModelContext) {
+        print("📍 AppState.initializeSDK() called")
+        print("📍 Current thread in initializeSDK: \(Thread.current)")
+        print("📍 Is main thread: \(Thread.isMainThread)")
+        
         // Save the model context for later use
         self.modelContext = modelContext
         
         // Initialize DataManager
         self._dataManager = DataManager(modelContext: modelContext, currentNetwork: currentNetwork)
+        print("✅ DataManager initialized")
         
         Task { @MainActor in
             do {
+                print("📍 Inside Task block")
                 isLoading = true
-                print("🔄 Initializing Dash SDK components...")
+                print("🔄 Initializing Dash SDK components... isLoading set to true")
                 
-                // Step 1: Initialize Core SDK first
+                // Step 1: Initialize Core SDK first with enhanced configuration
                 print("🔧 Initializing Core SDK...")
-                let coreConfig = SPVClientConfiguration.testnet() // Use appropriate network config
-                let coreSdk = try DashSDK(configuration: coreConfig)
-                coreSDK = coreSdk
-                print("✅ Core SDK initialized")
+                let coreConfig = createEnhancedSPVConfig(for: currentNetwork)
+                print("📍 SPV config created")
+                
+                // Run FFI diagnostics first
+                print("🔍 Running FFI diagnostics...")
+                // FFI diagnostics are handled internally by the SDK
+                // let diagnosticReport = FFIDiagnostics.runDiagnostics()
+                // print(diagnosticReport)
+                
+                // Initialize Core SDK with real FFI
+                print("🔧 Creating real Core SDK instance...")
+                do {
+                    let coreSdk = try DashSDK(configuration: coreConfig)
+                    print("📍 DashSDK instance created")
+                    coreSDK = coreSdk
+                    print("✅ Core SDK initialized successfully")
+                } catch {
+                    print("🔴 Core SDK initialization failed: \(error)")
+                    
+                    // Enhanced error diagnostics
+                    if let sdkError = error as? DashSDKError {
+                        print("🔴 SDK Error type: \(sdkError)")
+                        print("🔴 Recovery suggestion: \(sdkError.recoverySuggestion ?? "None")")
+                    }
+                    
+                    // Get FFI diagnostics
+                    print("🔴 FFI Diagnostics:")
+                    print(FFIManager.shared.diagnostics())
+                    
+                    // Check for FFI-specific errors
+                    if let lastFFIError = dash_spv_ffi_get_last_error() {
+                        let ffiError = String(cString: lastFFIError)
+                        print("🔴 Last FFI error: \(ffiError)")
+                        dash_spv_ffi_clear_error()
+                    }
+                    
+                    // Log more context about the failure
+                    print("🔴 Additional context:")
+                    print("   - Network: \(currentNetwork.displayName)")
+                    print("   - Platform SDK Network: \(currentNetwork.sdkNetwork)")
+                    print("   - Raw Value: \(currentNetwork.rawValue)")
+                    
+                    // Attempt fallback with minimal configuration
+                    print("🔄 Attempting fallback initialization with minimal config...")
+                    let fallbackConfig = createMinimalSPVConfig(for: currentNetwork)
+                    
+                    do {
+                        let coreSdk = try DashSDK(configuration: fallbackConfig)
+                        coreSDK = coreSdk
+                        print("✅ Core SDK initialized with fallback configuration")
+                    } catch {
+                        print("🔴 Fallback initialization also failed: \(error)")
+                        throw error
+                    }
+                }
+                
+                // Step 1.5: Start sync and monitor progress
+                print("🔄 Starting blockchain sync...")
+                if let sdk = coreSDK {
+                    try await startBlockchainSync(sdk: sdk)
+                } else {
+                    print("⚠️ Skipping blockchain sync - Core SDK not available")
+                }
                 
                 // Step 2: Initialize Platform SDK with Core context
-                print("🔧 Initializing Platform SDK with Core context...")
-                let platformSdk = try await initializePlatformSDK(with: coreSdk)
-                platformSDK = platformSdk
-                print("✅ Platform SDK initialized")
+                print("🔧 Initializing Platform SDK with Core integration...")
+                do {
+                    let platformSdk = try await initializePlatformSDK(with: coreSDK!)
+                    platformSDK = platformSdk
+                    print("✅ Platform SDK initialized successfully")
+                    
+                    // Test Platform SDK connection
+                    print("🔍 Testing Platform SDK connection...")
+                    let isConnected = await platformSdk.testConnection()
+                    if isConnected {
+                        print("✅ Platform SDK connection test passed")
+                        
+                        // Get network status
+                        let networkStatus = await platformSdk.getNetworkStatus()
+                        print("📊 Platform Network Status: \(networkStatus.statusDescription)")
+                        print("📊 Response Time: \(networkStatus.formattedResponseTime)")
+                    } else {
+                        print("🔴 Platform SDK connection test failed")
+                    }
+                } catch {
+                    print("🔴 Platform SDK initialization failed: \(error)")
+                    
+                    // Create a mock wrapper for compatibility but log the issue
+                    print("⚠️ Falling back to limited Platform functionality")
+                    platformSDK = nil
+                }
                 
                 // Step 3: Create AssetLockBridge to connect Core and Platform
-                print("🔧 Creating AssetLockBridge...")
-                let bridge = AssetLockBridge(coreSDK: coreSdk, platformSDK: platformSdk)
-                assetLockBridge = bridge
-                print("✅ AssetLockBridge created")
+                if let platformSdk = platformSDK {
+                    print("🔧 Creating AssetLockBridge for Core-Platform integration...")
+                    assetLockBridge = await AssetLockBridge(coreSDK: coreSDK!, platformSDK: platformSdk)
+                    print("✅ AssetLockBridge created successfully")
+                } else {
+                    print("⚠️ AssetLockBridge creation skipped - Platform SDK not available")
+                    assetLockBridge = nil
+                }
                 
                 // Step 4: Initialize mock SDK for backward compatibility
                 SDK.initialize()
                 sdk = SDK()
                 
-                // Step 5: Initialize TokenService and PlatformSigner
+                // Step 5: Initialize TokenService, PlatformSigner, and IdentityService
                 print("🪙 Initializing Token Service...")
                 let signer = PlatformSigner()
                 platformSigner = signer
@@ -175,11 +274,20 @@ class AppState: ObservableObject {
                 tokenService = tokenSvc
                 print("✅ Token Service initialized")
                 
+                print("👤 Initializing Identity Service...")
+                let identitySvc = IdentityService(dataManager: _dataManager!, platformSDK: platformSDK)
+                identityService = identitySvc
+                print("✅ Identity Service initialized")
+                
                 // Step 6: Initialize DocumentService
                 print("📄 Initializing Document Service...")
-                let docService = DocumentService(platformSDK: platformSdk, dataManager: _dataManager!)
-                documentService = docService
-                print("✅ Document Service initialized")
+                if let platformSdk = platformSDK {
+                    let docService = DocumentService(platformSDK: platformSdk, dataManager: _dataManager!)
+                    documentService = docService
+                    print("✅ Document Service initialized")
+                } else {
+                    print("⚠️ Document Service initialization skipped - Platform SDK not available")
+                }
                 
                 // Step 7: Load persisted data
                 print("📂 Loading persisted data...")
@@ -190,9 +298,165 @@ class AppState: ObservableObject {
                 
             } catch {
                 print("🔴 SDK initialization failed: \(error)")
+                print("🔴 Error type: \(type(of: error))")
+                print("🔴 Error details: \(error)")
+                if let nsError = error as NSError? {
+                    print("🔴 NSError domain: \(nsError.domain)")
+                    print("🔴 NSError code: \(nsError.code)")
+                    print("🔴 NSError userInfo: \(nsError.userInfo)")
+                }
                 showError(message: "Failed to initialize SDK: \(error.localizedDescription)")
                 isLoading = false
             }
+        }
+    }
+    
+    private func createEnhancedSPVConfig(for network: PlatformNetwork) -> SPVClientConfiguration {
+        let config: SPVClientConfiguration
+        
+        // Convert PlatformNetwork to DashNetwork
+        let dashNetwork: DashNetwork
+        switch network {
+        case .mainnet:
+            dashNetwork = .mainnet
+        case .testnet:
+            dashNetwork = .testnet
+        case .devnet:
+            dashNetwork = .devnet
+        }
+        
+        // Create configuration for the network
+        switch dashNetwork {
+        case .testnet:
+            config = SPVClientConfiguration.testnet()
+        case .mainnet:
+            config = SPVClientConfiguration.mainnet()
+        case .devnet:
+            // Use testnet config for devnet but update the network
+            config = SPVClientConfiguration.testnet()
+            config.network = .devnet
+        case .regtest:
+            config = SPVClientConfiguration.regtest()
+        }
+        
+        // Enhanced configuration for better sync performance
+        config.validationMode = .basic  // Use basic validation (full validation requires compact filters)
+        config.mempoolConfig = .fetchAll(maxTransactions: 5000)  // Enable mempool tracking
+        config.logLevel = "info"  // Enable info logging for sync progress
+        config.maxPeers = 12  // Allow up to 12 peer connections
+        
+        // Add testnet node configuration
+        if network == .testnet {
+            config.additionalPeers = ["192.168.1.163:19999"]  // Local testnet node
+            print("🔧 Added local testnet node: 192.168.1.163:19999")
+        }
+        
+        print("📡 SPV Config: Network=\(config.network.name), Peers=\(config.additionalPeers.count), Validation=\(config.validationMode)")
+        
+        return config
+    }
+    
+    private func createMinimalSPVConfig(for network: PlatformNetwork) -> SPVClientConfiguration {
+        let config: SPVClientConfiguration
+        
+        // Convert PlatformNetwork to DashNetwork
+        let dashNetwork: DashNetwork
+        switch network {
+        case .mainnet:
+            dashNetwork = .mainnet
+        case .testnet:
+            dashNetwork = .testnet
+        case .devnet:
+            dashNetwork = .devnet
+        }
+        
+        // Create configuration for the network
+        switch dashNetwork {
+        case .testnet:
+            config = SPVClientConfiguration.testnet()
+        case .mainnet:
+            config = SPVClientConfiguration.mainnet()
+        case .devnet:
+            config = SPVClientConfiguration.testnet() // Use testnet for devnet
+            config.network = .devnet
+        case .regtest:
+            config = SPVClientConfiguration.regtest()
+        }
+        
+        // Minimal configuration for fallback
+        config.validationMode = .none  // No validation to minimize requirements
+        config.mempoolConfig = .disabled  // Disable mempool
+        config.logLevel = "debug"  // Enable debug logging to diagnose issues
+        config.maxPeers = 3  // Minimal peer connections
+        config.enableFilterLoad = false  // Disable filter loading
+        
+        print("🔧 Minimal SPV Config: Network=\(config.network.name), Validation=\(config.validationMode)")
+        
+        return config
+    }
+    
+    private func startBlockchainSync(sdk: DashSDK) async throws {
+        // Connect to the network and start sync
+        try await sdk.connect()
+        print("🌐 Connected to Dash network, sync starting...")
+        
+        // Subscribe to sync progress events
+        sdk.eventPublisher
+            .sink { [weak self] event in
+                Task { @MainActor in
+                    await self?.handleSyncEvent(event)
+                }
+            }
+            .store(in: &cancellables)
+        
+        // Monitor initial sync progress
+        Task {
+            while sdk.syncProgress?.isComplete == false {
+                if let progress = sdk.syncProgress {
+                    await MainActor.run {
+                        print("🔄 Sync progress: \(progress.percentageComplete)% - Headers: \(progress.currentHeight)/\(progress.totalHeight)")
+                    }
+                }
+                try? await Task.sleep(nanoseconds: 2_000_000_000) // Check every 2 seconds
+            }
+            
+            await MainActor.run {
+                print("✅ Blockchain sync completed!")
+            }
+        }
+    }
+    
+    private func handleSyncEvent(_ event: SPVEvent) async {
+        switch event {
+        case .connected(let peerCount):
+            print("🌐 Connected to \(peerCount) peers")
+            
+        case .syncStarted:
+            print("🔄 Blockchain sync started")
+            
+        case .syncProgress(let progress):
+            print("📊 Sync: \(progress.formattedPercentage) - \(progress.currentHeight)/\(progress.totalHeight) headers")
+            
+        case .syncCompleted:
+            print("✅ Blockchain sync completed successfully!")
+            
+        case .transactionReceived(let txid, let confirmed, let amount, let addresses, let height):
+            print("💰 Transaction received: \(amount) DASH to \(addresses.joined(separator: ", "))")
+            print("   TXID: \(txid)")
+            print("   Confirmed: \(confirmed)")
+            if let height = height {
+                print("   Block: \(height)")
+            }
+            
+        case .balanceChanged(let newBalance):
+            print("💎 Balance updated: \(newBalance) DASH")
+            
+        case .error(let error):
+            print("🔴 SPV Error: \(error)")
+            showError(message: "Sync error: \(error)")
+            
+        default:
+            print("📡 SPV Event: \(event)")
         }
     }
     
@@ -362,7 +626,7 @@ class AppState: ObservableObject {
         
         for identity in identities {
             do {
-                guard let identityData = identity.id else { continue }
+                let identityData = identity.id
                 
                 let persistedBalances = try dataManager.fetchTokenBalances(identityId: identityData)
                 
@@ -409,7 +673,7 @@ class AppState: ObservableObject {
         }
         
         for identity in identities {
-            guard let identityData = identity.id else { continue }
+            let identityData = identity.id
             
             do {
                 // Prepare token balance data for this identity
@@ -504,11 +768,18 @@ class AppState: ObservableObject {
             
             // Reinitialize Platform SDK with new network and Core context
             print("🔄 Switching Platform SDK to network: \(network)")
-            let newPlatformSDK = try PlatformSDKWrapper(network: network, coreSDK: newCoreSDK)
-            platformSDK = newPlatformSDK
-            
-            // Recreate AssetLockBridge
-            assetLockBridge = AssetLockBridge(coreSDK: newCoreSDK, platformSDK: newPlatformSDK)
+            do {
+                let newPlatformSDK = try PlatformSDKWrapper(network: network, coreSDK: newCoreSDK)
+                platformSDK = newPlatformSDK
+                
+                // Recreate AssetLockBridge
+                assetLockBridge = await AssetLockBridge(coreSDK: newCoreSDK, platformSDK: newPlatformSDK)
+                print("✅ Platform SDK and AssetLockBridge updated for new network")
+            } catch {
+                print("🔴 Failed to switch Platform SDK to new network: \(error)")
+                platformSDK = nil
+                assetLockBridge = nil
+            }
             
             // Update mock SDK for backward compatibility
             sdk = SDK()

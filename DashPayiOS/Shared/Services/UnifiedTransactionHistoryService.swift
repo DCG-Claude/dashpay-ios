@@ -1,0 +1,419 @@
+import Foundation
+import Combine
+import SwiftData
+
+/// Service that combines transaction history from all layers: Core, Platform, and Tokens
+@MainActor
+class UnifiedTransactionHistoryService: ObservableObject {
+    
+    // MARK: - Published Properties
+    
+    @Published private(set) var transactions: [UnifiedTransaction] = []
+    @Published private(set) var isLoading = false
+    @Published private(set) var lastUpdated: Date?
+    @Published private(set) var error: Error?
+    
+    // MARK: - Dependencies
+    
+    private let coreSDK: DashSDKProtocol
+    private let platformWrapper: PlatformSDKWrapper?
+    private let tokenService: TokenService
+    private var cancellables = Set<AnyCancellable>()
+    
+    // MARK: - Initialization
+    
+    init(
+        coreSDK: DashSDKProtocol,
+        platformWrapper: PlatformSDKWrapper?,
+        tokenService: TokenService
+    ) {
+        self.coreSDK = coreSDK
+        self.platformWrapper = platformWrapper
+        self.tokenService = tokenService
+        
+        setupSubscriptions()
+    }
+    
+    // MARK: - Public Methods
+    
+    /// Refresh all transaction history from all layers
+    func refreshAllTransactions() async {
+        isLoading = true
+        error = nil
+        
+        do {
+            let allTransactions = try await withThrowingTaskGroup(of: [UnifiedTransaction].self) { group in
+                var results: [UnifiedTransaction] = []
+                
+                // Fetch Core transactions
+                group.addTask {
+                    return try await self.fetchCoreTransactions()
+                }
+                
+                // Fetch Platform transactions (if available)
+                if platformWrapper != nil {
+                    group.addTask {
+                        return try await self.fetchPlatformTransactions()
+                    }
+                }
+                
+                // Fetch Token transactions
+                group.addTask {
+                    return try await self.fetchTokenTransactions()
+                }
+                
+                // Collect results
+                for try await transactions in group {
+                    results.append(contentsOf: transactions)
+                }
+                
+                return results
+            }
+            
+            // Sort by timestamp (newest first)
+            transactions = allTransactions.sorted { $0.timestamp > $1.timestamp }
+            lastUpdated = Date()
+            
+        } catch {
+            self.error = error
+            print("🔴 Failed to refresh transactions: \(error)")
+        }
+        
+        isLoading = false
+    }
+    
+    /// Get transactions filtered by type
+    func getTransactions(ofType type: UnifiedTransactionType) -> [UnifiedTransaction] {
+        return transactions.filter { $0.type == type }
+    }
+    
+    /// Get transactions for a specific date range
+    func getTransactions(from startDate: Date, to endDate: Date) -> [UnifiedTransaction] {
+        return transactions.filter { transaction in
+            transaction.timestamp >= startDate && transaction.timestamp <= endDate
+        }
+    }
+    
+    /// Get portfolio performance over time
+    func getPortfolioHistory(days: Int = 30) -> [PortfolioDataPoint] {
+        let calendar = Calendar.current
+        let endDate = Date()
+        guard let startDate = calendar.date(byAdding: .day, value: -days, to: endDate) else {
+            return []
+        }
+        
+        let relevantTransactions = getTransactions(from: startDate, to: endDate)
+        var portfolioHistory: [PortfolioDataPoint] = []
+        
+        // Group transactions by day and calculate running balance
+        var runningBalance: Double = 0
+        var currentDate = startDate
+        
+        while currentDate <= endDate {
+            let dayTransactions = relevantTransactions.filter { transaction in
+                calendar.isDate(transaction.timestamp, inSameDayAs: currentDate)
+            }
+            
+            // Calculate net change for the day
+            let dayChange = dayTransactions.reduce(0.0) { result, transaction in
+                switch transaction.direction {
+                case .received:
+                    return result + transaction.dashValue
+                case .sent:
+                    return result - transaction.dashValue
+                case .assetLock, .creditTransfer:
+                    return result // These don't affect portfolio value directly
+                }
+            }
+            
+            runningBalance += dayChange
+            
+            portfolioHistory.append(PortfolioDataPoint(
+                date: currentDate,
+                value: runningBalance,
+                change: dayChange
+            ))
+            
+            currentDate = calendar.date(byAdding: .day, value: 1, to: currentDate) ?? endDate
+        }
+        
+        return portfolioHistory
+    }
+    
+    // MARK: - Private Methods
+    
+    private func setupSubscriptions() {
+        // Subscribe to Core SDK events for real-time updates
+        if let coreSDK = coreSDK as? DashSDK {
+            coreSDK.eventPublisher
+                .sink { [weak self] event in
+                    Task { @MainActor in
+                        await self?.handleCoreEvent(event)
+                    }
+                }
+                .store(in: &cancellables)
+        }
+    }
+    
+    private func handleCoreEvent(_ event: SPVEvent) async {
+        switch event {
+        case .transactionReceived(let txid, _, _, _, _):
+            print("🔄 New Core transaction detected: \(txid)")
+            // Refresh transactions when new transaction is received
+            await refreshAllTransactions()
+            
+        default:
+            break
+        }
+    }
+    
+    private func fetchCoreTransactions() async throws -> [UnifiedTransaction] {
+        // Fetch actual Core transactions from the SDK
+        guard let sdk = appState.coreSDK else {
+            print("⚠️ Core SDK not available for transaction fetching")
+            return []
+        }
+        
+        do {
+            let transactions = try await sdk.getTransactions(limit: 50)
+            return transactions.map { tx in
+                UnifiedTransaction(
+                    id: tx.txid,
+                    type: .coreTransaction,
+                    direction: tx.amount > 0 ? .received : .sent,
+                    amount: abs(tx.amount),
+                    address: tx.toAddress ?? tx.fromAddress,
+                    timestamp: tx.timestamp,
+                    confirmations: tx.confirmations,
+                    fee: tx.fee,
+                    memo: tx.memo,
+                    status: tx.confirmations >= 6 ? .confirmed : (tx.confirmations > 0 ? .confirming : .pending),
+                    blockHeight: tx.blockHeight,
+                    txHash: tx.txid
+                )
+            }
+        } catch {
+            print("❌ Failed to fetch Core transactions: \(error)")
+            return []
+        }
+    }
+    
+    private func fetchPlatformTransactions() async throws -> [UnifiedTransaction] {
+        // Fetch actual Platform transactions
+        guard let platformSDK = appState.platformSDK else {
+            print("⚠️ Platform SDK not available for transaction fetching")
+            return []
+        }
+        
+        // Implementation would go here - for now return empty array as Platform transactions
+        // are handled differently through document operations
+        return []
+    }
+    
+    private func fetchTokenTransactions() async throws -> [UnifiedTransaction] {
+        // Fetch actual Token transactions 
+        guard let tokenService = appState.tokenService else {
+            print("⚠️ Token service not available for transaction fetching")
+            return []
+        }
+        
+        // Implementation would go here - token transactions are document-based operations
+        // For now return empty array as this functionality is handled through the token service
+        return []
+    }
+}
+
+// MARK: - Models
+
+struct UnifiedTransaction: Identifiable {
+    let id: String
+    let type: UnifiedTransactionType
+    let direction: TransactionDirection
+    let amount: UInt64 // Amount in smallest unit (satoshis for DASH, credits for Platform, token units for tokens)
+    let dashValue: Double // Equivalent value in DASH
+    let usdValue: Double // Equivalent value in USD
+    let timestamp: Date
+    let confirmations: UInt32
+    let status: UnifiedTransactionStatus
+    let txid: String
+    let fromAddress: String?
+    let toAddress: String?
+    let fee: UInt64
+    let metadata: TransactionMetadata
+    
+    var formattedAmount: String {
+        switch type {
+        case .coreTransaction:
+            return String(format: "%.8g DASH", dashValue)
+        case .identityCreation, .creditTransfer:
+            return "\(amount) credits"
+        case .tokenTransfer:
+            if let tokenMetadata = metadata as? TokenTransactionMetadata {
+                return "\(Double(amount) / 100_000_000) \(tokenMetadata.tokenSymbol)"
+            }
+            return "\(amount) tokens"
+        }
+    }
+    
+    var formattedUSDValue: String {
+        return String(format: "$%.2f", usdValue)
+    }
+    
+    var displayTitle: String {
+        switch type {
+        case .coreTransaction:
+            return direction == .sent ? "Sent DASH" : "Received DASH"
+        case .identityCreation:
+            return "Identity Created"
+        case .creditTransfer:
+            return "Credit Transfer"
+        case .tokenTransfer:
+            if let tokenMetadata = metadata as? TokenTransactionMetadata {
+                return "\(tokenMetadata.tokenSymbol) Transfer"
+            }
+            return "Token Transfer"
+        }
+    }
+}
+
+enum UnifiedTransactionType: String, Codable, CaseIterable {
+    case coreTransaction = "core"
+    case identityCreation = "identity_creation"
+    case creditTransfer = "credit_transfer"
+    case tokenTransfer = "token_transfer"
+    
+    var displayName: String {
+        switch self {
+        case .coreTransaction:
+            return "Core Transaction"
+        case .identityCreation:
+            return "Identity Creation"
+        case .creditTransfer:
+            return "Credit Transfer"
+        case .tokenTransfer:
+            return "Token Transfer"
+        }
+    }
+    
+    var icon: String {
+        switch self {
+        case .coreTransaction:
+            return "bitcoinsign.circle"
+        case .identityCreation:
+            return "person.badge.plus"
+        case .creditTransfer:
+            return "arrow.left.arrow.right.circle"
+        case .tokenTransfer:
+            return "circle.grid.hex"
+        }
+    }
+}
+
+enum TransactionDirection: String, Codable {
+    case sent
+    case received
+    case assetLock
+    case creditTransfer
+    
+    var icon: String {
+        switch self {
+        case .sent:
+            return "arrow.up.circle"
+        case .received:
+            return "arrow.down.circle"
+        case .assetLock:
+            return "lock.circle"
+        case .creditTransfer:
+            return "arrow.left.arrow.right.circle"
+        }
+    }
+    
+    var color: String {
+        switch self {
+        case .sent:
+            return "red"
+        case .received:
+            return "green"
+        case .assetLock:
+            return "orange"
+        case .creditTransfer:
+            return "blue"
+        }
+    }
+}
+
+enum UnifiedTransactionStatus: String, Codable {
+    case pending
+    case confirming
+    case confirmed
+    case failed
+    
+    var displayName: String {
+        switch self {
+        case .pending:
+            return "Pending"
+        case .confirming:
+            return "Confirming"
+        case .confirmed:
+            return "Confirmed"
+        case .failed:
+            return "Failed"
+        }
+    }
+    
+    var color: String {
+        switch self {
+        case .pending:
+            return "orange"
+        case .confirming:
+            return "yellow"
+        case .confirmed:
+            return "green"
+        case .failed:
+            return "red"
+        }
+    }
+}
+
+// MARK: - Transaction Metadata
+
+protocol TransactionMetadata: Codable {
+    // Base protocol for transaction metadata
+}
+
+struct CoreTransactionMetadata: TransactionMetadata {
+    let isInstantSend: Bool
+    let blockHeight: UInt32?
+}
+
+struct PlatformTransactionMetadata: TransactionMetadata {
+    let identityId: String
+    let operation: String
+    let creditsUsed: UInt64
+}
+
+struct TokenTransactionMetadata: TransactionMetadata {
+    let tokenContractId: String
+    let tokenSymbol: String
+    let tokenName: String
+    let fromIdentityId: String?
+    let toIdentityId: String?
+}
+
+// MARK: - Portfolio Data
+
+struct PortfolioDataPoint: Identifiable {
+    let id = UUID()
+    let date: Date
+    let value: Double // Total portfolio value in DASH
+    let change: Double // Change for this period
+    
+    var formattedValue: String {
+        return String(format: "%.6f DASH", value)
+    }
+    
+    var formattedChange: String {
+        let sign = change >= 0 ? "+" : ""
+        return "\(sign)\(String(format: "%.6f", change))"
+    }
+}
