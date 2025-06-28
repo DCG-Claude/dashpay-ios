@@ -108,12 +108,19 @@ class AppState: ObservableObject {
     @Published var dataStatistics: (identities: Int, documents: Int, contracts: Int, tokenBalances: Int)?
     
     private let testSigner = TestSigner()
-    private var dataManager: DataManager?
+    private var _dataManager: DataManager?
     private var modelContext: ModelContext?
+    
+    var dataManager: DataManager? {
+        return _dataManager
+    }
     
     // Token system integration
     @Published var tokenService: TokenService?
     @Published var platformSigner: PlatformSigner?
+    
+    // Document system integration
+    @Published var documentService: DocumentService?
     
     init() {
         // Load saved network preference or use default
@@ -130,7 +137,7 @@ class AppState: ObservableObject {
         self.modelContext = modelContext
         
         // Initialize DataManager
-        self.dataManager = DataManager(modelContext: modelContext, currentNetwork: currentNetwork)
+        self._dataManager = DataManager(modelContext: modelContext, currentNetwork: currentNetwork)
         
         Task { @MainActor in
             do {
@@ -168,7 +175,13 @@ class AppState: ObservableObject {
                 tokenService = tokenSvc
                 print("✅ Token Service initialized")
                 
-                // Step 6: Load persisted data
+                // Step 6: Initialize DocumentService
+                print("📄 Initializing Document Service...")
+                let docService = DocumentService(platformSDK: platformSdk, dataManager: _dataManager!)
+                documentService = docService
+                print("✅ Document Service initialized")
+                
+                // Step 7: Load persisted data
                 print("📂 Loading persisted data...")
                 await loadPersistedData()
                 
@@ -193,7 +206,7 @@ class AppState: ObservableObject {
     }
     
     func loadPersistedData() async {
-        guard let dataManager = dataManager else { return }
+        guard let dataManager = _dataManager else { return }
         
         do {
             // Load identities
@@ -343,7 +356,7 @@ class AppState: ObservableObject {
     
     /// Load persisted token balances from SwiftData
     func loadPersistedTokens() async {
-        guard let dataManager = dataManager else { return }
+        guard let dataManager = _dataManager else { return }
         
         var allTokens: [TokenModel] = []
         
@@ -386,7 +399,7 @@ class AppState: ObservableObject {
     
     /// Save token balances to SwiftData
     func saveTokenBalances() async {
-        guard let dataManager = dataManager else { return }
+        guard let dataManager = _dataManager else { return }
         
         // Group tokens by identity
         let tokensByIdentity = Dictionary(grouping: tokens) { token in
@@ -425,7 +438,7 @@ class AppState: ObservableObject {
     }
     
     func loadSampleIdentities() async {
-        guard let dataManager = dataManager else { return }
+        guard let dataManager = _dataManager else { return }
         
         // Add some sample local identities for testing
         let sampleIdentities = [
@@ -477,7 +490,7 @@ class AppState: ObservableObject {
         tokens.removeAll()
         
         // Update DataManager's current network
-        dataManager?.currentNetwork = network
+        _dataManager?.currentNetwork = network
         
         // Re-initialize SDK with new network
         do {
