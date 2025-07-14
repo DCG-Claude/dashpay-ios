@@ -793,9 +793,9 @@ typedef struct DashSDKError {
 typedef struct DashSDKResult {
   // Type of data being returned
   enum DashSDKResultDataType data_type;
-  // Pointer to the result data (null on error)
+  // Pointer to the result data (owned, caller must free based on data_type, null on error)
   void *data;
-  // Error information (null on success)
+  // Error information (owned, caller must free with dash_sdk_error_free, null on success)
   struct DashSDKError *error;
 } DashSDKResult;
 // Opaque handle to a context provider
@@ -899,7 +899,7 @@ typedef struct DashSDKDocumentSearchParams {
 } DashSDKDocumentSearchParams;
 // Identity information
 typedef struct DashSDKIdentityInfo {
-  // Identity ID as hex string (null-terminated)
+  // Identity ID as hex string (owned, null-terminated UTF-8 string, caller must free)
   char *id;
   // Balance in credits
   uint64_t balance;
@@ -974,9 +974,9 @@ typedef bool (*IOSCanSignCallback)(const uint8_t *identity_public_key_bytes,
                                    uintptr_t identity_public_key_len);
 // Token burn parameters
 typedef struct DashSDKTokenBurnParams {
-  // Token contract ID (Base58 encoded) - mutually exclusive with serialized_contract
+  // Token contract ID (borrowed, null-terminated UTF-8 string, must remain valid during call) - mutually exclusive with serialized_contract
   const char *token_contract_id;
-  // Serialized data contract (bincode) - mutually exclusive with token_contract_id
+  // Serialized data contract (borrowed, binary data, must remain valid during call) - mutually exclusive with token_contract_id
   const uint8_t *serialized_contract;
   // Length of serialized contract data
   uintptr_t serialized_contract_len;
@@ -984,14 +984,14 @@ typedef struct DashSDKTokenBurnParams {
   uint16_t token_position;
   // Amount to burn
   uint64_t amount;
-  // Optional public note
+  // Optional public note (borrowed, null-terminated UTF-8 string, must remain valid during call)
   const char *public_note;
 } DashSDKTokenBurnParams;
 // Token claim parameters
 typedef struct DashSDKTokenClaimParams {
-  // Token contract ID (Base58 encoded) - mutually exclusive with serialized_contract
+  // Token contract ID (borrowed, null-terminated UTF-8 string, must remain valid during call) - mutually exclusive with serialized_contract
   const char *token_contract_id;
-  // Serialized data contract (bincode) - mutually exclusive with token_contract_id
+  // Serialized data contract (borrowed, binary data, must remain valid during call) - mutually exclusive with token_contract_id
   const uint8_t *serialized_contract;
   // Length of serialized contract data
   uintptr_t serialized_contract_len;
@@ -999,52 +999,52 @@ typedef struct DashSDKTokenClaimParams {
   uint16_t token_position;
   // Distribution type (PreProgrammed or Perpetual)
   enum DashSDKTokenDistributionType distribution_type;
-  // Optional public note
+  // Optional public note (borrowed, null-terminated UTF-8 string, must remain valid during call)
   const char *public_note;
 } DashSDKTokenClaimParams;
 // Token mint parameters
 typedef struct DashSDKTokenMintParams {
-  // Token contract ID (Base58 encoded) - mutually exclusive with serialized_contract
+  // Token contract ID (borrowed, null-terminated UTF-8 string, must remain valid during call) - mutually exclusive with serialized_contract
   const char *token_contract_id;
-  // Serialized data contract (bincode) - mutually exclusive with token_contract_id
+  // Serialized data contract (borrowed, binary data, must remain valid during call) - mutually exclusive with token_contract_id
   const uint8_t *serialized_contract;
   // Length of serialized contract data
   uintptr_t serialized_contract_len;
   // Token position in the contract (defaults to 0 if not specified)
   uint16_t token_position;
-  // Recipient identity ID (32 bytes) - optional
+  // Recipient identity ID (borrowed, pointer to 32-byte array, must remain valid during call) - optional
   const uint8_t *recipient_id;
   // Amount to mint
   uint64_t amount;
-  // Optional public note
+  // Optional public note (borrowed, null-terminated UTF-8 string, must remain valid during call)
   const char *public_note;
 } DashSDKTokenMintParams;
 // Token transfer parameters
 typedef struct DashSDKTokenTransferParams {
-  // Token contract ID (Base58 encoded) - mutually exclusive with serialized_contract
+  // Token contract ID (borrowed, null-terminated UTF-8 string, must remain valid during call) - mutually exclusive with serialized_contract
   const char *token_contract_id;
-  // Serialized data contract (bincode) - mutually exclusive with token_contract_id
+  // Serialized data contract (borrowed, binary data, must remain valid during call) - mutually exclusive with token_contract_id
   const uint8_t *serialized_contract;
   // Length of serialized contract data
   uintptr_t serialized_contract_len;
   // Token position in the contract (defaults to 0 if not specified)
   uint16_t token_position;
-  // Recipient identity ID (32 bytes)
+  // Recipient identity ID (borrowed, pointer to 32-byte array, must remain valid during call)
   const uint8_t *recipient_id;
   // Amount to transfer
   uint64_t amount;
-  // Optional public note
+  // Optional public note (borrowed, null-terminated UTF-8 string, must remain valid during call)
   const char *public_note;
-  // Optional private encrypted note
+  // Optional private encrypted note (borrowed, null-terminated UTF-8 string, must remain valid during call)
   const char *private_encrypted_note;
-  // Optional shared encrypted note
+  // Optional shared encrypted note (borrowed, null-terminated UTF-8 string, must remain valid during call)
   const char *shared_encrypted_note;
 } DashSDKTokenTransferParams;
 // Token configuration update parameters
 typedef struct DashSDKTokenConfigUpdateParams {
-  // Token contract ID (Base58 encoded) - mutually exclusive with serialized_contract
+  // Token contract ID (borrowed, null-terminated UTF-8 string, must remain valid during call) - mutually exclusive with serialized_contract
   const char *token_contract_id;
-  // Serialized data contract (bincode) - mutually exclusive with token_contract_id
+  // Serialized data contract (borrowed, binary data, must remain valid during call) - mutually exclusive with token_contract_id
   const uint8_t *serialized_contract;
   // Length of serialized contract data
   uintptr_t serialized_contract_len;
@@ -1056,35 +1056,35 @@ typedef struct DashSDKTokenConfigUpdateParams {
   uint64_t amount;
   // For boolean updates like MintingAllowChoosingDestination
   bool bool_value;
-  // For identity-based updates - identity ID (32 bytes)
+  // For identity-based updates - identity ID (borrowed, pointer to 32-byte array, must remain valid during call)
   const uint8_t *identity_id;
   // For group-based updates - the group position
   uint16_t group_position;
   // For permission updates - the authorized action takers
   enum DashSDKAuthorizedActionTakers action_takers;
-  // Optional public note
+  // Optional public note (borrowed, null-terminated UTF-8 string, must remain valid during call)
   const char *public_note;
 } DashSDKTokenConfigUpdateParams;
 // Token destroy frozen funds parameters
 typedef struct DashSDKTokenDestroyFrozenFundsParams {
-  // Token contract ID (Base58 encoded) - mutually exclusive with serialized_contract
+  // Token contract ID (borrowed, null-terminated UTF-8 string, must remain valid during call) - mutually exclusive with serialized_contract
   const char *token_contract_id;
-  // Serialized data contract (bincode) - mutually exclusive with token_contract_id
+  // Serialized data contract (borrowed, binary data, must remain valid during call) - mutually exclusive with token_contract_id
   const uint8_t *serialized_contract;
   // Length of serialized contract data
   uintptr_t serialized_contract_len;
   // Token position in the contract (defaults to 0 if not specified)
   uint16_t token_position;
-  // The frozen identity whose funds to destroy (32 bytes)
+  // The frozen identity whose funds to destroy (borrowed, pointer to 32-byte array, must remain valid during call)
   const uint8_t *frozen_identity_id;
-  // Optional public note
+  // Optional public note (borrowed, null-terminated UTF-8 string, must remain valid during call)
   const char *public_note;
 } DashSDKTokenDestroyFrozenFundsParams;
 // Token emergency action parameters
 typedef struct DashSDKTokenEmergencyActionParams {
-  // Token contract ID (Base58 encoded) - mutually exclusive with serialized_contract
+  // Token contract ID (borrowed, null-terminated UTF-8 string, must remain valid during call) - mutually exclusive with serialized_contract
   const char *token_contract_id;
-  // Serialized data contract (bincode) - mutually exclusive with token_contract_id
+  // Serialized data contract (borrowed, binary data, must remain valid during call) - mutually exclusive with token_contract_id
   const uint8_t *serialized_contract;
   // Length of serialized contract data
   uintptr_t serialized_contract_len;
@@ -1092,22 +1092,22 @@ typedef struct DashSDKTokenEmergencyActionParams {
   uint16_t token_position;
   // The emergency action to perform
   enum DashSDKTokenEmergencyAction action;
-  // Optional public note
+  // Optional public note (borrowed, null-terminated UTF-8 string, must remain valid during call)
   const char *public_note;
 } DashSDKTokenEmergencyActionParams;
 // Token freeze/unfreeze parameters
 typedef struct DashSDKTokenFreezeParams {
-  // Token contract ID (Base58 encoded) - mutually exclusive with serialized_contract
+  // Token contract ID (borrowed, null-terminated UTF-8 string, must remain valid during call) - mutually exclusive with serialized_contract
   const char *token_contract_id;
-  // Serialized data contract (bincode) - mutually exclusive with token_contract_id
+  // Serialized data contract (borrowed, binary data, must remain valid during call) - mutually exclusive with token_contract_id
   const uint8_t *serialized_contract;
   // Length of serialized contract data
   uintptr_t serialized_contract_len;
   // Token position in the contract (defaults to 0 if not specified)
   uint16_t token_position;
-  // The identity to freeze/unfreeze (32 bytes)
+  // The identity to freeze/unfreeze (borrowed, pointer to 32-byte array, must remain valid during call)
   const uint8_t *target_identity_id;
-  // Optional public note
+  // Optional public note (borrowed, null-terminated UTF-8 string, must remain valid during call)
   const char *public_note;
 } DashSDKTokenFreezeParams;
 // Token purchase parameters
@@ -1134,9 +1134,9 @@ typedef struct DashSDKTokenPriceEntry {
 } DashSDKTokenPriceEntry;
 // Token set price parameters
 typedef struct DashSDKTokenSetPriceParams {
-  // Token contract ID (Base58 encoded) - mutually exclusive with serialized_contract
+  // Token contract ID (borrowed, null-terminated UTF-8 string, must remain valid during call) - mutually exclusive with serialized_contract
   const char *token_contract_id;
-  // Serialized data contract (bincode) - mutually exclusive with token_contract_id
+  // Serialized data contract (borrowed, binary data, must remain valid during call) - mutually exclusive with token_contract_id
   const uint8_t *serialized_contract;
   // Length of serialized contract data
   uintptr_t serialized_contract_len;
@@ -1146,16 +1146,16 @@ typedef struct DashSDKTokenSetPriceParams {
   enum DashSDKTokenPricingType pricing_type;
   // For SinglePrice - the price in credits (ignored for SetPrices)
   uint64_t single_price;
-  // For SetPrices - array of price entries (ignored for SinglePrice)
+  // For SetPrices - array of price entries (borrowed, array must remain valid during call) - ignored for SinglePrice
   const struct DashSDKTokenPriceEntry *price_entries;
   // Number of price entries
   uint32_t price_entries_count;
-  // Optional public note
+  // Optional public note (borrowed, null-terminated UTF-8 string, must remain valid during call)
   const char *public_note;
 } DashSDKTokenSetPriceParams;
 // Binary data container for results
 typedef struct DashSDKBinaryData {
-  // Pointer to the data
+  // Pointer to the data (owned, binary data, caller must free)
   uint8_t *data;
   // Length of the data
   uintptr_t len;
@@ -1169,7 +1169,7 @@ typedef struct DashSDKIdentityBalanceEntry {
 } DashSDKIdentityBalanceEntry;
 // Map of identity IDs to balances
 typedef struct DashSDKIdentityBalanceMap {
-  // Array of entries
+  // Array of entries (owned, array must be freed by caller)
   struct DashSDKIdentityBalanceEntry *entries;
   // Number of entries
   uintptr_t count;
