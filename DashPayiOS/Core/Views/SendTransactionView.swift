@@ -32,8 +32,7 @@ struct SendTransactionView: View {
         guard let amount = amount, amount > 0 else { return false }
         return !recipientAddress.isEmpty &&
                totalAmount <= availableBalance &&
-               // Basic validation - would use sdk?.validateAddress in production
-               (recipientAddress.starts(with: "X") || recipientAddress.starts(with: "y"))
+               isValidAddress
     }
     
     var body: some View {
@@ -187,11 +186,11 @@ struct SendTransactionView: View {
     }
     
     private func validateAddress() {
-        // Basic validation - would use sdk?.validateAddress in production
         if recipientAddress.isEmpty {
             isValidAddress = true
         } else {
-            isValidAddress = (recipientAddress.starts(with: "X") || recipientAddress.starts(with: "y"))
+            // Use comprehensive address validation from SDK
+            isValidAddress = walletService.sdk?.validateAddress(recipientAddress) ?? false
         }
         errorMessage = ""
     }
