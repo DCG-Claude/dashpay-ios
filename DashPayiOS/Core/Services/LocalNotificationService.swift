@@ -315,7 +315,7 @@ class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
 // MARK: - Notification Settings View
 
 struct NotificationSettingsView: View {
-    @StateObject private var notificationService = LocalNotificationService.shared
+    @ObservedObject private var notificationService = LocalNotificationService.shared
     
     var body: some View {
         NavigationView {
