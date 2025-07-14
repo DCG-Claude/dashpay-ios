@@ -1831,6 +1831,7 @@ int32_t dash_sdk_register_context_callbacks(const struct ContextProviderCallback
 struct DashSDKResult dash_sdk_create_with_callbacks(const struct DashSDKConfig *config,
                                                     const struct ContextProviderCallbacks *callbacks);
 // Get the current network the SDK is connected to
+struct DashSDKResult dash_sdk_get_network(const struct SDKHandle *sdk_handle);
 
 #ifdef __cplusplus
 }  // extern "C"
