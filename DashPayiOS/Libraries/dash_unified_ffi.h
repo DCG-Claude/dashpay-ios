@@ -33,9 +33,45 @@ typedef struct ContextProviderHandle ContextProviderHandle;
 /* Unified FFI Functions                          */
 /* ============================================== */
 
+/**
+ * Initialize the unified FFI system
+ *
+ * This function initializes the unified FFI system and should be called
+ * before using any other unified FFI functions.
+ *
+ * @return 0 on success, negative error code on failure
+ */
 int32_t dash_unified_init(void);
-int32_t dash_unified_register_core_sdk_handle(void *core_handle);
+
+/**
+ * Register a Core SDK handle with the unified FFI system
+ *
+ * This function registers a Dash SPV client handle with the unified FFI system,
+ * allowing it to be used for core blockchain operations.
+ *
+ * @param core_handle Pointer to a valid FFIDashSpvClient instance
+ * @return 0 on success, negative error code on failure
+ */
+int32_t dash_unified_register_core_sdk_handle(struct FFIDashSpvClient *core_handle);
+
+/**
+ * Test the unified FFI system
+ *
+ * This function performs basic testing of the unified FFI system to verify
+ * it is working correctly.
+ *
+ * @return 0 on success, negative error code on failure
+ */
 int32_t dash_unified_test(void);
+
+/**
+ * Free a string allocated by the unified FFI system
+ *
+ * This function frees memory allocated for strings returned by unified FFI
+ * functions. Must be called to prevent memory leaks.
+ *
+ * @param s Pointer to the string to be freed
+ */
 void dash_unified_string_free(char *s);
 
 /* ============================================== */
@@ -165,6 +201,19 @@ typedef struct FFIArray {
   uintptr_t len;
   uintptr_t capacity;
 } FFIArray;
+/**
+ * Callback function type for block notifications.
+ * 
+ * Thread Safety:
+ * - This callback may be invoked from multiple threads simultaneously
+ * - The callback implementation must be thread-safe
+ * 
+ * User Data Lifetime and Ownership:
+ * - `user_data` must remain valid and accessible for the entire callback registration period
+ * - The caller is responsible for managing `user_data` memory lifecycle
+ * - If `user_data` is mutable, the caller must ensure proper synchronization
+ * - The callback should not modify or free `user_data` unless explicitly coordinated
+ */
 typedef void (*BlockCallback)(uint32_t height, const uint8_t (*hash)[32], void *user_data);
 typedef void (*TransactionCallback)(const uint8_t (*txid)[32],
                                     bool confirmed,

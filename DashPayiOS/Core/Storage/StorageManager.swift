@@ -169,9 +169,17 @@ final class StorageManager {
     func performBatchUpdate<T>(
         _ updates: @escaping () throws -> T
     ) async throws -> T {
-        let result = try updates()
-        try backgroundContext.save()
-        return result
+        return try await withCheckedThrowingContinuation { continuation in
+            backgroundContext.perform {
+                do {
+                    let result = try updates()
+                    try self.backgroundContext.save()
+                    continuation.resume(returning: result)
+                } catch {
+                    continuation.resume(throwing: error)
+                }
+            }
+        }
     }
     
     // MARK: - Cleanup
