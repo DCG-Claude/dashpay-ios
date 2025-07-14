@@ -9,6 +9,7 @@ struct ReceiveAddressView: View {
     @State private var currentAddress: HDWatchedAddress?
     @State private var isCopied = false
     @State private var showNewAddressConfirm = false
+    @State private var addressGenerationError: String?
     
     var body: some View {
         NavigationView {
@@ -134,8 +135,9 @@ struct ReceiveAddressView: View {
         do {
             let newAddress = try walletService.generateNewAddress(for: account, isChange: false)
             currentAddress = newAddress
+            addressGenerationError = nil // Clear any previous error
         } catch {
-            print("Error generating address: \(error)")
+            addressGenerationError = "Failed to generate new address: \(error.localizedDescription)"
         }
     }
 }
@@ -175,22 +177,28 @@ struct QRCodeView: View {
     }
     
     private func generateQRCode() {
-        let context = CIContext()
-        let filter = CIFilter.qrCodeGenerator()
-        
-        filter.message = Data(content.utf8)
-        filter.correctionLevel = "M"
-        
-        guard let outputImage = filter.outputImage else { return }
-        
-        let scaledImage = outputImage.transformed(by: CGAffineTransform(scaleX: 10, y: 10))
-        
-        if let cgImage = context.createCGImage(scaledImage, from: scaledImage.extent) {
-            #if os(iOS)
-            qrImage = UIImage(cgImage: cgImage)
-            #elseif os(macOS)
-            qrImage = NSImage(cgImage: cgImage, size: NSSize(width: 200, height: 200))
-            #endif
+        // Move QR code generation to background thread to avoid blocking UI
+        DispatchQueue.global(qos: .userInitiated).async {
+            let context = CIContext()
+            let filter = CIFilter.qrCodeGenerator()
+            
+            filter.message = Data(content.utf8)
+            filter.correctionLevel = "M"
+            
+            guard let outputImage = filter.outputImage else { return }
+            
+            let scaledImage = outputImage.transformed(by: CGAffineTransform(scaleX: 10, y: 10))
+            
+            if let cgImage = context.createCGImage(scaledImage, from: scaledImage.extent) {
+                // Update UI on main thread
+                DispatchQueue.main.async {
+                    #if os(iOS)
+                    self.qrImage = UIImage(cgImage: cgImage)
+                    #elseif os(macOS)
+                    self.qrImage = NSImage(cgImage: cgImage, size: NSSize(width: 200, height: 200))
+                    #endif
+                }
+            }
         }
     }
 }
