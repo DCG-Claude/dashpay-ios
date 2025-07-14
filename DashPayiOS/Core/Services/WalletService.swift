@@ -483,9 +483,8 @@ class WalletService: ObservableObject {
                 // FIX: Stop the SDK's automatic periodic sync immediately
                 // We want ONLY manual sync control to prevent duplicate syncs
                 logger.info("🛑 Stopping SDK's automatic periodic sync...")
-                // Note: SDK's wallet property is private, so we can't call stopPeriodicSync directly
-                // The SDK will still have its periodic sync running, but we control all manual syncs
-                logger.info("⚠️ SDK periodic sync cannot be stopped (private property), using sync coordination instead")
+                sdk.stopPeriodicSync()
+                logger.info("✅ SDK periodic sync stopped successfully")
             } else {
                 logger.error("❌ SDK connect() returned but isConnected is false")
                 throw WalletError.connectionFailed

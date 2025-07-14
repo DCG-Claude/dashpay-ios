@@ -86,18 +86,24 @@ public final class DashSDK: UTXOTransactionSyncProtocol {
     
     // MARK: - Connection Management
     
-    public func connect() async throws {
+    public func connect(disableAutoSync: Bool = false) async throws {
         try await client.start()
         
         // Re-sync persisted addresses with SPV client
         await syncPersistedAddresses()
         
-        wallet.startPeriodicSync()
+        if !disableAutoSync {
+            wallet.startPeriodicSync()
+        }
     }
     
     public func disconnect() async throws {
         wallet.stopPeriodicSync()
         try await client.stop()
+    }
+    
+    public func stopPeriodicSync() {
+        wallet.stopPeriodicSync()
     }
     
     // MARK: - Synchronization
