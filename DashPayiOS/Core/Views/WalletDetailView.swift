@@ -97,21 +97,10 @@ struct WalletDetailView: View {
             // Don't auto-connect - let user control the process
         }
         .onChange(of: walletService.syncProgress) { oldValue, newValue in
-            // Monitor sync completion
-            if let progress = newValue {
-                // Check if sync just completed
-                if progress.status == .synced && oldValue?.status != .synced {
-                    syncWasCompleted = true
-                }
-            }
+            handleSyncProgressChange(oldValue: oldValue, newValue: newValue)
         }
         .onChange(of: walletService.detailedSyncProgress) { oldValue, newValue in
-            // Also monitor detailed sync progress for completion
-            if let progress = newValue, progress.stage == .complete {
-                if oldValue?.stage != .complete {
-                    syncWasCompleted = true
-                }
-            }
+            handleDetailedSyncProgressChange(oldValue: oldValue, newValue: newValue)
         }
         #else
         HSplitView {
@@ -170,21 +159,10 @@ struct WalletDetailView: View {
             }
         }
         .onChange(of: walletService.syncProgress) { oldValue, newValue in
-            // Monitor sync completion
-            if let progress = newValue {
-                // Check if sync just completed
-                if progress.status == .synced && oldValue?.status != .synced {
-                    syncWasCompleted = true
-                }
-            }
+            handleSyncProgressChange(oldValue: oldValue, newValue: newValue)
         }
         .onChange(of: walletService.detailedSyncProgress) { oldValue, newValue in
-            // Also monitor detailed sync progress for completion
-            if let progress = newValue, progress.stage == .complete {
-                if oldValue?.stage != .complete {
-                    syncWasCompleted = true
-                }
-            }
+            handleDetailedSyncProgressChange(oldValue: oldValue, newValue: newValue)
         }
         #endif
     }
@@ -202,6 +180,27 @@ struct WalletDetailView: View {
             print("❌ Connection failed: \(error)")
         }
         isConnecting = false
+    }
+    
+    // MARK: - Helper Functions for Sync Progress Monitoring
+    
+    private func handleSyncProgressChange(oldValue: SyncProgress?, newValue: SyncProgress?) {
+        // Monitor sync completion
+        if let progress = newValue {
+            // Check if sync just completed
+            if progress.status == .synced && oldValue?.status != .synced {
+                syncWasCompleted = true
+            }
+        }
+    }
+    
+    private func handleDetailedSyncProgressChange(oldValue: DetailedSyncProgress?, newValue: DetailedSyncProgress?) {
+        // Also monitor detailed sync progress for completion
+        if let progress = newValue, progress.stage == .complete {
+            if oldValue?.stage != .complete {
+                syncWasCompleted = true
+            }
+        }
     }
     
 }
