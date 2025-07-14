@@ -5,7 +5,7 @@ import SwiftData
 struct EnhancedEditDocumentView: View {
     let document: DocumentModel
     @EnvironmentObject var appState: AppState
-    @StateObject private var documentService: DocumentService
+    @ObservedObject private var documentService: DocumentService
     @Environment(\.dismiss) private var dismiss
     
     @State private var editedData: [String: Any]
@@ -33,16 +33,11 @@ struct EnhancedEditDocumentView: View {
         documentSchema?["required"] as? [String] ?? []
     }
     
-    init(document: DocumentModel) {
+    init(document: DocumentModel, documentService: DocumentService) {
         self.document = document
+        self.documentService = documentService
         self._editedData = State(initialValue: document.data)
         self._rawJsonText = State(initialValue: document.formattedData)
-        
-        // Initialize with placeholder values - will be properly injected
-        let dummyContainer = try! ModelContainer.inMemoryContainer()
-        let dummyDataManager = DataManager(modelContext: dummyContainer.mainContext)
-        let dummyPlatformSDK = try! PlatformSDKWrapper(network: .testnet)
-        self._documentService = StateObject(wrappedValue: DocumentService(platformSDK: dummyPlatformSDK, dataManager: dummyDataManager))
     }
     
     var body: some View {
@@ -150,9 +145,6 @@ struct EnhancedEditDocumentView: View {
                     updateDataFromJson()
                 }
             }
-            .onAppear {
-                setupDocumentService()
-            }
         }
     
     // MARK: - Computed Properties
@@ -162,18 +154,6 @@ struct EnhancedEditDocumentView: View {
     }
     
     // MARK: - Helper Methods
-    
-    private func setupDocumentService() {
-        guard let platformSDK = appState.platformSDK,
-              let dataManager = appState.dataManager else {
-            print("⚠️ DocumentService setup skipped - missing dependencies")
-            return
-        }
-        
-        // Configure the DocumentService with real dependencies from appState
-        documentService.configure(platformSDK: platformSDK, dataManager: dataManager)
-        print("📄 DocumentService configured successfully for editing")
-    }
     
     private func validateData() {
         validationErrors.removeAll()
@@ -920,7 +900,7 @@ struct AddPropertyView: View {
     let onAdd: (String, String) -> Void
     
     @Environment(\.dismiss) private var dismiss
-    @State private var selectedType: PropertyType = .string
+    @State private var selectedType: EditPropertyType = .string
     
     var body: some View {
         NavigationView {
@@ -1087,6 +1067,13 @@ struct ValidationErrorView: View {
         ]
     )
     
-    EnhancedEditDocumentView(document: document)
-        .environmentObject(AppState())
+    // Create a properly configured DocumentService for preview
+    let appState = AppState()
+    let documentService = DocumentService.placeholderOrNil() ?? {
+        // If placeholder creation fails, create a minimal service with proper error handling
+        fatalError("Unable to create DocumentService for preview")
+    }()
+    
+    EnhancedEditDocumentView(document: document, documentService: documentService)
+        .environmentObject(appState)
 }
