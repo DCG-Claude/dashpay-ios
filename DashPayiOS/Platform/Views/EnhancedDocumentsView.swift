@@ -740,10 +740,7 @@ enum DocumentSortOrder: String, CaseIterable {
 #Preview {
     // Create safe preview dependencies without force unwrapping
     struct PreviewContainer {
-        static let shared: DocumentService = {
-            // Try to create DocumentService safely
-            return DocumentService.placeholderOrNil() ?? createFallbackService()
-        }()
+        static let shared: DocumentService = createFallbackService()
         
         private static func createFallbackService() -> DocumentService {
             // Create minimal in-memory dependencies for preview

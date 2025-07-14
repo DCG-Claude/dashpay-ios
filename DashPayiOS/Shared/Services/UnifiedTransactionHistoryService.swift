@@ -19,6 +19,7 @@ class UnifiedTransactionHistoryService: ObservableObject {
     private let coreSDK: DashSDKProtocol
     private let platformWrapper: PlatformSDKWrapper?
     private let tokenService: TokenService
+    private let walletService: WalletService
     private var cancellables = Set<AnyCancellable>()
     
     // MARK: - Initialization
@@ -26,11 +27,13 @@ class UnifiedTransactionHistoryService: ObservableObject {
     init(
         coreSDK: DashSDKProtocol,
         platformWrapper: PlatformSDKWrapper?,
-        tokenService: TokenService
+        tokenService: TokenService,
+        walletService: WalletService
     ) {
         self.coreSDK = coreSDK
         self.platformWrapper = platformWrapper
         self.tokenService = tokenService
+        self.walletService = walletService
         
         setupSubscriptions()
     }
@@ -199,15 +202,54 @@ class UnifiedTransactionHistoryService: ObservableObject {
     }
     
     private func fetchCoreTransactions() async throws -> [UnifiedTransaction] {
-        // TODO: Implement fetching from SDK or SwiftData
-        // For now, the SDK doesn't provide a method to fetch all transactions
-        // And this service doesn't have access to WalletService
-        // This would need to be refactored to either:
-        // 1. Pass WalletService as a dependency
-        // 2. Use the SDK's transaction fetching methods when available
-        // 3. Access SwiftData directly
-        print("⚠️ Core transaction fetching needs integration with WalletService or SDK")
-        return []
+        guard let activeAccount = walletService.activeAccount else {
+            return []
+        }
+        
+        let sdkTransactions = await walletService.fetchTransactionsForAccount(activeAccount)
+        
+        return sdkTransactions.compactMap { sdkTransaction in
+            convertToUnifiedTransaction(from: sdkTransaction)
+        }
+    }
+    
+    /// Convert SwiftDashCoreSDK.Transaction to UnifiedTransaction
+    private func convertToUnifiedTransaction(from sdkTransaction: SwiftDashCoreSDK.Transaction) -> UnifiedTransaction? {
+        // Determine transaction direction based on amount
+        let direction: TransactionDirection = sdkTransaction.amount >= 0 ? .received : .sent
+        
+        // Determine transaction status based on confirmations
+        let status: UnifiedTransactionStatus
+        if sdkTransaction.confirmations == 0 {
+            status = .pending
+        } else if sdkTransaction.confirmations < 6 {
+            status = .confirming
+        } else {
+            status = .confirmed
+        }
+        
+        // Create core transaction metadata
+        let metadata = CoreTransactionMetadata(
+            isInstantSend: sdkTransaction.isInstantLocked,
+            blockHeight: sdkTransaction.height
+        )
+        
+        return UnifiedTransaction(
+            id: sdkTransaction.txid,
+            type: .coreTransaction,
+            direction: direction,
+            amount: UInt64(abs(sdkTransaction.amount)),
+            dashValue: Double(abs(sdkTransaction.amount)) / 100_000_000.0,
+            usdValue: 0.0, // TODO: Calculate USD value based on current exchange rate
+            timestamp: sdkTransaction.timestamp,
+            confirmations: sdkTransaction.confirmations,
+            status: status,
+            txid: sdkTransaction.txid,
+            fromAddress: nil, // TODO: Extract from transaction data if needed
+            toAddress: nil, // TODO: Extract from transaction data if needed
+            fee: sdkTransaction.fee,
+            metadata: metadata
+        )
     }
     
     private func fetchPlatformTransactions() async throws -> [UnifiedTransaction] {

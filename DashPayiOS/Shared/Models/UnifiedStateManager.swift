@@ -53,7 +53,8 @@ class UnifiedStateManager: ObservableObject {
                 self.transactionHistory = UnifiedTransactionHistoryService(
                     coreSDK: coreSDK,
                     platformWrapper: platformWrapper,
-                    tokenService: TokenService()
+                    tokenService: TokenService(),
+                    walletService: WalletService.shared
                 )
             }
         }

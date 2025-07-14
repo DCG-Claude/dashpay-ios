@@ -15,7 +15,8 @@ struct UnifiedTransactionHistoryView: View {
         self._historyService = StateObject(wrappedValue: UnifiedTransactionHistoryService(
             coreSDK: MockDashSDK(),
             platformWrapper: nil,
-            tokenService: TokenService()
+            tokenService: TokenService(),
+            walletService: WalletService.shared
         ))
     }
     
