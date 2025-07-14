@@ -1,3 +1,6 @@
+#ifndef DASH_SPV_FFI_H
+#define DASH_SPV_FFI_H
+
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -540,3 +543,5 @@ void dash_spv_ffi_filter_match_destroy(struct FFIFilterMatch *filter_match);
 void dash_spv_ffi_address_stats_destroy(struct FFIAddressStats *stats);
 
 int32_t dash_spv_ffi_validate_address(const char *address, enum FFINetwork network);
+
+#endif /* DASH_SPV_FFI_H */
