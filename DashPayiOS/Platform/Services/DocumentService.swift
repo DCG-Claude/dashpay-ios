@@ -3,8 +3,8 @@ import Foundation
 /// Comprehensive document service for Platform document CRUD operations
 @MainActor
 class DocumentService: ObservableObject {
-    private let platformSDK: PlatformSDKWrapper
-    private let dataManager: DataManager
+    private var platformSDK: PlatformSDKWrapper
+    private var dataManager: DataManager
     
     @Published var isLoading = false
     @Published var error: DocumentServiceError?
@@ -12,6 +12,15 @@ class DocumentService: ObservableObject {
     init(platformSDK: PlatformSDKWrapper, dataManager: DataManager) {
         self.platformSDK = platformSDK
         self.dataManager = dataManager
+    }
+    
+    /// Configure the DocumentService with proper dependencies
+    /// This method allows updating the service after initialization with real dependencies
+    func configure(platformSDK: PlatformSDKWrapper, dataManager: DataManager) {
+        // Update the dependencies to use real values instead of placeholders
+        self.platformSDK = platformSDK
+        self.dataManager = dataManager
+        print("✅ DocumentService configured with production dependencies")
     }
     
     /// Create a placeholder DocumentService for UI previews and initial states

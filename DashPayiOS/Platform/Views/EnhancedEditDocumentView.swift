@@ -166,10 +166,13 @@ struct EnhancedEditDocumentView: View {
     private func setupDocumentService() {
         guard let platformSDK = appState.platformSDK,
               let dataManager = appState.dataManager else {
+            print("⚠️ DocumentService setup skipped - missing dependencies")
             return
         }
         
-        print("📄 Setting up DocumentService for editing")
+        // Configure the DocumentService with real dependencies from appState
+        documentService.configure(platformSDK: platformSDK, dataManager: dataManager)
+        print("📄 DocumentService configured successfully for editing")
     }
     
     private func validateData() {
