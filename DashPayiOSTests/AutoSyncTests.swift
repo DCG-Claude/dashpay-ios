@@ -24,7 +24,7 @@ final class AutoSyncTests: XCTestCase {
         // Create a test wallet
         testWallet = try walletService.createWallet(
             name: "Test Auto-Sync Wallet",
-            mnemonic: HDWalletService.generateMnemonic(),
+            mnemonic: try HDWalletService.generateMnemonic(),
             password: "testpassword123",
             network: .testnet
         )
@@ -97,7 +97,7 @@ final class AutoSyncTests: XCTestCase {
         // Create multiple wallets
         let wallet2 = try! walletService.createWallet(
             name: "Test Wallet 2",
-            mnemonic: HDWalletService.generateMnemonic(),
+            mnemonic: try HDWalletService.generateMnemonic(),
             password: "testpassword123",
             network: .testnet
         )

@@ -55,8 +55,7 @@ final class LocalUTXO {
     }
     
     var displayValue: String {
-        let dashAmount = Double(value) / 100_000_000
-        return String(format: "%.8g DASH", dashAmount)
+        return DashFormatting.formatDash(value)
     }
     
     var isSpendable: Bool {

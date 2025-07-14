@@ -29,12 +29,11 @@ struct SendTransactionView: View {
     }
     
     private var isValid: Bool {
-        !recipientAddress.isEmpty &&
-        amount != nil &&
-        amount! > 0 &&
-        totalAmount <= availableBalance &&
-        // Basic validation - would use sdk?.validateAddress in production
-        recipientAddress.starts(with: "X") || recipientAddress.starts(with: "y")
+        guard let amount = amount, amount > 0 else { return false }
+        return !recipientAddress.isEmpty &&
+               totalAmount <= availableBalance &&
+               // Basic validation - would use sdk?.validateAddress in production
+               (recipientAddress.starts(with: "X") || recipientAddress.starts(with: "y"))
     }
     
     var body: some View {
@@ -192,7 +191,7 @@ struct SendTransactionView: View {
         if recipientAddress.isEmpty {
             isValidAddress = true
         } else {
-            isValidAddress = recipientAddress.starts(with: "X") || recipientAddress.starts(with: "y")
+            isValidAddress = (recipientAddress.starts(with: "X") || recipientAddress.starts(with: "y"))
         }
         errorMessage = ""
     }

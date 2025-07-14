@@ -209,7 +209,12 @@ struct CreateWalletView: View {
     }
     
     private func generateMnemonic() {
-        mnemonic = HDWalletService.generateMnemonic()
+        do {
+            mnemonic = try HDWalletService.generateMnemonic()
+        } catch {
+            errorMessage = "Failed to generate mnemonic: \(error.localizedDescription)"
+            print("🔴 Failed to generate mnemonic: \(error)")
+        }
     }
     
     private func copyMnemonic() {

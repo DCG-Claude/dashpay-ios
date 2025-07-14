@@ -77,7 +77,7 @@ class WalletService: ObservableObject {
         }
         
         // Generate seed from mnemonic
-        let seed = HDWalletService.mnemonicToSeed(mnemonic)
+        let seed = try HDWalletService.mnemonicToSeed(mnemonic)
         let seedHash = HDWalletService.seedHash(seed)
         
         // Check for duplicate wallet

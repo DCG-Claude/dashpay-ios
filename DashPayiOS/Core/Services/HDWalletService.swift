@@ -26,44 +26,17 @@ class HDWalletService {
     
     // MARK: - Mnemonic Generation
     
-    static func generateMnemonic(strength: Int = 128) -> [String] {
-        do {
-            // Use the proper BIP39 implementation from key-wallet-ffi
-            // Word count: 12 words for 128-bit entropy, 24 words for 256-bit entropy
-            let wordCount: UInt8 = strength == 256 ? 24 : 12
-            let mnemonic = try Mnemonic.generate(language: .english, wordCount: wordCount)
-            
-            // Split the phrase into words
-            let words = mnemonic.phrase().split(separator: " ").map { String($0) }
-            return words
-        } catch {
-            print("Failed to generate mnemonic: \(error)")
-            // Fallback to the previous implementation if FFI fails
-            return generateFallbackMnemonic()
-        }
+    static func generateMnemonic(strength: Int = 128) throws -> [String] {
+        // Use the proper BIP39 implementation from key-wallet-ffi
+        // Word count: 12 words for 128-bit entropy, 24 words for 256-bit entropy
+        let wordCount: UInt8 = strength == 256 ? 24 : 12
+        let mnemonic = try Mnemonic.generate(language: .english, wordCount: wordCount)
+        
+        // Split the phrase into words
+        let words = mnemonic.phrase().split(separator: " ").map { String($0) }
+        return words
     }
     
-    private static func generateFallbackMnemonic() -> [String] {
-        // Generate 12 random words from a small set
-        // This is NOT cryptographically secure but better than hardcoded values
-        let sampleWords = [
-            "able", "acid", "also", "area", "army", "away", "baby", "back",
-            "ball", "band", "base", "bean", "bear", "beat", "been", "bell",
-            "belt", "best", "bird", "blow", "blue", "boat", "body", "bone",
-            "book", "boot", "born", "boss", "both", "bowl", "bulk", "burn",
-            "busy", "call", "calm", "came", "camp", "card", "care", "case",
-            "cash", "cast", "cell", "chat", "chip", "city", "clay", "clean",
-            "clip", "club", "coal", "coat", "code", "coin", "cold", "come"
-        ]
-        
-        var mnemonic: [String] = []
-        for _ in 0..<12 {
-            let randomIndex = Int.random(in: 0..<sampleWords.count)
-            mnemonic.append(sampleWords[randomIndex])
-        }
-        
-        return mnemonic
-    }
     
     static func validateMnemonic(_ words: [String]) -> Bool {
         let phrase = words.joined(separator: " ")
@@ -78,18 +51,11 @@ class HDWalletService {
     
     // MARK: - Seed Operations
     
-    static func mnemonicToSeed(_ mnemonic: [String], passphrase: String = "") -> Data {
-        do {
-            let phrase = mnemonic.joined(separator: " ")
-            let mnemonicObj = try Mnemonic(phrase: phrase, language: .english)
-            let seedBytes = mnemonicObj.toSeed(passphrase: passphrase)
-            return Data(seedBytes)
-        } catch {
-            print("Failed to convert mnemonic to seed: \(error)")
-            // Fallback implementation
-            let phrase = mnemonic.joined(separator: " ")
-            return phrase.data(using: .utf8) ?? Data()
-        }
+    static func mnemonicToSeed(_ mnemonic: [String], passphrase: String = "") throws -> Data {
+        let phrase = mnemonic.joined(separator: " ")
+        let mnemonicObj = try Mnemonic(phrase: phrase, language: .english)
+        let seedBytes = mnemonicObj.toSeed(passphrase: passphrase)
+        return Data(seedBytes)
     }
     
     static func seedHash(_ seed: Data) -> String {
