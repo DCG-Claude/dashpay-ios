@@ -524,7 +524,6 @@ struct TokenActionDetailView: View {
                     claimerIdentity: identity,
                     tokenContractId: token.contractId,
                     tokenPosition: token.tokenPosition,
-                    // distributionType: DashSDKTokenDistributionType(rawValue: 0),
                     publicNote: tokenNote.isEmpty ? nil : tokenNote
                 )
                 
