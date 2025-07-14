@@ -10,6 +10,9 @@ class AutoSyncService: ObservableObject {
     @Published var lastAutoSyncDate: Date?
     @Published var syncQueue: [HDWallet] = []
     
+    private static let periodicSyncInterval: TimeInterval = 1800 // 30 minutes
+    private static let syncCooldownPeriod: TimeInterval = 300 // 5 minutes
+    
     private let logger = Logger(subsystem: "com.dash.wallet", category: "AutoSyncService")
     private var autoSyncTimer: Timer?
     private weak var modelContext: ModelContext?
@@ -27,7 +30,7 @@ class AutoSyncService: ObservableObject {
         autoSyncTimer?.invalidate()
         
         // Setup new timer for every 30 minutes
-        autoSyncTimer = Timer.scheduledTimer(withTimeInterval: 1800, repeats: true) { _ in
+        autoSyncTimer = Timer.scheduledTimer(withTimeInterval: Self.periodicSyncInterval, repeats: true) { _ in
             Task {
                 await syncHandler()
             }
@@ -64,7 +67,7 @@ class AutoSyncService: ObservableObject {
         
         // Don't sync if synced recently
         let timeSinceLastSync = Date().timeIntervalSince(wallet.lastSynced!)
-        if timeSinceLastSync < 300 { // 5 minutes
+        if timeSinceLastSync < Self.syncCooldownPeriod { // 5 minutes
             logger.info("⏰ Wallet synced recently (\(Int(timeSinceLastSync))s ago) - skipping")
             return false
         }
@@ -90,7 +93,7 @@ class AutoSyncService: ObservableObject {
         return allWallets.filter { wallet in
             // Check if wallet has been synced recently
             if let lastSync = wallet.lastSynced,
-               Date().timeIntervalSince(lastSync) < 300 { // 5 minutes
+               Date().timeIntervalSince(lastSync) < Self.syncCooldownPeriod { // 5 minutes
                 return false
             }
             return true
