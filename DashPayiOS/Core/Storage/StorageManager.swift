@@ -8,6 +8,15 @@ final class StorageManager {
     private let modelContext: ModelContext
     private let backgroundContext: ModelContext
     
+    /// Initializes the StorageManager with the provided model container.
+    /// 
+    /// This initializer is marked with @MainActor because:
+    /// 1. The StorageManager class is @Observable and needs main actor isolation for UI updates
+    /// 2. The main context (modelContext) is primarily used for UI-related data operations
+    /// 3. The background context is created here but used separately in async methods for batch operations
+    /// 
+    /// The background context created here will be used in dedicated async methods that properly
+    /// handle background context operations while maintaining thread safety.
     @MainActor
     init(modelContainer: ModelContainer) throws {
         self.modelContainer = modelContainer
