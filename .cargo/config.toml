@@ -1,0 +1,22 @@
+# Cargo configuration for iOS builds
+
+[target.aarch64-apple-ios-sim]
+linker = "clang"
+rustflags = [
+    "-C", "link-arg=-target",
+    "-C", "link-arg=aarch64-apple-ios14.0-simulator",
+    "-C", "link-arg=-isysroot",
+    "-C", "link-arg=/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator.sdk",
+]
+
+[target.aarch64-apple-ios]
+linker = "clang"
+rustflags = [
+    "-C", "link-arg=-target",
+    "-C", "link-arg=aarch64-apple-ios14.0",
+    "-C", "link-arg=-isysroot",
+    "-C", "link-arg=/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk",
+]
+
+[env]
+IPHONEOS_DEPLOYMENT_TARGET = "14.0"

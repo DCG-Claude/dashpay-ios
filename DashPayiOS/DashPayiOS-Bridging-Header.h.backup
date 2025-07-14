@@ -1,0 +1,12 @@
+//
+//  DashPayiOS-Bridging-Header.h
+//  DashPayiOS
+//
+
+#ifndef DashPayiOS_Bridging_Header_h
+#define DashPayiOS_Bridging_Header_h
+
+#import "dash_spv_ffiFFI.h"
+#import "key_wallet_ffiFFI.h"
+
+#endif /* DashPayiOS_Bridging_Header_h */
