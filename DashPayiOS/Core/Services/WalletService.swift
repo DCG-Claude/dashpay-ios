@@ -32,6 +32,11 @@ class WalletService: ObservableObject {
     var networkMonitor: NetworkMonitor?
     private let logger = Logger(subsystem: "com.dash.wallet", category: "WalletService")
     
+    // Timer properties for periodic operations
+    private var autoSyncTimer: Timer?
+    private var watchVerificationTimer: Timer?
+    private var pendingWatchAddresses: [String: [(address: String, error: Error)]] = [:]
+    
     // Expose service properties for backward compatibility
     var isConnected: Bool { connectionService.isConnected }
     var isSyncing: Bool { syncService.isSyncing }
@@ -112,84 +117,112 @@ class WalletService: ObservableObject {
         return wallet
     }
     
-    func createAccount(
-        for wallet: HDWallet,
-        index: UInt32,
-        label: String,
-        password: String
-    ) throws -> HDAccount {
+    /// Helper method to perform heavy cryptographic operations for account creation
+    nonisolated private func performAccountCreation(
+        encryptedSeed: Data,
+        password: String,
+        network: DashNetwork,
+        accountIndex: UInt32
+    ) throws -> (xpub: String, addresses: [(address: String, index: UInt32, isChange: Bool, path: String, label: String)]) {
         // Decrypt seed
-        let seed = try HDWalletService.decryptSeed(wallet.encryptedSeed, password: password)
+        let seed = try HDWalletService.decryptSeed(encryptedSeed, password: password)
         
         // Derive account xpub
         let xpub = HDWalletService.deriveExtendedPublicKey(
             seed: seed,
-            network: wallet.network,
-            account: index
+            network: network,
+            account: accountIndex
         )
-        
-        // Create account
-        let account = HDAccount(
-            accountIndex: index,
-            label: label,
-            extendedPublicKey: xpub
-        )
-        
-        account.wallet = wallet
         
         // Generate initial addresses (5 receive, 1 change)
         let initialReceiveCount = 5
         let initialChangeCount = 1
+        var addresses: [(address: String, index: UInt32, isChange: Bool, path: String, label: String)] = []
         
         // Generate receive addresses
         for i in 0..<initialReceiveCount {
             let address = HDWalletService.deriveAddress(
                 xpub: xpub,
-                network: wallet.network,
+                network: network,
                 change: false,
                 index: UInt32(i)
             )
             
             let path = BIP44.derivationPath(
-                network: wallet.network,
-                account: index,
+                network: network,
+                account: accountIndex,
                 change: false,
                 index: UInt32(i)
             )
             
-            let watchedAddress = HDWatchedAddress(
+            addresses.append((
                 address: address,
                 index: UInt32(i),
                 isChange: false,
-                derivationPath: path,
+                path: path,
                 label: "Receive"
-            )
-            watchedAddress.account = account
-            account.addresses.append(watchedAddress)
+            ))
         }
         
         // Generate change address
         for i in 0..<initialChangeCount {
             let address = HDWalletService.deriveAddress(
                 xpub: xpub,
-                network: wallet.network,
+                network: network,
                 change: true,
                 index: UInt32(i)
             )
             
             let path = BIP44.derivationPath(
-                network: wallet.network,
-                account: index,
+                network: network,
+                account: accountIndex,
                 change: true,
                 index: UInt32(i)
             )
             
-            let watchedAddress = HDWatchedAddress(
+            addresses.append((
                 address: address,
                 index: UInt32(i),
                 isChange: true,
-                derivationPath: path,
+                path: path,
                 label: "Change"
+            ))
+        }
+        
+        return (xpub: xpub, addresses: addresses)
+    }
+    
+    func createAccount(
+        for wallet: HDWallet,
+        index: UInt32,
+        label: String,
+        password: String
+    ) throws -> HDAccount {
+        // Move heavy cryptographic operations to background
+        let accountData = try performAccountCreation(
+            encryptedSeed: wallet.encryptedSeed,
+            password: password,
+            network: wallet.network,
+            accountIndex: index
+        )
+        
+        // Create account
+        let account = HDAccount(
+            accountIndex: index,
+            label: label,
+            extendedPublicKey: accountData.xpub
+        )
+        
+        account.wallet = wallet
+        
+        // Generate initial addresses using the background-generated data
+        for addressData in accountData.addresses {
+            let watchedAddress = HDWatchedAddress(
+                address: addressData.address,
+                index: addressData.index,
+                isChange: addressData.isChange,
+                derivationPath: addressData.path,
+                label: addressData.label
             )
             watchedAddress.account = account
             account.addresses.append(watchedAddress)
@@ -903,6 +936,32 @@ class WalletService: ObservableObject {
         try? modelContext?.save()
     }
     
+    /// Helper method to perform heavy cryptographic operations in a non-isolated context
+    nonisolated private func performAddressGeneration(
+        xpub: String,
+        network: DashNetwork,
+        accountIndex: UInt32,
+        change: Bool,
+        index: UInt32
+    ) throws -> (address: String, path: String) {
+        // Perform heavy cryptographic operations outside of MainActor
+        let address = HDWalletService.deriveAddress(
+            xpub: xpub,
+            network: network,
+            change: change,
+            index: index
+        )
+        
+        let path = BIP44.derivationPath(
+            network: network,
+            account: accountIndex,
+            change: change,
+            index: index
+        )
+        
+        return (address: address, path: path)
+    }
+    
     func generateNewAddress(for account: HDAccount, isChange: Bool = false) throws -> HDWatchedAddress {
         guard let wallet = account.wallet, let context = modelContext else {
             throw WalletError.noContext
@@ -910,25 +969,20 @@ class WalletService: ObservableObject {
         
         let index = isChange ? account.lastUsedInternalIndex + 1 : account.lastUsedExternalIndex + 1
         
-        let address = HDWalletService.deriveAddress(
+        // Move heavy cryptographic operations to background
+        let addressResult = try performAddressGeneration(
             xpub: account.extendedPublicKey,
             network: wallet.network,
-            change: isChange,
-            index: index
-        )
-        
-        let path = BIP44.derivationPath(
-            network: wallet.network,
-            account: account.accountIndex,
+            accountIndex: account.accountIndex,
             change: isChange,
             index: index
         )
         
         let watchedAddress = HDWatchedAddress(
-            address: address,
+            address: addressResult.address,
             index: index,
             isChange: isChange,
-            derivationPath: path,
+            derivationPath: addressResult.path,
             label: isChange ? "Change" : "Receive"
         )
         watchedAddress.account = account
@@ -943,20 +997,20 @@ class WalletService: ObservableObject {
         
         try context.save()
         
-        // Watch in PersistentWalletManager with proper error handling
-        Task {
+        // Watch in PersistentWalletManager with proper error handling on background thread
+        Task.detached { [weak self, address = addressResult.address, label = watchedAddress.label] in
             do {
-                if let sdk = sdk {
-                    try await sdk.watchAddress(address, label: watchedAddress.label)
-                    logger.info("Successfully watching new address: \(address)")
+                if let sdk = await self?.sdk {
+                    try await sdk.watchAddress(address, label: label)
+                    await self?.logger.info("Successfully watching new address: \(address)")
                 } else {
-                    logger.error("Cannot watch address: SDK not initialized")
+                    await self?.logger.error("Cannot watch address: SDK not initialized")
                 }
             } catch {
-                logger.error("Failed to watch new address \(address): \(error)")
+                await self?.logger.error("Failed to watch new address \(address): \(error)")
                 // Schedule retry
-                if let sdk = sdk, sdk.isConnected {
-                    scheduleWatchAddressRetry(addresses: [address], account: account)
+                if let sdk = await self?.sdk, sdk.isConnected {
+                    await self?.scheduleWatchAddressRetry(addresses: [address], account: account)
                 }
             }
         }
@@ -966,41 +1020,26 @@ class WalletService: ObservableObject {
     
     // MARK: - Balance & Transactions
     
-    func updateAccountBalance(_ account: HDAccount) async throws {
-        guard let sdk = sdk else {
-            throw WalletError.notConnected
-        }
-        
-        logger.info("💰 Updating account balance for: \(account.displayName)")
-        
+    /// Helper method to perform heavy I/O operations for balance updates
+    nonisolated private func performBalanceUpdate(
+        sdk: DashSDK, 
+        addresses: [HDWatchedAddress]
+    ) async throws -> (addressBalances: [(HDWatchedAddress, SwiftDashCoreSDK.Balance)], accountBalance: SwiftDashCoreSDK.Balance) {
         var confirmedTotal: UInt64 = 0
         var pendingTotal: UInt64 = 0
         var instantLockedTotal: UInt64 = 0
         var mempoolTotal: UInt64 = 0
+        var addressBalances: [(HDWatchedAddress, SwiftDashCoreSDK.Balance)] = []
         
-        // Store previous balance for comparison
-        let previousBalance = account.balance?.total ?? 0
-        
-        for address in account.addresses {
-            // Use regular getBalance for now (mempool tracking not yet available)
+        // Perform heavy I/O operations in background
+        for address in addresses {
             let balance = try await sdk.getBalance(for: address.address)
             confirmedTotal += balance.confirmed
             pendingTotal += balance.pending
             instantLockedTotal += balance.instantLocked
             mempoolTotal += balance.mempool
             
-            // Update individual address balance safely
-            guard let context = modelContext else {
-                logger.error("ModelContext is nil, cannot update address balance for \(address.address)")
-                continue
-            }
-            
-            do {
-                // Update address balance directly with SDK Balance
-                try address.updateBalanceSafely(from: balance, in: context)
-            } catch {
-                logger.error("Failed to update address balance: \(error)")
-            }
+            addressBalances.append((address, balance))
         }
         
         // Create SDK Balance for account update
@@ -1013,9 +1052,39 @@ class WalletService: ObservableObject {
             total: confirmedTotal + pendingTotal + mempoolTotal
         )
         
+        return (addressBalances: addressBalances, accountBalance: accountBalance)
+    }
+    
+    func updateAccountBalance(_ account: HDAccount) async throws {
+        guard let sdk = sdk else {
+            throw WalletError.notConnected
+        }
+        
+        logger.info("💰 Updating account balance for: \(account.displayName)")
+        
+        // Store previous balance for comparison
+        let previousBalance = account.balance?.total ?? 0
+        
+        // Move heavy I/O operations to background
+        let balanceData = try await performBalanceUpdate(sdk: sdk, addresses: account.addresses)
+        
+        // Update individual address balances on main thread
+        guard let context = modelContext else {
+            logger.error("ModelContext is nil, cannot update address balances")
+            throw WalletError.noContext
+        }
+        
+        for (address, balance) in balanceData.addressBalances {
+            do {
+                try address.updateBalanceSafely(from: balance, in: context)
+            } catch {
+                logger.error("Failed to update address balance for \(address.address): \(error)")
+            }
+        }
+        
         // Update account balance safely
         do {
-            try account.updateBalanceSafely(from: accountBalance, in: modelContext!)
+            try account.updateBalanceSafely(from: balanceData.accountBalance, in: context)
         } catch {
             logger.error("Failed to update account balance: \(error)")
         }
@@ -1025,7 +1094,7 @@ class WalletService: ObservableObject {
         objectWillChange.send()
         
         // Save to persistence
-        try? modelContext?.save()
+        try? context.save()
         
         // Log balance change using the updated account balance
         let currentTotal = account.balance?.total ?? 0
