@@ -44,7 +44,7 @@ extension DashSDK {
         
         // Check available balance using public API
         let balance = try await getBalance()
-        let estimatedFee = try await estimateFee(to: "placeholder", amount: amount, feeRate: 2000)
+        let estimatedFee = try await estimateFee(to: "yP8A3q8vhQNZNrxJQgJ7VjSkZ5EjyzMEvH", amount: amount, feeRate: 2000)
         let totalRequired = amount + estimatedFee
         
         guard balance.confirmed >= totalRequired else {
