@@ -738,6 +738,30 @@ enum DocumentSortOrder: String, CaseIterable {
 }
 
 #Preview {
-    EnhancedDocumentsView()
+    // Create safe preview dependencies without force unwrapping
+    struct PreviewContainer {
+        static let shared: DocumentService = {
+            // Try to create DocumentService safely
+            return DocumentService.placeholderOrNil() ?? createFallbackService()
+        }()
+        
+        private static func createFallbackService() -> DocumentService {
+            // Create minimal in-memory dependencies for preview
+            do {
+                let schema = Schema([])
+                let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+                let container = try ModelContainer(for: schema, configurations: [config])
+                let dataManager = DataManager(modelContext: container.mainContext)
+                let platformSDK = try PlatformSDKWrapper(network: .testnet)
+                return DocumentService(platformSDK: platformSDK, dataManager: dataManager)
+            } catch {
+                // Ultimate fallback for preview - should never happen in practice
+                fatalError("Could not create preview DocumentService: \(error)")
+            }
+        }
+    }
+    
+    return EnhancedDocumentsView()
         .environmentObject(AppState())
+        .environmentObject(PreviewContainer.shared)
 }

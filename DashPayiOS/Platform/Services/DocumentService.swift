@@ -14,6 +14,32 @@ class DocumentService: ObservableObject {
         self.dataManager = dataManager
     }
     
+    /// Create a placeholder DocumentService for UI previews and initial states
+    /// This avoids creating heavy resources and potential crashes from force unwrapping
+    /// Returns nil if dependencies cannot be created safely
+    static func placeholderOrNil() -> DocumentService? {
+        // Try to create minimal dependencies without throwing or crashing
+        do {
+            // Create a minimal in-memory container for DataManager
+            let schema = Schema([
+                PersistentIdentity.self,
+                PersistentDocument.self,
+                PersistentContract.self
+            ])
+            let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+            let container = try ModelContainer(for: schema, configurations: [config])
+            let dataManager = DataManager(modelContext: container.mainContext)
+            
+            // Create a minimal PlatformSDKWrapper for testnet
+            let platformSDK = try PlatformSDKWrapper(network: .testnet)
+            
+            return DocumentService(platformSDK: platformSDK, dataManager: dataManager)
+        } catch {
+            print("⚠️ Could not create DocumentService placeholder: \(error)")
+            return nil
+        }
+    }
+    
     // MARK: - Document CRUD Operations
     
     /// Create a new document with validation
