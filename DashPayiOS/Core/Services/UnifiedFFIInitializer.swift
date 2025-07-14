@@ -27,39 +27,61 @@ final class UnifiedFFIInitializer {
     static let shared = UnifiedFFIInitializer()
     private var isInitialized = false
     private var coreSDKHandle: OpaquePointer?
+    private let queue = DispatchQueue(label: "com.dash.unifiedffi.initializer", qos: .utility)
     
     private init() {}
     
+    deinit {
+        cleanup()
+    }
+    
     /// Initialize the unified FFI library
     func initialize() throws {
-        guard !isInitialized else { return }
-        
-        // Initialize unified library
-        let result = dash_unified_init()
-        if result == 0 {
-            isInitialized = true
-            print("✅ Unified FFI library initialized successfully")
-        } else {
-            throw UnifiedFFIError.initializationFailed(result)
+        try queue.sync {
+            guard !isInitialized else { return }
+            
+            // Initialize unified library
+            let result = dash_unified_init()
+            if result == 0 {
+                isInitialized = true
+                print("✅ Unified FFI library initialized successfully")
+            } else {
+                throw UnifiedFFIError.initializationFailed(result)
+            }
         }
     }
     
     /// Register Core SDK handle for Platform SDK callbacks
     func registerCoreSDK(_ handle: OpaquePointer?) throws {
-        guard isInitialized else {
-            throw UnifiedFFIError.notInitialized
+        try queue.sync {
+            guard isInitialized else {
+                throw UnifiedFFIError.notInitialized
+            }
+            
+            guard let handle = handle else {
+                throw UnifiedFFIError.invalidHandle
+            }
+            
+            self.coreSDKHandle = handle
+            let result = dash_unified_register_core_sdk_handle(UnsafeMutableRawPointer(handle))
+            if result == 0 {
+                print("✅ Core SDK registered with unified library")
+            } else {
+                throw UnifiedFFIError.registrationFailed(result)
+            }
         }
-        
-        guard let handle = handle else {
-            throw UnifiedFFIError.invalidHandle
-        }
-        
-        self.coreSDKHandle = handle
-        let result = dash_unified_register_core_sdk_handle(UnsafeMutableRawPointer(handle))
-        if result == 0 {
-            print("✅ Core SDK registered with unified library")
-        } else {
-            throw UnifiedFFIError.registrationFailed(result)
+    }
+    
+    /// Cleanup resources and reset initialization state
+    private func cleanup() {
+        queue.sync {
+            if isInitialized {
+                // Note: Add proper cleanup calls here when available in the FFI
+                // For now, we'll just reset the state
+                coreSDKHandle = nil
+                isInitialized = false
+                print("🧹 Unified FFI library cleaned up")
+            }
         }
     }
 }
