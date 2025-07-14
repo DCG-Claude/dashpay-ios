@@ -138,7 +138,6 @@ typedef enum FFIWatchItemType {
   Script = 1,
   Outpoint = 2,
 } FFIWatchItemType;
-typedef struct FFIClientConfig FFIClientConfig;
 /**
  * FFIDashSpvClient structure
  */
@@ -734,10 +733,10 @@ typedef struct DashSDKResult {
 } DashSDKResult;
 // Opaque handle to a context provider
 typedef struct ContextProviderHandle {
-  uint8_t _private[0];
+  uint8_t _private[];
 } ContextProviderHandle;
 typedef struct FFIDashSpvClient {
-  uint8_t _opaque[0];
+  uint8_t _opaque[];
 } FFIDashSpvClient;
 // Handle for Core SDK that can be passed to Platform SDK
 // This matches the definition from dash_spv_ffi.h
