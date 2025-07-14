@@ -67,6 +67,9 @@ extension DashSDK {
         print("✅ Asset lock transaction created: \(txid)")
         
         // Create and return SwiftDashCoreSDK.Transaction using public API data
+        // Note: Raw transaction data is not available from the sendTransaction public API
+        // The size is estimated based on typical asset lock transaction characteristics
+        let estimatedTransactionSize: UInt32 = 250 // Typical asset lock transaction size
         let transaction = SwiftDashCoreSDK.Transaction(
             txid: txid,
             height: nil,
@@ -75,8 +78,8 @@ extension DashSDK {
             fee: estimatedFee,
             confirmations: 0,
             isInstantLocked: false,
-            raw: Data(), // Raw transaction data not available from sendTransaction
-            size: 250, // Estimated size
+            raw: Data(), // Empty: raw data not available from public API
+            size: estimatedTransactionSize,
             version: 3 // Asset lock transactions use version 3
         )
         
@@ -91,9 +94,10 @@ extension DashSDK {
         let transaction = try await createAssetLockTransactionWithValidation(amount: amount)
         
         // Create result with transaction data
+        // Note: rawTransaction is empty because the public API doesn't provide raw transaction bytes
         let result = AssetLockTransactionResult(
             txid: transaction.txid,
-            rawTransaction: transaction.raw,
+            rawTransaction: transaction.raw, // Empty: not available from public API
             amount: amount,
             fee: transaction.fee,
             selectedUTXOs: [] // UTXO selection handled internally by public API
@@ -204,7 +208,8 @@ public struct AssetLockTransactionResult {
     public let selectedUTXOs: [UTXO]
     
     public var size: Int {
-        return rawTransaction.count > 0 ? rawTransaction.count : 250 // Estimated size if raw tx not available
+        // Return actual size if raw transaction data is available, otherwise use estimated size
+        return rawTransaction.count > 0 ? rawTransaction.count : 250 // Estimated size for asset lock transactions
     }
     
     public var feeRate: UInt64 {
