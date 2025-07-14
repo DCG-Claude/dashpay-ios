@@ -1,6 +1,15 @@
 import Foundation
 
 /// Service for handling all token operations using Platform SDK FFI
+/// 
+/// **IMPORTANT: This is currently a STUB/MOCK implementation**
+/// 
+/// All methods in this service throw `PlatformError.notImplemented` because the required
+/// FFI functions (dash_sdk_identity_fetch_token_balances, dash_sdk_token_transfer, etc.)
+/// are not yet available in the unified FFI. The implementation stubs are included
+/// with commented code that can be enabled once the Platform SDK FFI is updated.
+/// 
+/// Do not use this service in production until the FFI functions are available.
 class TokenService: ObservableObject {
     
     // MARK: - Error Types
@@ -100,6 +109,11 @@ class TokenService: ObservableObject {
     // MARK: Token Balance Operations
     
     /// Fetch token balances for a specific identity
+    /// 
+    /// **STUB IMPLEMENTATION**: This method currently throws `PlatformError.notImplemented`
+    /// because the `dash_sdk_identity_fetch_token_balances` FFI function is not yet available.
+    /// The full implementation is available in commented code below and can be enabled
+    /// once the Platform SDK FFI is updated.
     func fetchTokenBalances(
         sdk: SimpleSDK,
         identityId: String,
