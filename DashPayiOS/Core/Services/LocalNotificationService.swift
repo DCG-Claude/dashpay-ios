@@ -6,7 +6,6 @@ import UIKit
 import SwiftDashCoreSDK
 
 /// Service for managing local push notifications for transaction events
-@MainActor
 class LocalNotificationService: ObservableObject {
     static let shared = LocalNotificationService()
     
@@ -272,6 +271,8 @@ class LocalNotificationService: ObservableObject {
 // MARK: - Notification Delegate
 
 class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
+    private let logger = Logger(subsystem: "com.dash.wallet", category: "NotificationDelegate")
+    
     func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification,
@@ -293,18 +294,18 @@ class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
             switch type {
             case "funds_received":
                 // Could navigate to transaction details
-                print("📱 User tapped funds received notification")
+                logger.info("📱 User tapped funds received notification")
                 
             case "transaction_confirmed":
                 // Could navigate to transaction details
-                print("📱 User tapped transaction confirmed notification")
+                logger.info("📱 User tapped transaction confirmed notification")
                 
             case "sync_completed":
                 // Could navigate to wallet view
-                print("📱 User tapped sync completed notification")
+                logger.info("📱 User tapped sync completed notification")
                 
             default:
-                print("📱 Unknown notification type: \(type)")
+                logger.warning("📱 Unknown notification type: \(type)")
             }
         }
         
