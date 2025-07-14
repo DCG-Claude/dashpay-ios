@@ -1,28 +1,22 @@
 import SwiftUI
-
-#if os(iOS)
 import UIKit
-#elseif os(macOS)
-import AppKit
-#endif
 
+/// Clipboard utility for copying text to the system pasteboard
+/// Ensures compatibility with all supported iOS versions (iOS 17.0+)
 struct Clipboard {
+    
+    /// Copies text to the system clipboard using UIPasteboard
+    /// - Parameter string: The text to copy to the clipboard
     static func copy(_ string: String) {
-        #if os(iOS)
-        UIPasteboard.general.string = string
-        #elseif os(macOS)
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        pasteboard.setString(string, forType: .string)
-        #endif
+        DispatchQueue.main.async {
+            UIPasteboard.general.string = string
+        }
     }
     
+    /// Retrieves text from the system clipboard
+    /// - Returns: The text from the clipboard, or nil if no text is available
     static func paste() -> String? {
-        #if os(iOS)
         return UIPasteboard.general.string
-        #elseif os(macOS)
-        return NSPasteboard.general.string(forType: .string)
-        #endif
     }
 }
 
