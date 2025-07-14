@@ -6,10 +6,12 @@ import SwiftDashCoreSDK
 actor AssetLockBridge {
     private let coreSDK: DashSDKProtocol
     private let platformSDK: PlatformSDKProtocol
+    private let walletService: WalletService
     
-    init(coreSDK: DashSDKProtocol, platformSDK: PlatformSDKProtocol) {
+    init(coreSDK: DashSDKProtocol, platformSDK: PlatformSDKProtocol, walletService: WalletService = WalletService.shared) {
         self.coreSDK = coreSDK
         self.platformSDK = platformSDK
+        self.walletService = walletService
     }
     
     /// Fund a Platform identity from a Core wallet
@@ -261,8 +263,8 @@ actor AssetLockBridge {
     }
     
     private var activeAccount: HDAccount? {
-        // This should be injected or passed as parameter
-        return nil
+        // Get the active account from the wallet service
+        return walletService.activeAccount
     }
     
     private func estimatedFee(_ amount: UInt64) -> UInt64 {
