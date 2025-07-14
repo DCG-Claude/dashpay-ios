@@ -214,7 +214,7 @@ struct IdentityBalanceSection: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
-                .disabled(identity.isLocal)
+                .disabled(true) // Disabled until feature is fully implemented
             }
         }
         .frame(maxWidth: .infinity)
@@ -533,11 +533,18 @@ struct IdentityTopUpView: View {
             do {
                 // Use AssetLockBridge for actual top up implementation
                 if let assetLockBridge = appState.assetLockBridge {
-                    // For now, just show a message that this feature is not implemented
-                    throw NSError(domain: "TopUpError", code: 2, userInfo: [NSLocalizedDescriptionKey: "Identity top-up feature not yet implemented"])
+                    // TODO: Implement identity top-up feature
+                    // This should create an asset lock transaction and fund the identity
                     
                     // Refresh identity data after successful top up
                     // await appState.refreshIdentityData() // TODO: Implement this method
+                    
+                    // For now, just show a success message since the button is disabled
+                    await MainActor.run {
+                        appState.showError(message: "Top up feature is not yet implemented")
+                        dismiss()
+                    }
+                    return
                 } else {
                     throw NSError(domain: "TopUpError", code: 1, userInfo: [NSLocalizedDescriptionKey: "Asset lock bridge not available"])
                 }
