@@ -267,19 +267,24 @@ struct ModelContainerHelper {
             in: .userDomainMask
         ).first
         
-        // Clean up all SQLite and SwiftData related files
-        let patternsToRemove = [
+        // Clean up specific SQLite and SwiftData related files
+        let exactFilenames = [
             "default.store",
             "default.store-shm",
             "default.store-wal",
+            "DashPayWallet.sqlite",
+            "DashPayWallet.sqlite-shm",
+            "DashPayWallet.sqlite-wal"
+        ]
+        
+        let prefixesToRemove = [
+            "default",
+            "DashPayWallet"
+        ]
+        
+        let containsPatterns = [
             "SwiftData",
-            ".sqlite",
-            ".sqlite-shm",
-            ".sqlite-wal",
-            "ModelContainer",
-            ".db",
-            "DashPayWallet",  // Our custom store name
-            "DashPay"  // Our custom directory
+            "ModelContainer"
         ]
         
         // Clean up all files in Application Support that could be related to the store
@@ -287,10 +292,10 @@ struct ModelContainerHelper {
             for fileURL in contents {
                 let filename = fileURL.lastPathComponent
                 
-                // Check if file matches any of our patterns
-                let shouldRemove = patternsToRemove.contains { pattern in
-                    filename.contains(pattern) || filename.hasPrefix("default")
-                }
+                // Check if file matches any of our specific criteria
+                let shouldRemove = exactFilenames.contains(filename) ||
+                                 prefixesToRemove.contains { filename.hasPrefix($0) } ||
+                                 containsPatterns.contains { filename.contains($0) }
                 
                 if shouldRemove {
                     do {
@@ -309,10 +314,10 @@ struct ModelContainerHelper {
             for fileURL in contents {
                 let filename = fileURL.lastPathComponent
                 
-                // Check if file matches any of our patterns
-                let shouldRemove = patternsToRemove.contains { pattern in
-                    filename.contains(pattern) || filename.hasPrefix("default")
-                }
+                // Check if file matches any of our specific criteria
+                let shouldRemove = exactFilenames.contains(filename) ||
+                                 prefixesToRemove.contains { filename.hasPrefix($0) } ||
+                                 containsPatterns.contains { filename.contains($0) }
                 
                 if shouldRemove {
                     do {

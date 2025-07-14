@@ -185,16 +185,12 @@ extension DashSDK {
     // MARK: - Private Helpers
     
     private func generateAssetLockAddressFromWatchedAddresses() async throws -> String {
-        // Generate a proper asset lock address using available addresses from public API
-        let addresses = Array(watchedAddresses)
+        // Generate a proper P2SH asset lock address using the AssetLockHelper
+        let networkInfo = getNetworkInfo()
+        let assetLockAddress = AssetLockHelper.generateAssetLockAddress(for: networkInfo.network)
         
-        guard let firstAddress = addresses.first else {
-            throw DashSDKAssetLockError.assetLockGenerationFailed
-        }
-        
-        // In a real implementation, this would generate a proper P2SH address
-        // For now, use the first watched address as the asset lock destination
-        return firstAddress
+        print("🔒 Generated asset lock address for network \(networkInfo.network.name): \(assetLockAddress)")
+        return assetLockAddress
     }
 }
 
