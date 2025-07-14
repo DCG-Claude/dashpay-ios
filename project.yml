@@ -1,0 +1,95 @@
+name: DashPayiOS
+options:
+  bundleIdPrefix: com.dash
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+  
+packages:
+  SwiftDashCoreSDK:
+    path: ../rust-dashcore/swift-dash-core-sdk
+  SwiftSecp256k1:
+    url: https://github.com/21-DOT-DEV/swift-secp256k1.git
+    from: 0.21.0
+  
+settings:
+  base:
+    IPHONEOS_DEPLOYMENT_TARGET: "17.0"
+    SWIFT_VERSION: "5.9"
+    LIBRARY_SEARCH_PATHS: 
+      - "$(PROJECT_DIR)/DashPayiOS/Libraries"
+      - "$(PROJECT_DIR)/DashPayiOS/Libraries/DashUnified.xcframework/ios-arm64-simulator"
+    FRAMEWORK_SEARCH_PATHS:
+      - "$(PROJECT_DIR)/DashPayiOS/Libraries"
+    HEADER_SEARCH_PATHS:
+      - "$(PROJECT_DIR)/DashPayiOS/Libraries"
+    # SWIFT_INCLUDE_PATHS handled by Swift Package Manager
+    OTHER_LDFLAGS:
+      - "-lc++"
+      - "-ObjC"
+      
+targets:
+  DashPayiOS:
+    type: application
+    platform: iOS
+    sources:
+      - path: DashPayiOS
+        excludes:
+          - "**/*.md"
+          - "**/Package.swift"
+          - "Tests/**"
+          - "Libraries/backup/**"
+          - "Libraries.backup-*/**"
+    dependencies:
+      - package: SwiftDashCoreSDK
+        product: SwiftDashCoreSDK
+      - package: SwiftDashCoreSDK
+        product: KeyWalletFFISwift
+      - package: SwiftSecp256k1
+        product: P256K
+      - framework: DashPayiOS/Libraries/DashUnified.xcframework
+        embed: true
+        link: true
+      - sdk: libc++.tbd
+      - sdk: libz.tbd
+      - sdk: Foundation.framework
+      - sdk: Security.framework
+      - sdk: SystemConfiguration.framework
+    settings:
+      base:
+        INFOPLIST_FILE: DashPayiOS/Info.plist
+        PRODUCT_BUNDLE_IDENTIFIER: com.dash.wallet.ios
+        PRODUCT_NAME: DashPay
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: ""
+        EXCLUDED_ARCHS[sdk=iphonesimulator*]: x86_64
+        SWIFT_OBJC_BRIDGING_HEADER: DashPayiOS/DashPayiOS-Bridging-Header.h
+        ENABLE_TESTABILITY: "YES"
+        # SWIFT_INCLUDE_PATHS handled by Swift Package Manager
+        OTHER_LDFLAGS:
+          - "-lc++"
+          - "-ObjC"
+          - "-dead_strip"
+        
+  DashPayiOSTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources: 
+      - DashPayiOSTests
+    dependencies:
+      - target: DashPayiOS
+    settings:
+      base:
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/DashPay.app/DashPay"
+        GENERATE_INFOPLIST_FILE: "YES"
+      
+  DashPayiOSUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - DashPayiOSUITests
+    dependencies:
+      - target: DashPayiOS
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: "YES"

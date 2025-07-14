@@ -1,14 +1,11 @@
 import Foundation
 import Security
 import CryptoKit
+import P256K
 
 extension Data {
     var sha256Hash: Data {
         return Data(SHA256.hash(data: self))
-    }
-    
-    func toHexString() -> String {
-        return map { String(format: "%02x", $0) }.joined()
     }
 }
 
@@ -107,18 +104,18 @@ class KeychainSigner: Signer {
     /// - Returns: The public key data if successful
     func generateKeyPair(forIdentity identityId: String) -> Data? {
         do {
-            // Generate a new P-256 private key (compatible with Bitcoin/Dash ECDSA)
-            let privateKey = P256.Signing.PrivateKey()
+            // Generate a new secp256k1 private key (compatible with Bitcoin/Dash ECDSA)
+            let privateKey = try P256K.Signing.PrivateKey()
             let publicKey = privateKey.publicKey
             
             // Store the private key in Keychain
-            let privateKeyData = privateKey.rawRepresentation
+            let privateKeyData = privateKey.dataRepresentation
             guard storePrivateKey(privateKeyData, forIdentity: identityId) else {
                 return nil
             }
             
             // Return the public key data
-            return publicKey.rawRepresentation
+            return publicKey.dataRepresentation
         } catch {
             print("❌ KeychainSigner: Failed to generate key pair for identity \(identityId): \(error)")
             return nil
@@ -157,14 +154,14 @@ class KeychainSigner: Signer {
     }
     
     private func signData(_ data: Data, with privateKeyData: Data) throws -> Data {
-        // Create a P-256 private key from the stored data
-        let privateKey = try P256.Signing.PrivateKey(rawRepresentation: privateKeyData)
+        // Create a secp256k1 private key from the stored data
+        let privateKey = try P256K.Signing.PrivateKey(dataRepresentation: privateKeyData)
         
-        // Sign the data
+        // Sign the data using secp256k1 ECDSA
         let signature = try privateKey.signature(for: data)
         
         // Return the signature in DER format (standard for Bitcoin/Dash)
-        return signature.derRepresentation
+        return try signature.derRepresentation
     }
 }
 
