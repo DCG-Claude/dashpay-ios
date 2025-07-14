@@ -4,7 +4,4 @@
    <FileRef
       location = "group:DashPayiOS.xcodeproj">
    </FileRef>
-   <FileRef
-      location = "group:../rust-dashcore/swift-dash-core-sdk">
-   </FileRef>
 </Workspace>
