@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 
 /// Enhanced documents view with search, filtering, and advanced features
 struct EnhancedDocumentsView: View {
@@ -70,7 +71,8 @@ struct EnhancedDocumentsView: View {
     
     init() {
         // Initialize with placeholder values - will be properly injected
-        let dummyDataManager = DataManager(modelContext: ModelContext(ModelContainer.preview()))
+        let dummyContainer = try! ModelContainer.inMemoryContainer()
+        let dummyDataManager = DataManager(modelContext: dummyContainer.mainContext)
         let dummyPlatformSDK = try! PlatformSDKWrapper(network: .testnet)
         self._documentService = StateObject(wrappedValue: DocumentService(platformSDK: dummyPlatformSDK, dataManager: dummyDataManager))
     }

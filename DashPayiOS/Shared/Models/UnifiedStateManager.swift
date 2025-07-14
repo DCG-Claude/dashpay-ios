@@ -2,6 +2,7 @@ import Foundation
 import Combine
 import SwiftData
 import UserNotifications
+import SwiftDashCoreSDK
 
 /// Manages unified state across Core and Platform layers
 @MainActor
@@ -11,7 +12,7 @@ class UnifiedStateManager: ObservableObject {
     @Published private(set) var unifiedBalance = UnifiedBalance()
     @Published private(set) var wallets: [Wallet] = []
     @Published internal(set) var identities: [Identity] = []
-    @Published private(set) var coreSyncProgress: DetailedSyncProgress?
+    // Removed duplicate sync tracking - use WalletService.detailedSyncProgress instead
     @Published private(set) var isPlatformSynced = false
     @Published private(set) var isLoading = false
     @Published private(set) var error: Error?
@@ -146,12 +147,7 @@ class UnifiedStateManager: ObservableObject {
     /// Refresh sync state from both SDKs
     func refreshSyncState() async {
         // Get Core sync progress
-        if let coreSDK = coreSDK as? DashSDK {
-            // Subscribe to sync progress
-            for await progress in coreSDK.syncProgressStream() {
-                coreSyncProgress = progress
-            }
-        }
+        // Sync progress tracking moved to WalletService to avoid duplication
         
         // Platform is always synced in current implementation
         isPlatformSynced = true
@@ -490,37 +486,21 @@ class UnifiedStateManager: ObservableObject {
     private func handleCoreEvent(_ event: SPVEvent) {
         Task { @MainActor in
             switch event {
-            case .connected(let peerCount):
-                print("🌐 Connected to \(peerCount) peers")
+            case .connectionStatusChanged(let connected):
+                print("🌐 Connection status: \(connected ? "Connected" : "Disconnected")")
                 
-            case .syncStarted:
-                print("🔄 Blockchain sync started")
-                
-            case .syncProgress(let detailedProgress):
-                // Update coreSyncProgress with detailed sync progress
-                self.coreSyncProgress = detailedProgress
-                print("📊 Detailed sync progress: \(detailedProgress.formattedPercentage)")
+            case .blockReceived(let height, let hash):
+                print("📦 Block received: \(height) - \(hash)")
                 
             case .syncProgressUpdated(let progress):
-                // Convert SyncProgress to DetailedSyncProgress for consistency
-                let detailedProgress = DetailedSyncProgress(
-                    currentHeight: progress.currentHeight,
-                    totalHeight: progress.totalHeight,
-                    percentage: Double(progress.percentageComplete),
-                    headersPerSecond: 0.0, // Not available in basic SyncProgress
-                    estimatedSecondsRemaining: 0, // Not available in basic SyncProgress
-                    stage: .downloading, // Assume downloading stage
-                    stageMessage: "Syncing blocks...",
-                    connectedPeers: 0, // Not available in basic SyncProgress
-                    totalHeadersProcessed: UInt64(progress.currentHeight), // Use current height as approximation
-                    syncStartTimestamp: Date() // Use current time as fallback
-                )
-                self.coreSyncProgress = detailedProgress
-                print("🔄 Sync progress updated: \(progress.percentageComplete)%")
+                // DetailedSyncProgress can't be created directly - it has internal initializer
+                // For now, we'll just log the progress
+                print("🔄 Sync progress updated: \(progress.progress * 100)%")
+                print("   Current: \(progress.currentHeight) / Total: \(progress.totalHeight)")
                 
-            case .syncCompleted:
-                print("✅ Blockchain sync completed successfully!")
-                self.isPlatformSynced = true // Consider platform synced when core completes
+            case .balanceUpdated(let balance):
+                print("💰 Balance updated: \(balance.total) satoshis")
+                self.unifiedBalance.coreBalance = balance.total
                 
                 // Send local notification for sync completion
                 Task {
@@ -529,17 +509,9 @@ class UnifiedStateManager: ObservableObject {
                     print("🔔 Sync completed - would send notification")
                 }
                 
-            case .syncFailed(let error):
-                print("🔴 Sync failed: \(error)")
-                self.error = NSError(domain: "SyncError", code: -1, userInfo: [NSLocalizedDescriptionKey: error])
-                
-            case .balanceUpdated(let balance):
-                updateCoreBalance(balance.confirmed)
-                print("💎 Balance updated: \(balance.confirmed) satoshis")
-                
-            case .balanceChanged(let newBalance):
-                updateCoreBalance(newBalance)
-                print("💰 Balance changed: \(newBalance) satoshis")
+            case .error(let error):
+                print("🔴 SPV Error: \(error)")
+                self.error = error
                 
             case .transactionReceived(let txid, let confirmed, let amount, let addresses, let blockHeight):
                 print("💰 Transaction received:")
@@ -551,15 +523,14 @@ class UnifiedStateManager: ObservableObject {
                     print("   Block: \(height)")
                 }
                 
-            case .headersSaved(let count, let height):
-                print("🗂️ Saved \(count) headers, current height: \(height)")
+            case .mempoolTransactionAdded(let txid, let amount, let addresses):
+                print("🏊 Mempool transaction added: \(txid)")
                 
-            case .error(let error):
-                print("🔴 SPV Error: \(error)")
-                self.error = NSError(domain: "SPVError", code: -2, userInfo: [NSLocalizedDescriptionKey: error])
+            case .mempoolTransactionConfirmed(let txid, let blockHeight, let confirmations):
+                print("✅ Mempool transaction confirmed: \(txid) at height \(blockHeight)")
                 
-            default:
-                print("📡 SPV Event: \(event)")
+            case .mempoolTransactionRemoved(let txid, let reason):
+                print("🗑️ Mempool transaction removed: \(txid) - \(reason)")
             }
         }
     }

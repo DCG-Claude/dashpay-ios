@@ -2,6 +2,12 @@ import Foundation
 import Security
 import CryptoKit
 
+extension Data {
+    var sha256Hash: Data {
+        return Data(SHA256.hash(data: self))
+    }
+}
+
 /// Production-ready signer that uses iOS Keychain for secure key storage
 class KeychainSigner: Signer {
     private let keyService = "com.dashpay.identity.keys"
@@ -17,7 +23,7 @@ class KeychainSigner: Signer {
     
     func sign(identityPublicKey: Data, data: Data) -> Data? {
         // Convert public key to identity ID for keychain lookup
-        let identityId = identityPublicKey.sha256Hash.hexString
+        let identityId = identityPublicKey.sha256Hash.toHexString()
         
         guard let privateKey = retrievePrivateKey(forIdentity: identityId) else {
             print("❌ KeychainSigner: No private key found for identity \(identityId)")
@@ -36,7 +42,7 @@ class KeychainSigner: Signer {
     }
     
     func canSign(identityPublicKey: Data) -> Bool {
-        let identityId = identityPublicKey.sha256Hash.hexString
+        let identityId = identityPublicKey.sha256Hash.toHexString()
         return hasPrivateKey(forIdentity: identityId)
     }
     
@@ -50,8 +56,8 @@ class KeychainSigner: Signer {
     func storePrivateKey(_ privateKey: Data, forIdentity identityId: String) -> Bool {
         let query = baseKeychainQuery(forIdentity: identityId)
         var queryWithData = query
-        queryWithData[kSecValueData] = privateKey
-        queryWithData[kSecAttrAccessible] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
+        queryWithData[kSecValueData as String] = privateKey
+        queryWithData[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
         
         // Delete any existing key first
         SecItemDelete(query as CFDictionary)
@@ -159,16 +165,7 @@ class KeychainSigner: Signer {
 }
 
 // MARK: - Data Extensions
-
-private extension Data {
-    var sha256Hash: Data {
-        return SHA256.hash(data: self).withUnsafeBytes { Data($0) }
-    }
-    
-    var hexString: String {
-        return map { String(format: "%02hhx", $0) }.joined()
-    }
-}
+// sha256Hash is already defined above
 
 // MARK: - Error Types
 

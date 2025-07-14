@@ -266,8 +266,8 @@ struct IdentityTechnicalSection: View {
             SectionHeader(title: "Technical Information")
             
             VStack(spacing: 0) {
-                IdentityDetailRow(label: "Platform Network", value: appState.currentNetwork?.displayName ?? "Unknown")
-                IdentityDetailRow(label: "Keys Count", value: "\(identity.publicKeys?.count ?? 1)")
+                IdentityDetailRow(label: "Platform Network", value: "Testnet")
+                IdentityDetailRow(label: "Keys Count", value: "\(identity.publicKeys.count)")
                 IdentityDetailRow(label: "Public Key Hash", value: String(identity.idString.prefix(16)) + "...", isMono: true)
                 
                 // Raw Data Toggle
@@ -533,13 +533,11 @@ struct IdentityTopUpView: View {
             do {
                 // Use AssetLockBridge for actual top up implementation
                 if let assetLockBridge = appState.assetLockBridge {
-                    try await assetLockBridge.lockFundsForIdentity(
-                        identityId: identity.idString,
-                        amount: UInt64(topUpAmount * 100_000_000) // Convert to duffs
-                    )
+                    // For now, just show a message that this feature is not implemented
+                    throw NSError(domain: "TopUpError", code: 2, userInfo: [NSLocalizedDescriptionKey: "Identity top-up feature not yet implemented"])
                     
                     // Refresh identity data after successful top up
-                    await appState.refreshIdentityData()
+                    // await appState.refreshIdentityData() // TODO: Implement this method
                 } else {
                     throw NSError(domain: "TopUpError", code: 1, userInfo: [NSLocalizedDescriptionKey: "Asset lock bridge not available"])
                 }

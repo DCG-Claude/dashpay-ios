@@ -573,8 +573,8 @@ struct RevisionDetailHeader: View {
             // Metadata
             VStack(spacing: 0) {
                 DetailRow(label: "Created", value: formatDate(revision.createdAt))
-                DetailRow(label: "Owner ID", value: revision.ownerId.toHexString(), isMono: true)
-                DetailRow(label: "Document ID", value: revision.documentId, isMono: true)
+                DetailRow(label: "Owner ID", value: revision.ownerId.toHexString())
+                DetailRow(label: "Document ID", value: revision.documentId)
             }
         }
         .padding()

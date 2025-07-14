@@ -1,6 +1,7 @@
 import Foundation
 import Combine
 import SwiftData
+import SwiftDashCoreSDK
 
 /// Service that combines transaction history from all layers: Core, Platform, and Tokens
 @MainActor
@@ -168,39 +169,20 @@ class UnifiedTransactionHistoryService: ObservableObject {
     }
     
     private func fetchCoreTransactions() async throws -> [UnifiedTransaction] {
-        // Fetch actual Core transactions from the SDK
-        guard let sdk = appState.coreSDK else {
-            print("⚠️ Core SDK not available for transaction fetching")
-            return []
-        }
-        
-        do {
-            let transactions = try await sdk.getTransactions(limit: 50)
-            return transactions.map { tx in
-                UnifiedTransaction(
-                    id: tx.txid,
-                    type: .coreTransaction,
-                    direction: tx.amount > 0 ? .received : .sent,
-                    amount: abs(tx.amount),
-                    address: tx.toAddress ?? tx.fromAddress,
-                    timestamp: tx.timestamp,
-                    confirmations: tx.confirmations,
-                    fee: tx.fee,
-                    memo: tx.memo,
-                    status: tx.confirmations >= 6 ? .confirmed : (tx.confirmations > 0 ? .confirming : .pending),
-                    blockHeight: tx.blockHeight,
-                    txHash: tx.txid
-                )
-            }
-        } catch {
-            print("❌ Failed to fetch Core transactions: \(error)")
-            return []
-        }
+        // TODO: Implement fetching from SDK or SwiftData
+        // For now, the SDK doesn't provide a method to fetch all transactions
+        // And this service doesn't have access to WalletService
+        // This would need to be refactored to either:
+        // 1. Pass WalletService as a dependency
+        // 2. Use the SDK's transaction fetching methods when available
+        // 3. Access SwiftData directly
+        print("⚠️ Core transaction fetching needs integration with WalletService or SDK")
+        return []
     }
     
     private func fetchPlatformTransactions() async throws -> [UnifiedTransaction] {
         // Fetch actual Platform transactions
-        guard let platformSDK = appState.platformSDK else {
+        guard let platformSDK = platformWrapper else {
             print("⚠️ Platform SDK not available for transaction fetching")
             return []
         }
@@ -212,10 +194,8 @@ class UnifiedTransactionHistoryService: ObservableObject {
     
     private func fetchTokenTransactions() async throws -> [UnifiedTransaction] {
         // Fetch actual Token transactions 
-        guard let tokenService = appState.tokenService else {
-            print("⚠️ Token service not available for transaction fetching")
-            return []
-        }
+        // Use the tokenService property directly
+        let tokenService = self.tokenService
         
         // Implementation would go here - token transactions are document-based operations
         // For now return empty array as this functionality is handled through the token service

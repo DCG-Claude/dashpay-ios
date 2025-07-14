@@ -1,6 +1,8 @@
 import Foundation
 import SwiftData
 
+// DocumentRevision is now defined in DocumentService.swift
+
 /// DataManager specific errors
 enum DataManagerError: LocalizedError {
     case documentNotFound(String)
@@ -279,7 +281,7 @@ final class DataManager: ObservableObject {
     /// Search contracts by name or keywords
     func searchContracts(query: String, limit: Int = 50) throws -> [ContractModel] {
         let predicate = PersistentContract.searchPredicate(query: query, network: currentNetwork.rawValue)
-        let descriptor = FetchDescriptor<PersistentContract>(
+        var descriptor = FetchDescriptor<PersistentContract>(
             predicate: predicate,
             sortBy: [SortDescriptor(\.createdAt, order: .reverse)]
         )
@@ -329,7 +331,7 @@ final class DataManager: ObservableObject {
     
     /// Get recently accessed contracts
     func getRecentContracts(limit: Int = 10) throws -> [ContractModel] {
-        let descriptor = FetchDescriptor<PersistentContract>(
+        var descriptor = FetchDescriptor<PersistentContract>(
             predicate: PersistentContract.predicate(network: currentNetwork.rawValue),
             sortBy: [SortDescriptor(\.lastAccessedAt, order: .reverse)]
         )

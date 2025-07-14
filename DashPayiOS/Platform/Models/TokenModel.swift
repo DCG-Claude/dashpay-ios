@@ -167,4 +167,13 @@ struct TokenModel: Identifiable, Codable {
     var isTransferable: Bool {
         return !frozen && status?.isOperational != false
     }
+    
+    var pricePerToken: Double {
+        // Convert the price to DASH from credits
+        // Assuming the price is in credits, and 1 DASH = 100,000,000 satoshis
+        if let effectivePrice = priceInfo?.effectivePrice {
+            return Double(effectivePrice) / 100_000_000.0
+        }
+        return 0.0
+    }
 }

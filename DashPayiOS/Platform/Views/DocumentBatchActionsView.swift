@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 
 /// Batch operations view for multiple document actions
 struct DocumentBatchActionsView: View {
@@ -25,7 +26,7 @@ struct DocumentBatchActionsView: View {
         self.onDismiss = onDismiss
         
         // Initialize with placeholder values - will be properly injected
-        let dummyDataManager = DataManager(modelContext: ModelContext(ModelContainer.preview()))
+        let dummyDataManager = DataManager(modelContext: ModelContext(try! ModelContainer.inMemoryContainer()))
         let dummyPlatformSDK = try! PlatformSDKWrapper(network: .testnet)
         self._documentService = StateObject(wrappedValue: DocumentService(platformSDK: dummyPlatformSDK, dataManager: dummyDataManager))
     }

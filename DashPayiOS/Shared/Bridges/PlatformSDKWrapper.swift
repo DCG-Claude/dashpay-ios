@@ -1,6 +1,66 @@
 import Foundation
-import DashSDKFFI
 import CryptoKit
+import SwiftDashCoreSDK
+
+/// Platform SDK errors
+enum PlatformError: LocalizedError {
+    case sdkInitializationFailed
+    case signerCreationFailed
+    case identityNotFound
+    case identityCreationFailed
+    case failedToGetInfo
+    case invalidIdentityId
+    case transferFailed
+    case insufficientBalance
+    case documentCreationFailed
+    case documentNotFound
+    case notImplemented(String)
+    case documentUpdateFailed
+    case dataContractNotFound
+    case dataContractCreationFailed
+    case dataContractUpdateFailed
+    case invalidData
+    case topUpFailed
+    
+    var errorDescription: String? {
+        switch self {
+        case .sdkInitializationFailed:
+            return "Failed to initialize Platform SDK"
+        case .signerCreationFailed:
+            return "Failed to create signer"
+        case .identityNotFound:
+            return "Identity not found"
+        case .identityCreationFailed:
+            return "Failed to create identity"
+        case .failedToGetInfo:
+            return "Failed to get identity information"
+        case .invalidIdentityId:
+            return "Invalid identity ID format"
+        case .transferFailed:
+            return "Credit transfer failed"
+        case .insufficientBalance:
+            return "Insufficient balance for operation"
+        case .documentCreationFailed:
+            return "Document creation failed"
+        case .dataContractNotFound:
+            return "Data contract not found"
+        case .dataContractCreationFailed:
+            return "Data contract creation failed"
+        case .dataContractUpdateFailed:
+            return "Data contract update failed"
+        case .documentNotFound:
+            return "Document not found"
+        case .notImplemented(let feature):
+            return "Feature not implemented: \(feature)"
+        case .documentUpdateFailed:
+            return "Document update failed"
+        case .invalidData:
+            return "Invalid data returned from SDK"
+        case .topUpFailed:
+            return "Failed to top up identity"
+        }
+    }
+}
 
 /// Swift-friendly wrapper around Platform FFI with automatic memory management
 actor PlatformSDKWrapper {
@@ -10,6 +70,9 @@ actor PlatformSDKWrapper {
     private let platformSigner: PlatformSigner
     private let coreSDK: DashSDK?
     // Resource management handled by SDK internally
+    
+    // Static flag to ensure dash_sdk_init() is called only once
+    private static var sdkInitialized = false
     
     init(network: PlatformNetwork) throws {
         self.coreSDK = nil
@@ -26,30 +89,40 @@ actor PlatformSDKWrapper {
         
         // Test the connection after initialization
         Task {
-            await testConnection()
+            do {
+                try await testConnection()
+                print("✅ Platform SDK connection test passed")
+            } catch {
+                print("⚠️ Platform SDK connection test failed: \(error)")
+            }
         }
     }
     
     private static func createPlatformSDK(for network: PlatformNetwork, withCore coreSDK: DashSDK?) throws -> OpaquePointer {
-        // Initialize SDK
-        dash_sdk_init()
+        // Initialize unified library first (replaces dash_sdk_init)
+        UnifiedFFIInitializer.shared.initialize()
         
-        // Create extended configuration
-        var extConfig = DashSDKConfigExtended()
+        // Create standard configuration (not extended)
+        var config = DashSDKConfig()
         
-        // Copy base configuration
-        extConfig.base_config.network = network.sdkNetwork
-        extConfig.base_config.skip_asset_lock_proof_verification = false
-        extConfig.base_config.request_retry_count = 3
-        extConfig.base_config.request_timeout_ms = 30000
+        // Set base configuration
+        config.network = network.sdkNetwork
+        config.skip_asset_lock_proof_verification = false
+        config.request_retry_count = 3
+        config.request_timeout_ms = 30000
         
-        // Set DAPI addresses based on network
+        // Set DAPI addresses based on network - updated with working testnet addresses
         let testnetAddresses = [
-            "https://54.186.161.118:1443",
-            "https://52.43.70.6:1443",
-            "https://18.237.42.109:1443",
-            "https://52.42.192.140:1443",
-            "https://35.166.242.82:1443"
+            "https://seed-1.testnet.networks.dash.org:1443",
+            "https://seed-2.testnet.networks.dash.org:1443",
+            "https://seed-3.testnet.networks.dash.org:1443",
+            "https://seed-4.testnet.networks.dash.org:1443",
+            "https://seed-5.testnet.networks.dash.org:1443",
+            "https://54.186.161.118:1443",    // AWS testnet DAPI
+            "https://52.43.70.6:1443",        // AWS testnet DAPI
+            "https://18.237.42.109:1443",     // AWS testnet DAPI
+            "https://52.42.192.140:1443",     // AWS testnet DAPI
+            "https://35.166.242.82:1443"      // AWS testnet DAPI
         ].joined(separator: ",")
         
         // Configure DAPI addresses
@@ -57,39 +130,12 @@ actor PlatformSDKWrapper {
         switch network {
         case .testnet:
             result = testnetAddresses.withCString { addressesCStr -> DashSDKResult in
-                var mutableConfig = extConfig
-                mutableConfig.base_config.dapi_addresses = addressesCStr
+                var mutableConfig = config
+                mutableConfig.dapi_addresses = addressesCStr
                 
-                // Configure Core integration if available
-                if let coreSDK = coreSDK,
-                   let coreHandle = coreSDK.spvClient.getCoreHandle() {
-                    
-                    print("🔗 Configuring Platform SDK with Core SDK integration")
-                    
-                    // Create context provider from Core
-                    let contextProvider = dash_sdk_context_provider_from_core(
-                        UnsafeMutableRawPointer(coreHandle),
-                        nil,  // Use default Core RPC
-                        nil,
-                        nil
-                    )
-                    
-                    mutableConfig.context_provider = contextProvider
-                    
-                    // Create SDK with extended config
-                    let sdkResult = dash_sdk_create_extended(&mutableConfig)
-                    
-                    // Clean up
-                    if let provider = contextProvider {
-                        dash_sdk_context_provider_destroy(provider)
-                    }
-                    SPVClient.releaseCoreHandle(coreHandle)
-                    
-                    return sdkResult
-                } else {
-                    print("⚠️ No Core SDK available, Platform SDK will use limited functionality")
-                    return dash_sdk_create_extended(&mutableConfig)
-                }
+                // Create Platform SDK with standard configuration
+                print("🔧 Creating Platform SDK for testnet")
+                return dash_sdk_create(&mutableConfig)
             }
         case .mainnet:
             // Mainnet DAPI addresses - using official Dash DAPI endpoints
@@ -99,77 +145,23 @@ actor PlatformSDKWrapper {
                 "https://seed-2.evonet.networks.dash.org:1443"
             ].joined(separator: ",")
             result = mainnetAddresses.withCString { addressesCStr -> DashSDKResult in
-                var mutableConfig = extConfig
-                mutableConfig.base_config.dapi_addresses = addressesCStr
+                var mutableConfig = config
+                mutableConfig.dapi_addresses = addressesCStr
                 
-                // Configure Core integration if available
-                if let coreSDK = coreSDK,
-                   let coreHandle = coreSDK.spvClient.getCoreHandle() {
-                    
-                    print("🔗 Configuring Platform SDK with Core SDK integration")
-                    
-                    // Create context provider from Core
-                    let contextProvider = dash_sdk_context_provider_from_core(
-                        UnsafeMutableRawPointer(coreHandle),
-                        nil,  // Use default Core RPC
-                        nil,
-                        nil
-                    )
-                    
-                    mutableConfig.context_provider = contextProvider
-                    
-                    // Create SDK with extended config
-                    let sdkResult = dash_sdk_create_extended(&mutableConfig)
-                    
-                    // Clean up
-                    if let provider = contextProvider {
-                        dash_sdk_context_provider_destroy(provider)
-                    }
-                    SPVClient.releaseCoreHandle(coreHandle)
-                    
-                    return sdkResult
-                } else {
-                    print("⚠️ No Core SDK available, Platform SDK will use limited functionality")
-                    return dash_sdk_create_extended(&mutableConfig)
-                }
+                // Create Platform SDK with standard configuration
+                print("🔧 Creating Platform SDK for mainnet")
+                return dash_sdk_create(&mutableConfig)
             }
         case .devnet:
             // For devnet, assume local development
             let devnetAddresses = "http://127.0.0.1:3000,http://127.0.0.1:3001"
             result = devnetAddresses.withCString { addressesCStr -> DashSDKResult in
-                var mutableConfig = extConfig
-                mutableConfig.base_config.dapi_addresses = addressesCStr
+                var mutableConfig = config
+                mutableConfig.dapi_addresses = addressesCStr
                 
-                // Configure Core integration if available
-                if let coreSDK = coreSDK,
-                   let coreHandle = coreSDK.spvClient.getCoreHandle() {
-                    
-                    print("🔗 Configuring Platform SDK with Core SDK integration")
-                    
-                    // Create context provider from Core
-                    let contextProvider = dash_sdk_context_provider_from_core(
-                        UnsafeMutableRawPointer(coreHandle),
-                        nil,  // Use default Core RPC
-                        nil,
-                        nil
-                    )
-                    
-                    mutableConfig.context_provider = contextProvider
-                    
-                    // Create SDK with extended config
-                    let sdkResult = dash_sdk_create_extended(&mutableConfig)
-                    
-                    // Clean up
-                    if let provider = contextProvider {
-                        dash_sdk_context_provider_destroy(provider)
-                    }
-                    SPVClient.releaseCoreHandle(coreHandle)
-                    
-                    return sdkResult
-                } else {
-                    print("⚠️ No Core SDK available, Platform SDK will use limited functionality")
-                    return dash_sdk_create_extended(&mutableConfig)
-                }
+                // Create Platform SDK with standard configuration
+                print("🔧 Creating Platform SDK for devnet")
+                return dash_sdk_create(&mutableConfig)
             }
         }
         
@@ -194,7 +186,8 @@ actor PlatformSDKWrapper {
         // TODO: Add resource manager cleanup when available
         
         if let signer = signer {
-            dash_sdk_signer_destroy(signer)
+            // TODO: Re-enable when dash_sdk_signer_destroy is available in unified FFI
+            // dash_sdk_signer_destroy(signer)
         }
         dash_sdk_destroy(sdk)
         
@@ -211,12 +204,12 @@ actor PlatformSDKWrapper {
     // MARK: - Connection Testing
     
     /// Test Platform SDK connection to DAPI nodes
-    func testConnection() async -> Bool {
+    func testConnection() async throws {
         print("🔍 Testing Platform SDK connection to DAPI...")
         
         // Test by trying to fetch a well-known contract (DPNS contract)
         // This is a more reliable test as it exercises the DAPI connection
-        let dpnsContractId = "GWRSAVFMjXx8HpQFaNJMqBV7MBgMK4br5UESsB4S31EC" // DPNS contract ID
+        let dpnsContractId = "GWRSAVFMjXx8HpQFaNJMqBV7MBgMK4br5UESsB4S31EC" // DPNS contract ID on testnet
         
         let testResult = dpnsContractId.withCString { contractIdCStr in
             dash_sdk_data_contract_fetch(sdk, contractIdCStr)
@@ -226,17 +219,16 @@ actor PlatformSDKWrapper {
             let errorMessage = error.pointee.message.map { String(cString: $0) } ?? "Unknown error"
             defer { dash_sdk_error_free(error) }
             print("🔴 Platform connection test failed: \(errorMessage)")
-            return false
+            throw PlatformError.sdkInitializationFailed
         }
         
         if let contractHandle = testResult.data {
             // Clean up the contract handle
             dash_sdk_data_contract_destroy(OpaquePointer(contractHandle))
             print("✅ Platform SDK connected! Successfully fetched DPNS contract")
-            return true
         } else {
             print("🔴 Platform connection test failed: No contract data returned")
-            return false
+            throw PlatformError.sdkInitializationFailed
         }
     }
     
@@ -244,7 +236,14 @@ actor PlatformSDKWrapper {
     func getNetworkStatus() async -> PlatformNetworkStatus {
         print("📊 Getting Platform network status...")
         
-        let isConnected = await testConnection()
+        let isConnected = await { () -> Bool in
+            do {
+                try await testConnection()
+                return true
+            } catch {
+                return false
+            }
+        }()
         
         // Get additional network info
         var connectedNodes = 0
@@ -284,6 +283,9 @@ actor PlatformSDKWrapper {
         switch network {
         case .testnet:
             return [
+                "https://seed-1.testnet.networks.dash.org:1443",
+                "https://seed-2.testnet.networks.dash.org:1443",
+                "https://seed-3.testnet.networks.dash.org:1443",
                 "https://54.186.161.118:1443",
                 "https://52.43.70.6:1443",
                 "https://18.237.42.109:1443"
@@ -339,7 +341,8 @@ actor PlatformSDKWrapper {
             
             defer {
                 // Enhanced cleanup
-                dash_sdk_identity_info_free(identityInfo)
+                // TODO: Re-enable when dash_sdk_identity_info_free is available in unified FFI
+                // dash_sdk_identity_info_free(identityInfo)
             }
             
             // Safe string extraction
@@ -422,7 +425,8 @@ actor PlatformSDKWrapper {
         }
         
         // Clean up
-        dash_sdk_identity_info_free(identityInfo)
+        // TODO: Re-enable when dash_sdk_identity_info_free is available in unified FFI
+        // dash_sdk_identity_info_free(identityInfo)
         dash_sdk_identity_destroy(OpaquePointer(identityHandle))
         
         return Identity(
@@ -534,6 +538,8 @@ actor PlatformSDKWrapper {
         // Extract contract information from FFI handle
         // Note: In a full implementation, we would extract the actual schema and metadata
         // from the contract handle using appropriate FFI calls
+        // TODO: Implement when dash_sdk_data_contract_get_info is available
+        /*
         guard let contractInfo = dash_sdk_data_contract_get_info(OpaquePointer(contractHandle)) else {
             // Fallback to basic contract info
             return DataContract(
@@ -552,6 +558,12 @@ actor PlatformSDKWrapper {
         let ownerId = String(cString: contractInfo.pointee.owner_id)
         let version = contractInfo.pointee.version
         let revision = contractInfo.pointee.revision
+        */
+        
+        // Temporary implementation
+        let ownerId = "unknown"
+        let version: UInt32 = 1
+        let revision: UInt64 = 0
         
         // Extract schema - for now, use a basic schema structure
         // In production, would parse the actual contract schema from FFI
@@ -724,19 +736,10 @@ actor PlatformSDKWrapper {
         }
         
         // Create the document using FFI with proper parameters
-        let createResult = dataJson.withCString { dataCStr in
-            documentType.withCString { typeCStr in
-                dash_sdk_document_create_from_json(
-                    sdk,
-                    OpaquePointer(contractHandle),
-                    OpaquePointer(ownerIdentityHandle),
-                    typeCStr,
-                    dataCStr,
-                    signerHandle
-                )
-            }
-        }
+        // TODO: Implement when dash_sdk_document_create_from_json is available
+        throw PlatformError.notImplemented("Document creation not yet implemented")
         
+        /* Commented out until createResult is properly defined
         if let error = createResult.error {
             let errorMessage = error.pointee.message.map { String(cString: $0) } ?? "Unknown error"
             defer { dash_sdk_error_free(error) }
@@ -758,7 +761,8 @@ actor PlatformSDKWrapper {
         }
         
         defer {
-            dash_sdk_document_info_free(docInfo)
+            // TODO: Re-enable when dash_sdk_document_info_free is available in unified FFI
+            // dash_sdk_document_info_free(docInfo)
         }
         
         let documentId = String(cString: docInfo.pointee.id)
@@ -778,6 +782,7 @@ actor PlatformSDKWrapper {
         
         print("✅ Document created with ID: \(documentId)")
         return document
+        */
     }
     
     /// Fetch a document by ID
@@ -837,7 +842,8 @@ actor PlatformSDKWrapper {
         }
         
         defer {
-            dash_sdk_document_info_free(docInfo)
+            // TODO: Re-enable when dash_sdk_document_info_free is available in unified FFI
+            // dash_sdk_document_info_free(docInfo)
         }
         
         let fetchedOwnerId = String(cString: docInfo.pointee.owner_id)
@@ -915,20 +921,10 @@ actor PlatformSDKWrapper {
         }
         
         // Update the document using FFI with proper parameters
-        let updateResult = dataJson.withCString { dataCStr in
-            document.id.withCString { idCStr in
-                dash_sdk_document_update_from_json(
-                    sdk,
-                    OpaquePointer(contractHandle),
-                    OpaquePointer(ownerIdentityHandle),
-                    idCStr,
-                    dataCStr,
-                    document.revision + 1, // Increment revision
-                    signerHandle
-                )
-            }
-        }
+        // TODO: Implement when dash_sdk_document_update_from_json is available
+        throw PlatformError.notImplemented("Document update not yet implemented")
         
+        /* Commented out until updateResult is properly defined
         if let error = updateResult.error {
             let errorMessage = error.pointee.message.map { String(cString: $0) } ?? "Unknown error"
             defer { dash_sdk_error_free(error) }
@@ -950,7 +946,8 @@ actor PlatformSDKWrapper {
         }
         
         defer {
-            dash_sdk_document_info_free(docInfo)
+            // TODO: Re-enable when dash_sdk_document_info_free is available in unified FFI
+            // dash_sdk_document_info_free(docInfo)
         }
         
         let newRevision = docInfo.pointee.revision
@@ -965,6 +962,7 @@ actor PlatformSDKWrapper {
             revision: newRevision,
             dataDict: newData
         )
+        */
     }
     
     /// Delete a document
@@ -1021,19 +1019,10 @@ actor PlatformSDKWrapper {
         }
         
         // Delete the document using FFI with proper parameters
-        let deleteResult = document.id.withCString { idCStr in
-            document.documentType.withCString { typeCStr in
-                dash_sdk_document_delete_by_id(
-                    sdk,
-                    OpaquePointer(contractHandle),
-                    OpaquePointer(ownerIdentityHandle),
-                    typeCStr,
-                    idCStr,
-                    signerHandle
-                )
-            }
-        }
+        // TODO: Implement when dash_sdk_document_delete_by_id is available
+        throw PlatformError.notImplemented("Document deletion not yet implemented")
         
+        /* Commented out until deleteResult is properly defined
         if let error = deleteResult.error {
             let errorMessage = error.pointee.message.map { String(cString: $0) } ?? "Unknown error"
             defer { dash_sdk_error_free(error) }
@@ -1042,6 +1031,7 @@ actor PlatformSDKWrapper {
         }
         
         print("✅ Document deleted successfully")
+        */
     }
     
     /// Search for documents
@@ -1073,17 +1063,10 @@ actor PlatformSDKWrapper {
         let queryJson = String(data: queryData, encoding: .utf8) ?? "{}"
         
         // Search documents using FFI
-        let searchResult = documentType.withCString { typeCStr in
-            queryJson.withCString { queryCStr in
-                dash_sdk_document_query(
-                    sdk,
-                    OpaquePointer(contractHandle),
-                    typeCStr,
-                    queryCStr
-                )
-            }
-        }
+        // TODO: Implement when dash_sdk_document_query is available
+        throw PlatformError.notImplemented("Document search not yet implemented")
         
+        /* Commented out until searchResult is properly defined
         if let error = searchResult.error {
             let errorMessage = error.pointee.message.map { String(cString: $0) } ?? "Unknown error"
             defer { dash_sdk_error_free(error) }
@@ -1096,10 +1079,7 @@ actor PlatformSDKWrapper {
             return []
         }
         
-        defer {
-            // Clean up search results
-            dash_sdk_document_query_results_destroy(OpaquePointer(searchResultsHandle))
-        }
+        // Clean up will be needed when query is implemented
         
         // Extract documents from search results
         let documents = try extractDocumentsFromResults(
@@ -1110,6 +1090,7 @@ actor PlatformSDKWrapper {
         
         print("✅ Found \(documents.count) documents in search")
         return documents
+        */
     }
     
     // MARK: - Document Helper Functions
@@ -1156,16 +1137,10 @@ actor PlatformSDKWrapper {
         contractId: String,
         documentType: String
     ) throws -> [Document] {
-        var documents: [Document] = []
+        // TODO: Implement when query results functions are available
+        return []
         
-        // Get the count of results
-        let count = dash_sdk_document_query_results_count(resultsHandle)
-        print("📄 Processing \(count) document results")
-        
-        // Iterate through results
-        for index in 0..<count {
-            let documentResult = dash_sdk_document_query_results_get(resultsHandle, index)
-            
+        /* Commented out incomplete code
             if let error = documentResult.error {
                 let errorMessage = error.pointee.message.map { String(cString: $0) } ?? "Unknown error"
                 defer { dash_sdk_error_free(error) }
@@ -1186,7 +1161,8 @@ actor PlatformSDKWrapper {
                 }
                 
                 defer {
-                    dash_sdk_document_info_free(docInfo)
+                    // TODO: Re-enable when dash_sdk_document_info_free is available in unified FFI
+                    // dash_sdk_document_info_free(docInfo)
                 }
                 
                 let documentId = String(cString: docInfo.pointee.id)
@@ -1214,6 +1190,7 @@ actor PlatformSDKWrapper {
         }
         
         return documents
+        */
     }
     
     /// Build query data from query parameters
@@ -1400,7 +1377,7 @@ actor PlatformSDKWrapper {
             // For now, generate a deterministic signature based on the data
             // This is better than a fixed mock signature as it varies with input
             let dataToSign = Data(bytes: dataBytes, count: Int(dataLen))
-            let signature = generateDeterministicSignature(for: dataToSign, with: identityPubKey)
+            let signature = PlatformSDKWrapper.generateDeterministicSignatureStatic(for: dataToSign, with: identityPubKey)
             
             // Allocate memory for result
             let resultBytes = UnsafeMutablePointer<UInt8>.allocate(capacity: signature.count)
@@ -1456,6 +1433,32 @@ actor PlatformSDKWrapper {
         encodedData.append(instantLock.signature)
         
         return encodedData
+    }
+    
+    /// Generate a deterministic signature for testing/development (static version for C callbacks)
+    /// In production, this would use proper cryptographic signing
+    private static func generateDeterministicSignatureStatic(for data: Data, with publicKey: Data) -> Data {
+        // Create a deterministic signature based on data hash and public key
+        // This is NOT cryptographically secure - only for development/testing
+        
+        var hasher = SHA256()
+        hasher.update(data: data)
+        hasher.update(data: publicKey)
+        hasher.update(data: "signature_salt".data(using: .utf8)!)
+        
+        let hash = Data(hasher.finalize())
+        
+        // Create a 64-byte signature (typical for ECDSA signatures)
+        var signature = hash
+        if signature.count < 64 {
+            // Pad to 64 bytes
+            signature.append(Data(repeating: 0x00, count: 64 - signature.count))
+        } else if signature.count > 64 {
+            // Truncate to 64 bytes
+            signature = signature.prefix(64)
+        }
+        
+        return signature
     }
     
     /// Generate a deterministic signature for testing/development
@@ -1572,57 +1575,6 @@ struct Document: Identifiable {
     }
 }
 
-// MARK: - Errors
-
-enum PlatformError: LocalizedError {
-    case sdkInitializationFailed
-    case signerCreationFailed
-    case identityNotFound
-    case identityCreationFailed
-    case failedToGetInfo
-    case invalidIdentityId
-    case transferFailed
-    case insufficientBalance
-    case documentCreationFailed
-    case documentNotFound
-    case documentUpdateFailed
-    case dataContractNotFound
-    case dataContractCreationFailed
-    case dataContractUpdateFailed
-    
-    var errorDescription: String? {
-        switch self {
-        case .sdkInitializationFailed:
-            return "Failed to initialize Platform SDK"
-        case .signerCreationFailed:
-            return "Failed to create signer"
-        case .identityNotFound:
-            return "Identity not found"
-        case .identityCreationFailed:
-            return "Failed to create identity"
-        case .failedToGetInfo:
-            return "Failed to get identity information"
-        case .invalidIdentityId:
-            return "Invalid identity ID format"
-        case .transferFailed:
-            return "Credit transfer failed"
-        case .insufficientBalance:
-            return "Insufficient balance for operation"
-        case .documentCreationFailed:
-            return "Document creation failed"
-        case .dataContractNotFound:
-            return "Data contract not found"
-        case .dataContractCreationFailed:
-            return "Data contract creation failed"
-        case .dataContractUpdateFailed:
-            return "Data contract update failed"
-        case .documentNotFound:
-            return "Document not found"
-        case .documentUpdateFailed:
-            return "Document update failed"
-        }
-    }
-}
 
 // MARK: - FFI Type Extensions
 
@@ -1707,7 +1659,8 @@ extension PlatformSDKWrapper: PlatformSDKProtocol {
         let newRevision = updatedInfo.pointee.revision
         
         // Clean up
-        dash_sdk_identity_info_free(updatedInfo)
+        // TODO: Re-enable when dash_sdk_identity_info_free is available in unified FFI
+        // dash_sdk_identity_info_free(updatedInfo)
         
         print("✅ Identity topped up successfully. New balance: \(newBalance)")
         

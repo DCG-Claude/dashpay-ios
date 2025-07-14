@@ -30,7 +30,7 @@ struct TokensView: View {
                     )
                 } else {
                     List {
-                        Section("Select Identity") {
+                        Section(header: Text("Select Identity")) {
                             Picker("Identity", selection: $selectedIdentity) {
                                 Text("Select an identity").tag(nil as IdentityModel?)
                                 ForEach(appState.identities) { identity in
@@ -42,7 +42,7 @@ struct TokensView: View {
                         }
                         
                         if selectedIdentity != nil {
-                            Section("Available Tokens") {
+                            Section(header: Text("Available Tokens")) {
                                 ForEach(appState.tokens) { token in
                                     TokenRow(token: token) {
                                         selectedToken = token
@@ -128,7 +128,7 @@ struct TokenActionsView: View {
     var body: some View {
         NavigationView {
             List {
-                Section("Token Information") {
+                Section(header: Text("Token Information")) {
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
                             Text("Name:")
@@ -155,7 +155,7 @@ struct TokenActionsView: View {
                     }
                 }
                 
-                Section("Actions") {
+                Section(header: Text("Actions")) {
                     ForEach(TokenAction.allCases, id: \.self) { action in
                         Button(action: {
                             if action.isEnabled {
@@ -183,7 +183,7 @@ struct TokenActionsView: View {
                     }
                 }
             }
-            .navigationTitle(token.name)
+            .navigationTitle(token.name ?? "Token")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
@@ -218,195 +218,9 @@ struct TokenActionDetailView: View {
     var body: some View {
         NavigationView {
             Form {
-                Section("Selected Identity") {
-                    if let identity = selectedIdentity {
-                        VStack(alignment: .leading) {
-                            Text(identity.alias ?? "Identity")
-                                .font(.headline)
-                            Text(identity.idString)
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                                .lineLimit(1)
-                                .truncationMode(.middle)
-                            Text("Balance: \(identity.formattedBalance)")
-                                .font(.subheadline)
-                                .foregroundColor(.blue)
-                        }
-                    }
-                }
-                
-                switch action {
-                case .transfer:
-                    Section("Transfer Details") {
-                        TextField("Recipient Identity ID", text: $recipientId)
-                            .textContentType(.none)
-                            .autocapitalization(.none)
-                        
-                        TextField("Amount", text: $amount)
-                            .keyboardType(.numberPad)
-                        
-                        TextField("Note (Optional)", text: $tokenNote)
-                    }
-                    
-                case .mint:
-                    Section("Mint Details") {
-                        TextField("Amount", text: $amount)
-                            .keyboardType(.numberPad)
-                        
-                        TextField("Recipient Identity ID (Optional)", text: $recipientId)
-                            .textContentType(.none)
-                            .autocapitalization(.none)
-                    }
-                    
-                case .burn:
-                    Section("Burn Details") {
-                        TextField("Amount", text: $amount)
-                            .keyboardType(.numberPad)
-                        
-                        Text("Warning: This action is irreversible")
-                            .font(.caption)
-                            .foregroundColor(.red)
-                    }
-                    
-                case .claim:
-                    Section("Claim Details") {
-                        if token.availableClaims.isEmpty {
-                            Text("No claims available at this time")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        } else {
-                            Text("Available claims:")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                            
-                            VStack(alignment: .leading, spacing: 8) {
-                                ForEach(token.availableClaims, id: \.name) { claim in
-                                    HStack {
-                                        Text(claim.name)
-                                        Spacer()
-                                        let divisor = pow(10.0, Double(token.decimals))
-                                        let claimAmount = Double(claim.amount) / divisor
-                                        Text(String(format: "%.\(token.decimals)f %@", claimAmount, token.symbol))
-                                            .foregroundColor(.green)
-                                    }
-                                }
-                            }
-                            .padding(.vertical, 4)
-                            
-                            Text("All available claims will be processed")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                    
-                case .freeze:
-                    Section("Freeze Details") {
-                        TextField("Amount to Freeze", text: $amount)
-                            .keyboardType(.numberPad)
-                        
-                        TextField("Reason (Optional)", text: $tokenNote)
-                        
-                        Text("Frozen tokens cannot be transferred until unfrozen")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                    
-                case .unfreeze:
-                    Section("Unfreeze Details") {
-                        if token.frozenBalance > 0 {
-                            Text("Frozen Balance: \(token.formattedFrozenBalance)")
-                                .font(.subheadline)
-                                .foregroundColor(.orange)
-                        } else {
-                            Text("No frozen tokens available")
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
-                        }
-                        
-                        TextField("Amount to Unfreeze", text: $amount)
-                            .keyboardType(.numberPad)
-                            .disabled(token.frozenBalance == 0)
-                        
-                        Text("Unfrozen tokens will be available for use immediately")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                    
-                case .destroyFrozenFunds:
-                    Section("Destroy Frozen Funds") {
-                        if token.frozenBalance > 0 {
-                            Text("Frozen Balance: \(token.formattedFrozenBalance)")
-                                .font(.subheadline)
-                                .foregroundColor(.orange)
-                        } else {
-                            Text("No frozen tokens available")
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
-                        }
-                        
-                        TextField("Amount to Destroy", text: $amount)
-                            .keyboardType(.numberPad)
-                        
-                        Text("⚠️ This action permanently destroys frozen tokens")
-                            .font(.caption)
-                            .foregroundColor(.red)
-                        
-                        TextField("Confirmation Reason", text: $tokenNote)
-                            .placeholder(when: tokenNote.isEmpty) {
-                                Text("Required for audit trail")
-                                    .foregroundColor(.secondary)
-                            }
-                    }
-                    
-                case .directPurchase:
-                    Section("Direct Purchase") {
-                        Text("Price: \(token.pricePerToken, specifier: "%.6f") DASH per \(token.symbol)")
-                            .font(.subheadline)
-                        
-                        TextField("Amount to Purchase", text: $amount)
-                            .keyboardType(.numberPad)
-                        
-                        if let purchaseAmount = Double(amount) {
-                            let totalCost = purchaseAmount * token.pricePerToken
-                            Text("Total Cost: \(totalCost, specifier: "%.6f") DASH")
-                                .font(.caption)
-                                .foregroundColor(.blue)
-                        }
-                        
-                        if let identity = selectedIdentity {
-                            Text("Available Balance: \(identity.formattedBalance)")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                        
-                        Text("Purchase will be deducted from your identity balance")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                }
-                
-                Section {
-                    Button(action: {
-                        Task {
-                            isProcessing = true
-                            await performTokenAction()
-                            isProcessing = false
-                            dismiss()
-                        }
-                    }) {
-                        HStack {
-                            Spacer()
-                            if isProcessing {
-                                ProgressView()
-                                    .progressViewStyle(CircularProgressViewStyle())
-                            } else {
-                                Text("Execute \(action.rawValue)")
-                            }
-                            Spacer()
-                        }
-                    }
-                    .disabled(isProcessing || !isActionValid)
-                }
+                identitySection
+                actionSection
+                executeSection
             }
             .navigationTitle(action.rawValue)
             .navigationBarTitleDisplayMode(.inline)
@@ -417,6 +231,200 @@ struct TokenActionDetailView: View {
                     }
                 }
             }
+        }
+    }
+    
+    private var identitySection: some View {
+        Section(header: Text("Selected Identity")) {
+            if let identity = selectedIdentity {
+                VStack(alignment: .leading) {
+                    Text(identity.alias ?? "Identity")
+                        .font(.headline)
+                    Text(identity.idString)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    Text("Balance: \(identity.formattedBalance)")
+                        .font(.subheadline)
+                        .foregroundColor(.blue)
+                }
+            }
+        }
+    }
+    
+    @ViewBuilder
+    private var actionSection: some View {
+        switch action {
+        case .transfer:
+            Section(header: Text("Transfer Details")) {
+                TextField("Recipient Identity ID", text: $recipientId)
+                    .textContentType(.none)
+                    .autocapitalization(.none)
+                
+                TextField("Amount", text: $amount)
+                    .keyboardType(.numberPad)
+                
+                TextField("Note (Optional)", text: $tokenNote)
+            }
+            
+        case .mint:
+            Section(header: Text("Mint Details")) {
+                TextField("Amount", text: $amount)
+                    .keyboardType(.numberPad)
+                
+                TextField("Recipient Identity ID (Optional)", text: $recipientId)
+                    .textContentType(.none)
+                    .autocapitalization(.none)
+            }
+            
+        case .burn:
+            Section(header: Text("Burn Details")) {
+                TextField("Amount", text: $amount)
+                    .keyboardType(.numberPad)
+                
+                Text("Warning: This action is irreversible")
+                    .font(.caption)
+                    .foregroundColor(.red)
+            }
+            
+        case .claim:
+            Section(header: Text("Claim Details")) {
+                if token.availableClaims.isEmpty {
+                    Text("No claims available at this time")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                } else {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Available claims:")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        
+                        ForEach(token.availableClaims, id: \.name) { claim in
+                            HStack {
+                                Text(claim.name)
+                                Spacer()
+                                let decimals = token.decimals ?? 8
+                                let divisor = pow(10.0, Double(decimals))
+                                let claimAmount = Double(claim.amount) / divisor
+                                Text(String(format: "%.\(decimals)f %@", claimAmount, token.symbol ?? ""))
+                                    .foregroundColor(.green)
+                            }
+                        }
+                        .padding(.vertical, 4)
+                        
+                        Text("All available claims will be processed")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
+            
+        case .freeze:
+            Section(header: Text("Freeze Details")) {
+                TextField("Amount to Freeze", text: $amount)
+                    .keyboardType(.numberPad)
+                
+                TextField("Reason (Optional)", text: $tokenNote)
+                
+                Text("Frozen tokens cannot be transferred until unfrozen")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            
+        case .unfreeze:
+            Section(header: Text("Unfreeze Details")) {
+                if token.frozenBalance > 0 {
+                    Text("Frozen Balance: \(token.formattedFrozenBalance)")
+                        .font(.subheadline)
+                        .foregroundColor(.orange)
+                } else {
+                    Text("No frozen tokens available")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+                
+                TextField("Amount to Unfreeze", text: $amount)
+                    .keyboardType(.numberPad)
+                    .disabled(token.frozenBalance == 0)
+                
+                Text("Unfrozen tokens will be available for use immediately")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            
+        case .destroyFrozenFunds:
+            Section(header: Text("Destroy Frozen Funds")) {
+                if token.frozenBalance > 0 {
+                    Text("Frozen Balance: \(token.formattedFrozenBalance)")
+                        .font(.subheadline)
+                        .foregroundColor(.orange)
+                } else {
+                    Text("No frozen tokens available")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+                
+                TextField("Amount to Destroy", text: $amount)
+                    .keyboardType(.numberPad)
+                
+                Text("⚠️ This action permanently destroys frozen tokens")
+                    .font(.caption)
+                    .foregroundColor(.red)
+                
+                TextField("Confirmation Reason", text: $tokenNote)
+            }
+            
+        case .directPurchase:
+            Section(header: Text("Direct Purchase")) {
+                Text("Price: \(token.pricePerToken, specifier: "%.6f") DASH per \(token.symbol ?? "token")")
+                    .font(.subheadline)
+                
+                TextField("Amount to Purchase", text: $amount)
+                    .keyboardType(.numberPad)
+                
+                if let purchaseAmount = Double(amount) {
+                    let totalCost = purchaseAmount * token.pricePerToken
+                    Text("Total Cost: \(totalCost, specifier: "%.6f") DASH")
+                        .font(.caption)
+                        .foregroundColor(.blue)
+                }
+                
+                if let identity = selectedIdentity {
+                    Text("Available Balance: \(identity.formattedBalance)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                
+                Text("Purchase will be deducted from your identity balance")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+        }
+    }
+    
+    private var executeSection: some View {
+        Section {
+            Button(action: {
+                Task {
+                    isProcessing = true
+                    await performTokenAction()
+                    isProcessing = false
+                    dismiss()
+                }
+            }) {
+                HStack {
+                    Spacer()
+                    if isProcessing {
+                        ProgressView()
+                            .progressViewStyle(CircularProgressViewStyle())
+                    } else {
+                        Text("Execute \(action.rawValue)")
+                    }
+                    Spacer()
+                }
+            }
+            .disabled(isProcessing || !isActionValid)
         }
     }
     
@@ -461,7 +469,7 @@ struct TokenActionDetailView: View {
                     throw TokenError.invalidAmount
                 }
                 
-                let result = try await tokenService.transferTokens(
+                let _ = try await tokenService.transferTokens(
                     sdk: sdk,
                     signer: signer,
                     fromIdentity: identity,
@@ -479,7 +487,7 @@ struct TokenActionDetailView: View {
                     throw TokenError.invalidAmount
                 }
                 
-                let result = try await tokenService.mintTokens(
+                let _ = try await tokenService.mintTokens(
                     sdk: sdk,
                     signer: signer,
                     ownerIdentity: identity,
@@ -497,7 +505,7 @@ struct TokenActionDetailView: View {
                     throw TokenError.invalidAmount
                 }
                 
-                let result = try await tokenService.burnTokens(
+                let _ = try await tokenService.burnTokens(
                     sdk: sdk,
                     signer: signer,
                     ownerIdentity: identity,
@@ -510,13 +518,13 @@ struct TokenActionDetailView: View {
                 resultMessage = "Burned \(burnAmount) \(token.displaySymbol) tokens successfully"
                 
             case .claim:
-                let result = try await tokenService.claimTokens(
+                let _ = try await tokenService.claimTokens(
                     sdk: sdk,
                     signer: signer,
                     claimerIdentity: identity,
                     tokenContractId: token.contractId,
                     tokenPosition: token.tokenPosition,
-                    distributionType: PreProgrammed,
+                    // distributionType: DashSDKTokenDistributionType(rawValue: 0),
                     publicNote: tokenNote.isEmpty ? nil : tokenNote
                 )
                 
@@ -528,7 +536,7 @@ struct TokenActionDetailView: View {
                 }
                 
                 let targetId = recipientId.isEmpty ? identity.idString : recipientId
-                let result = try await tokenService.freezeTokens(
+                let _ = try await tokenService.freezeTokens(
                     sdk: sdk,
                     signer: signer,
                     authorizedIdentity: identity,
@@ -547,7 +555,7 @@ struct TokenActionDetailView: View {
                 }
                 
                 let targetId = recipientId.isEmpty ? identity.idString : recipientId
-                let result = try await tokenService.unfreezeTokens(
+                let _ = try await tokenService.unfreezeTokens(
                     sdk: sdk,
                     signer: signer,
                     authorizedIdentity: identity,
@@ -569,7 +577,7 @@ struct TokenActionDetailView: View {
                 }
                 
                 let targetId = recipientId.isEmpty ? identity.idString : recipientId
-                let result = try await tokenService.destroyFrozenFunds(
+                let _ = try await tokenService.destroyFrozenFunds(
                     sdk: sdk,
                     signer: signer,
                     authorizedIdentity: identity,
@@ -590,7 +598,7 @@ struct TokenActionDetailView: View {
                 let effectivePrice = token.priceInfo?.effectivePrice ?? 1000000 // Default 1M credits per token
                 let totalCost = UInt64(Double(purchaseAmount) * Double(effectivePrice))
                 
-                let result = try await tokenService.purchaseTokens(
+                let _ = try await tokenService.purchaseTokens(
                     sdk: sdk,
                     signer: signer,
                     buyerIdentity: identity,

@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 
 /// Enhanced document editing view with schema validation and property management
 struct EnhancedEditDocumentView: View {
@@ -38,14 +39,21 @@ struct EnhancedEditDocumentView: View {
         self._rawJsonText = State(initialValue: document.formattedData)
         
         // Initialize with placeholder values - will be properly injected
-        let dummyDataManager = DataManager(modelContext: ModelContext(ModelContainer.preview()))
+        let dummyContainer = try! ModelContainer.inMemoryContainer()
+        let dummyDataManager = DataManager(modelContext: dummyContainer.mainContext)
         let dummyPlatformSDK = try! PlatformSDKWrapper(network: .testnet)
         self._documentService = StateObject(wrappedValue: DocumentService(platformSDK: dummyPlatformSDK, dataManager: dummyDataManager))
     }
     
     var body: some View {
         NavigationView {
-            VStack(spacing: 0) {
+            content
+        }
+    }
+    
+    @ViewBuilder
+    private var content: some View {
+        VStack(spacing: 0) {
                 // Document Info Header
                 DocumentEditHeader(document: document, contract: contract)
                     .padding()
@@ -137,9 +145,6 @@ struct EnhancedEditDocumentView: View {
             } message: {
                 Text("You have unsaved changes. Are you sure you want to discard them?")
             }
-            .onChange(of: editedData) { _, _ in
-                validateData()
-            }
             .onChange(of: rawJsonText) { _, _ in
                 if editMode == .json {
                     updateDataFromJson()
@@ -149,7 +154,6 @@ struct EnhancedEditDocumentView: View {
                 setupDocumentService()
             }
         }
-    }
     
     // MARK: - Computed Properties
     
@@ -945,7 +949,7 @@ struct AddPropertyView: View {
                             .font(.headline)
                         
                         Picker("Type", selection: $selectedType) {
-                            ForEach(PropertyType.allCases, id: \.self) { type in
+                            ForEach(EditPropertyType.allCases, id: \.self) { type in
                                 Text(type.displayName).tag(type)
                             }
                         }
@@ -1021,7 +1025,7 @@ struct AddPropertyView: View {
     }
 }
 
-enum PropertyType: String, CaseIterable {
+enum EditPropertyType: String, CaseIterable {
     case string = "string"
     case integer = "integer"
     case number = "number"

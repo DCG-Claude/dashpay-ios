@@ -1,5 +1,4 @@
 import Foundation
-import DashSDKFFI
 
 /// Comprehensive document service for Platform document CRUD operations
 @MainActor
@@ -47,17 +46,7 @@ class DocumentService: ObservableObject {
             )
             
             // Step 5: Convert to DocumentModel and save locally
-            let documentModel = DocumentModel(
-                id: platformDocument.id,
-                contractId: platformDocument.contractId,
-                documentType: platformDocument.documentType,
-                ownerId: Data(hexString: platformDocument.ownerId) ?? Data(),
-                data: platformDocument.dataDict,
-                createdAt: Date(),
-                updatedAt: Date(),
-                dppDocument: nil,
-                revision: Revision(platformDocument.revision)
-            )
+            let documentModel = DocumentModel.from(platformDocument: platformDocument)
             
             // Step 6: Save to local persistence
             try dataManager.saveDocument(documentModel)
@@ -100,17 +89,7 @@ class DocumentService: ObservableObject {
             )
             
             // Convert to DocumentModel
-            let documentModel = DocumentModel(
-                id: platformDocument.id,
-                contractId: platformDocument.contractId,
-                documentType: platformDocument.documentType,
-                ownerId: Data(hexString: platformDocument.ownerId) ?? Data(),
-                data: platformDocument.dataDict,
-                createdAt: Date(),
-                updatedAt: Date(),
-                dppDocument: nil,
-                revision: Revision(platformDocument.revision)
-            )
+            let documentModel = DocumentModel.from(platformDocument: platformDocument)
             
             // Cache locally
             try dataManager.saveDocument(documentModel)
@@ -142,14 +121,7 @@ class DocumentService: ObservableObject {
             try await validateDocumentData(newData, against: contract, documentType: document.documentType)
             
             // Step 3: Create Platform Document from our model
-            let platformDocument = Document(
-                id: document.id,
-                contractId: document.contractId,
-                ownerId: document.ownerIdString,
-                documentType: document.documentType,
-                revision: UInt64(document.revision),
-                data: try JSONSerialization.data(withJSONObject: document.data)
-            )
+            let platformDocument = document.toPlatformDocument()
             
             // Step 4: Update using Platform SDK
             let updatedPlatformDocument = try await platformSDK.updateDocument(
@@ -158,16 +130,17 @@ class DocumentService: ObservableObject {
             )
             
             // Step 5: Convert back to DocumentModel
-            let updatedDocumentModel = DocumentModel(
-                id: updatedPlatformDocument.id,
-                contractId: updatedPlatformDocument.contractId,
-                documentType: updatedPlatformDocument.documentType,
-                ownerId: Data(hexString: updatedPlatformDocument.ownerId) ?? document.ownerId,
-                data: newData,
-                createdAt: document.createdAt,
-                updatedAt: Date(),
-                dppDocument: nil,
-                revision: Revision(updatedPlatformDocument.revision)
+            var updatedDocumentModel = DocumentModel.from(platformDocument: updatedPlatformDocument)
+            updatedDocumentModel = DocumentModel(
+                id: updatedDocumentModel.id,
+                contractId: updatedDocumentModel.contractId,
+                documentType: updatedDocumentModel.documentType,
+                ownerId: updatedDocumentModel.ownerId,
+                data: newData, // Use the new data that was passed in
+                createdAt: document.createdAt, // Preserve original creation date
+                updatedAt: Date(), // Update the modification date
+                dppDocument: updatedDocumentModel.dppDocument,
+                revision: updatedDocumentModel.revision
             )
             
             // Step 6: Update local persistence
@@ -190,14 +163,7 @@ class DocumentService: ObservableObject {
         
         do {
             // Step 1: Create Platform Document from our model
-            let platformDocument = Document(
-                id: document.id,
-                contractId: document.contractId,
-                ownerId: document.ownerIdString,
-                documentType: document.documentType,
-                revision: UInt64(document.revision),
-                data: try JSONSerialization.data(withJSONObject: document.data)
-            )
+            let platformDocument = document.toPlatformDocument()
             
             // Step 2: Delete using Platform SDK
             try await platformSDK.deleteDocument(platformDocument)
@@ -229,11 +195,6 @@ class DocumentService: ObservableObject {
             // Build query parameters
             var queryParams: [String: Any] = [:]
             
-            // Add type filter if specified
-            if let documentType = documentType {
-                queryParams["documentType"] = documentType
-            }
-            
             // Add property filters
             for filter in query.propertyFilters {
                 queryParams[filter.property] = filter.value
@@ -248,7 +209,9 @@ class DocumentService: ObservableObject {
             
             // Add pagination
             queryParams["limit"] = query.limit
-            queryParams["startAt"] = query.offset
+            if query.offset > 0 {
+                queryParams["startAt"] = query.offset
+            }
             
             // Search using Platform SDK
             let platformDocuments = try await platformSDK.searchDocuments(
@@ -257,24 +220,19 @@ class DocumentService: ObservableObject {
                 query: queryParams
             )
             
-            // Convert to DocumentModels
-            let documentModels = platformDocuments.map { platformDoc in
-                DocumentModel(
-                    id: platformDoc.id,
-                    contractId: platformDoc.contractId,
-                    documentType: platformDoc.documentType,
-                    ownerId: Data(hexString: platformDoc.ownerId) ?? Data(),
-                    data: platformDoc.dataDict,
-                    createdAt: Date(),
-                    updatedAt: Date(),
-                    dppDocument: nil,
-                    revision: Revision(platformDoc.revision)
-                )
-            }
-            
-            // Cache results locally
-            for document in documentModels {
-                try? dataManager.saveDocument(document)
+            // Convert to DocumentModels with proper error handling
+            var documentModels: [DocumentModel] = []
+            for platformDoc in platformDocuments {
+                do {
+                    let documentModel = DocumentModel.from(platformDocument: platformDoc)
+                    documentModels.append(documentModel)
+                    
+                    // Cache locally with error handling
+                    try? dataManager.saveDocument(documentModel)
+                } catch {
+                    print("⚠️ Failed to convert document \(platformDoc.id): \(error)")
+                    // Continue processing other documents
+                }
             }
             
             print("✅ Found \(documentModels.count) documents matching query")
@@ -311,15 +269,74 @@ class DocumentService: ObservableObject {
         documentType: String,
         limit: Int = 50
     ) async throws -> [DocumentModel] {
-        let query = DocumentQuery()
-            .limit(limit)
-            .sortBy("$createdAt", order: .descending)
+        isLoading = true
+        defer { isLoading = false }
         
-        return try await searchDocuments(
-            contractId: contractId,
-            documentType: documentType,
-            query: query
-        )
+        do {
+            // Use the enhanced Platform SDK method
+            let platformDocuments = try await platformSDK.fetchDocumentsByType(
+                contractId: contractId,
+                documentType: documentType,
+                limit: limit
+            )
+            
+            // Convert to DocumentModels
+            var documentModels: [DocumentModel] = []
+            for platformDoc in platformDocuments {
+                let documentModel = DocumentModel.from(platformDocument: platformDoc)
+                documentModels.append(documentModel)
+                
+                // Cache locally
+                try? dataManager.saveDocument(documentModel)
+            }
+            
+            print("✅ Fetched \(documentModels.count) documents of type \(documentType)")
+            return documentModels
+            
+        } catch {
+            let serviceError = mapError(error)
+            self.error = serviceError
+            throw serviceError
+        }
+    }
+    
+    /// Get documents by owner using Platform SDK
+    func getDocumentsByOwnerDirectly(
+        contractId: String,
+        documentType: String,
+        ownerId: String,
+        limit: Int = 50
+    ) async throws -> [DocumentModel] {
+        isLoading = true
+        defer { isLoading = false }
+        
+        do {
+            // Use the enhanced Platform SDK method
+            let platformDocuments = try await platformSDK.fetchDocumentsByOwner(
+                contractId: contractId,
+                documentType: documentType,
+                ownerId: ownerId,
+                limit: limit
+            )
+            
+            // Convert to DocumentModels
+            var documentModels: [DocumentModel] = []
+            for platformDoc in platformDocuments {
+                let documentModel = DocumentModel.from(platformDocument: platformDoc)
+                documentModels.append(documentModel)
+                
+                // Cache locally
+                try? dataManager.saveDocument(documentModel)
+            }
+            
+            print("✅ Fetched \(documentModels.count) documents for owner \(ownerId)")
+            return documentModels
+            
+        } catch {
+            let serviceError = mapError(error)
+            self.error = serviceError
+            throw serviceError
+        }
     }
     
     // MARK: - Batch Operations
@@ -460,27 +477,27 @@ class DocumentService: ObservableObject {
         switch type {
         case "string":
             guard value is String else {
-                throw DocumentServiceError.invalidPropertyType(property, expected: "string", actual: "\(type(of: value))")
+                throw DocumentServiceError.invalidPropertyType(property, expected: "string", actual: String(describing: Swift.type(of: value)))
             }
         case "integer":
             guard value is Int || value is Int64 else {
-                throw DocumentServiceError.invalidPropertyType(property, expected: "integer", actual: "\(type(of: value))")
+                throw DocumentServiceError.invalidPropertyType(property, expected: "integer", actual: String(describing: Swift.type(of: value)))
             }
         case "number":
             guard value is Double || value is Float || value is Int else {
-                throw DocumentServiceError.invalidPropertyType(property, expected: "number", actual: "\(type(of: value))")
+                throw DocumentServiceError.invalidPropertyType(property, expected: "number", actual: String(describing: Swift.type(of: value)))
             }
         case "boolean":
             guard value is Bool else {
-                throw DocumentServiceError.invalidPropertyType(property, expected: "boolean", actual: "\(type(of: value))")
+                throw DocumentServiceError.invalidPropertyType(property, expected: "boolean", actual: String(describing: Swift.type(of: value)))
             }
         case "array":
             guard value is [Any] else {
-                throw DocumentServiceError.invalidPropertyType(property, expected: "array", actual: "\(type(of: value))")
+                throw DocumentServiceError.invalidPropertyType(property, expected: "array", actual: String(describing: Swift.type(of: value)))
             }
         case "object":
             guard value is [String: Any] else {
-                throw DocumentServiceError.invalidPropertyType(property, expected: "object", actual: "\(type(of: value))")
+                throw DocumentServiceError.invalidPropertyType(property, expected: "object", actual: String(describing: Swift.type(of: value)))
             }
         default:
             break

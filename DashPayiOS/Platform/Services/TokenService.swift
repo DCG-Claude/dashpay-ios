@@ -1,5 +1,4 @@
 import Foundation
-import DashSDKFFI
 
 /// Service for handling all token operations using Platform SDK FFI
 class TokenService: ObservableObject {
@@ -112,6 +111,10 @@ class TokenService: ObservableObject {
         
         let tokenIdsString = tokenIds.joined(separator: ",")
         
+        // TODO: Implement fetchTokenBalances when dash_sdk_identity_fetch_token_balances is available in unified FFI
+        throw PlatformError.notImplemented("Token balance fetching is not yet implemented")
+        
+        /*
         return try await FFIHelpers.asyncFFICall { [weak self] in
             return try await withCheckedThrowingContinuation { continuation in
                 DispatchQueue.global().async {
@@ -144,6 +147,7 @@ class TokenService: ObservableObject {
                 }
             }
         }
+        */
     }
     
     /// Fetch token information for a specific identity
@@ -158,6 +162,10 @@ class TokenService: ObservableObject {
         
         let tokenIdsString = tokenIds.joined(separator: ",")
         
+        // TODO: Implement fetchTokenInfos when dash_sdk_identity_fetch_token_infos is available in unified FFI
+        throw PlatformError.notImplemented("Token info fetching is not yet implemented")
+        
+        /*
         return try await FFIHelpers.asyncFFICall { [weak self] in
             return try await withCheckedThrowingContinuation { continuation in
                 DispatchQueue.global().async {
@@ -190,6 +198,7 @@ class TokenService: ObservableObject {
                 }
             }
         }
+        */
     }
     
     // MARK: Token Transfer Operations
@@ -207,14 +216,16 @@ class TokenService: ObservableObject {
         privateNote: String? = nil,
         sharedNote: String? = nil
     ) async throws -> String {
-        guard let sdkHandle = sdk.handle,
-              let signerHandle = signer.handle else {
+        guard let sdkHandle = sdk.handle else {
             throw TokenServiceError.sdkNotInitialized
         }
         
-        guard let identityData = fromIdentity.id else {
-            throw TokenServiceError.invalidIdentity
+        let signerHandle = await signer.handle
+        guard signerHandle != nil else {
+            throw TokenServiceError.sdkNotInitialized
         }
+        
+        let identityData = fromIdentity.id
         
         // Convert recipient ID to bytes
         guard let recipientData = Data(base58: recipientId) else {
@@ -223,30 +234,47 @@ class TokenService: ObservableObject {
         
         let recipientBytes = Array(recipientData)
         
+        // TODO: Implement transferTokens when dash_sdk_token_transfer is available in unified FFI
+        throw PlatformError.notImplemented("Token transfer is not yet implemented")
+        
+        /*
         return try await FFIHelpers.asyncFFICall {
             return try await withCheckedThrowingContinuation { continuation in
                 DispatchQueue.global().async {
-                    var params = DashSDKTokenTransferParams(
-                        token_contract_id: tokenContractId,
-                        serialized_contract: nil,
-                        serialized_contract_len: 0,
-                        token_position: tokenPosition,
-                        recipient_id: recipientBytes,
-                        amount: amount,
-                        public_note: publicNote,
-                        private_encrypted_note: privateNote,
-                        shared_encrypted_note: sharedNote
-                    )
+                    let result = tokenContractId.withCString { contractIdPtr in
+                        return recipientBytes.withUnsafeBufferPointer { recipientPtr in
+                            return (publicNote ?? "").withCString { publicNotePtr in
+                                return (privateNote ?? "").withCString { privateNotePtr in
+                                    return (sharedNote ?? "").withCString { sharedNotePtr in
+                                        var params = DashSDKTokenTransferParams(
+                                            token_contract_id: contractIdPtr,
+                                            serialized_contract: nil,
+                                            serialized_contract_len: 0,
+                                            token_position: tokenPosition,
+                                            recipient_id: recipientPtr.baseAddress,
+                                            amount: amount,
+                                            public_note: publicNote != nil ? publicNotePtr : nil,
+                                            private_encrypted_note: privateNote != nil ? privateNotePtr : nil,
+                                            shared_encrypted_note: sharedNote != nil ? sharedNotePtr : nil
+                                        )
+                                        
+                                        return identityData.withUnsafeBytes { identityBytes in
+                                            return dash_sdk_token_transfer(
+                                                sdkHandle,
+                                                identityBytes.bindMemory(to: UInt8.self).baseAddress!,
+                                                &params,
+                                                nil, // identity_public_key_handle - auto-select
+                                                signerHandle!,
+                                                nil, // put_settings - use defaults
+                                                nil  // state_transition_creation_options - use defaults
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                     
-                    let result = dash_sdk_token_transfer(
-                        sdkHandle,
-                        identityData,
-                        &params,
-                        nil, // identity_public_key_handle - auto-select
-                        signerHandle,
-                        nil, // put_settings - use defaults
-                        nil  // state_transition_creation_options - use defaults
-                    )
                     
                     do {
                         if let error = result.error {
@@ -270,6 +298,7 @@ class TokenService: ObservableObject {
                 }
             }
         }
+        */
     }
     
     // MARK: Token Mint Operations
@@ -285,14 +314,16 @@ class TokenService: ObservableObject {
         amount: UInt64,
         publicNote: String? = nil
     ) async throws -> String {
-        guard let sdkHandle = sdk.handle,
-              let signerHandle = signer.handle else {
+        guard let sdkHandle = sdk.handle else {
             throw TokenServiceError.sdkNotInitialized
         }
         
-        guard let identityData = ownerIdentity.id else {
-            throw TokenServiceError.invalidIdentity
+        let signerHandle = await signer.handle
+        guard signerHandle != nil else {
+            throw TokenServiceError.sdkNotInitialized
         }
+        
+        let identityData = ownerIdentity.id
         
         var recipientBytes: [UInt8]? = nil
         if let recipientId = recipientId,
@@ -300,28 +331,64 @@ class TokenService: ObservableObject {
             recipientBytes = Array(recipientData)
         }
         
+        // TODO: Implement mintTokens when dash_sdk_token_mint is available in unified FFI
+        throw PlatformError.notImplemented("Token minting is not yet implemented")
+        
+        /*
         return try await FFIHelpers.asyncFFICall {
             return try await withCheckedThrowingContinuation { continuation in
                 DispatchQueue.global().async {
-                    var params = DashSDKTokenMintParams(
-                        token_contract_id: tokenContractId,
-                        serialized_contract: nil,
-                        serialized_contract_len: 0,
-                        token_position: tokenPosition,
-                        recipient_id: recipientBytes,
-                        amount: amount,
-                        public_note: publicNote
-                    )
-                    
-                    let result = dash_sdk_token_mint(
-                        sdkHandle,
-                        identityData,
-                        &params,
-                        nil, // identity_public_key_handle - auto-select
-                        signerHandle,
-                        nil, // put_settings - use defaults
-                        nil  // state_transition_creation_options - use defaults
-                    )
+                    let result = tokenContractId.withCString { contractIdPtr in
+                        return (publicNote ?? "").withCString { publicNotePtr in
+                            if let recipientBytes = recipientBytes {
+                                return recipientBytes.withUnsafeBufferPointer { recipientPtr in
+                                    var params = DashSDKTokenMintParams(
+                                        token_contract_id: contractIdPtr,
+                                        serialized_contract: nil,
+                                        serialized_contract_len: 0,
+                                        token_position: tokenPosition,
+                                        recipient_id: recipientPtr.baseAddress,
+                                        amount: amount,
+                                        public_note: publicNote != nil ? publicNotePtr : nil
+                                    )
+                                    
+                                    return identityData.withUnsafeBytes { identityBytes in
+                                        return dash_sdk_token_mint(
+                                            sdkHandle,
+                                            identityBytes.bindMemory(to: UInt8.self).baseAddress!,
+                                            &params,
+                                            nil, // identity_public_key_handle - auto-select
+                                            signerHandle!,
+                                            nil, // put_settings - use defaults
+                                            nil  // state_transition_creation_options - use defaults
+                                        )
+                                    }
+                                }
+                            } else {
+                                var params = DashSDKTokenMintParams(
+                                    token_contract_id: contractIdPtr,
+                                    serialized_contract: nil,
+                                    serialized_contract_len: 0,
+                                    token_position: tokenPosition,
+                                    recipient_id: nil,
+                                    amount: amount,
+                                    public_note: publicNote != nil ? publicNotePtr : nil
+                                )
+                                
+                                return identityData.withUnsafeBytes { identityBytes in
+                                    return dash_sdk_token_mint(
+                                        sdkHandle,
+                                        identityBytes.bindMemory(to: UInt8.self).baseAddress!,
+                                        &params,
+                                        nil, // identity_public_key_handle - auto-select
+                                        signerHandle!,
+                                        nil, // put_settings - use defaults
+                                        nil  // state_transition_creation_options - use defaults
+                                    )
+                                }
+                            }
+                        }
+                    }
                     
                     do {
                         if let error = result.error {
@@ -345,6 +412,7 @@ class TokenService: ObservableObject {
                 }
             }
         }
+        */
     }
     
     // MARK: Token Burn Operations
@@ -359,36 +427,48 @@ class TokenService: ObservableObject {
         amount: UInt64,
         publicNote: String? = nil
     ) async throws -> String {
-        guard let sdkHandle = sdk.handle,
-              let signerHandle = signer.handle else {
+        guard let sdkHandle = sdk.handle else {
             throw TokenServiceError.sdkNotInitialized
         }
         
-        guard let identityData = ownerIdentity.id else {
-            throw TokenServiceError.invalidIdentity
+        let signerHandle = await signer.handle
+        guard signerHandle != nil else {
+            throw TokenServiceError.sdkNotInitialized
         }
         
+        let identityData = ownerIdentity.id
+        
+        // TODO: Implement burnTokens when dash_sdk_token_burn is available in unified FFI
+        throw PlatformError.notImplemented("Token burning is not yet implemented")
+        
+        /*
         return try await FFIHelpers.asyncFFICall {
             return try await withCheckedThrowingContinuation { continuation in
                 DispatchQueue.global().async {
-                    var params = DashSDKTokenBurnParams(
-                        token_contract_id: tokenContractId,
-                        serialized_contract: nil,
-                        serialized_contract_len: 0,
-                        token_position: tokenPosition,
-                        amount: amount,
-                        public_note: publicNote
-                    )
-                    
-                    let result = dash_sdk_token_burn(
-                        sdkHandle,
-                        identityData,
-                        &params,
-                        nil, // identity_public_key_handle - auto-select
-                        signerHandle,
-                        nil, // put_settings - use defaults
-                        nil  // state_transition_creation_options - use defaults
-                    )
+                    let result = tokenContractId.withCString { contractIdPtr in
+                        return (publicNote ?? "").withCString { publicNotePtr in
+                            var params = DashSDKTokenBurnParams(
+                                token_contract_id: contractIdPtr,
+                                serialized_contract: nil,
+                                serialized_contract_len: 0,
+                                token_position: tokenPosition,
+                                amount: amount,
+                                public_note: publicNote != nil ? publicNotePtr : nil
+                            )
+                            
+                            return identityData.withUnsafeBytes { identityBytes in
+                                return dash_sdk_token_burn(
+                                    sdkHandle,
+                                    identityBytes.bindMemory(to: UInt8.self).baseAddress!,
+                                    &params,
+                                    nil, // identity_public_key_handle - auto-select
+                                    signerHandle!,
+                                    nil, // put_settings - use defaults
+                                    nil  // state_transition_creation_options - use defaults
+                                )
+                            }
+                        }
+                    }
                     
                     do {
                         if let error = result.error {
@@ -412,6 +492,7 @@ class TokenService: ObservableObject {
                 }
             }
         }
+        */
     }
     
     // MARK: Token Claim Operations
@@ -426,36 +507,48 @@ class TokenService: ObservableObject {
         distributionType: DashSDKTokenDistributionType = PreProgrammed,
         publicNote: String? = nil
     ) async throws -> String {
-        guard let sdkHandle = sdk.handle,
-              let signerHandle = signer.handle else {
+        guard let sdkHandle = sdk.handle else {
             throw TokenServiceError.sdkNotInitialized
         }
         
-        guard let identityData = claimerIdentity.id else {
-            throw TokenServiceError.invalidIdentity
+        let signerHandle = await signer.handle
+        guard signerHandle != nil else {
+            throw TokenServiceError.sdkNotInitialized
         }
         
+        let identityData = claimerIdentity.id
+        
+        // TODO: Implement claimTokens when dash_sdk_token_claim is available in unified FFI
+        throw PlatformError.notImplemented("Token claiming is not yet implemented")
+        
+        /*
         return try await FFIHelpers.asyncFFICall {
             return try await withCheckedThrowingContinuation { continuation in
                 DispatchQueue.global().async {
-                    var params = DashSDKTokenClaimParams(
-                        token_contract_id: tokenContractId,
-                        serialized_contract: nil,
-                        serialized_contract_len: 0,
-                        token_position: tokenPosition,
-                        distribution_type: distributionType,
-                        public_note: publicNote
-                    )
-                    
-                    let result = dash_sdk_token_claim(
-                        sdkHandle,
-                        identityData,
-                        &params,
-                        nil, // identity_public_key_handle - auto-select
-                        signerHandle,
-                        nil, // put_settings - use defaults
-                        nil  // state_transition_creation_options - use defaults
-                    )
+                    let result = tokenContractId.withCString { contractIdPtr in
+                        return (publicNote ?? "").withCString { publicNotePtr in
+                            var params = DashSDKTokenClaimParams(
+                                token_contract_id: contractIdPtr,
+                                serialized_contract: nil,
+                                serialized_contract_len: 0,
+                                token_position: tokenPosition,
+                                distribution_type: distributionType,
+                                public_note: publicNote != nil ? publicNotePtr : nil
+                            )
+                            
+                            return identityData.withUnsafeBytes { identityBytes in
+                                return dash_sdk_token_claim(
+                                    sdkHandle,
+                                    identityBytes.bindMemory(to: UInt8.self).baseAddress!,
+                                    &params,
+                                    nil, // identity_public_key_handle - auto-select
+                                    signerHandle!,
+                                    nil, // put_settings - use defaults
+                                    nil  // state_transition_creation_options - use defaults
+                                )
+                            }
+                        }
+                    }
                     
                     do {
                         if let error = result.error {
@@ -479,6 +572,7 @@ class TokenService: ObservableObject {
                 }
             }
         }
+        */
     }
     
     // MARK: Token Freeze/Unfreeze Operations
@@ -493,14 +587,16 @@ class TokenService: ObservableObject {
         targetIdentityId: String,
         publicNote: String? = nil
     ) async throws -> String {
-        guard let sdkHandle = sdk.handle,
-              let signerHandle = signer.handle else {
+        guard let sdkHandle = sdk.handle else {
             throw TokenServiceError.sdkNotInitialized
         }
         
-        guard let identityData = authorizedIdentity.id else {
-            throw TokenServiceError.invalidIdentity
+        let signerHandle = await signer.handle
+        guard signerHandle != nil else {
+            throw TokenServiceError.sdkNotInitialized
         }
+        
+        let identityData = authorizedIdentity.id
         
         guard let targetData = Data(base58: targetIdentityId) else {
             throw TokenServiceError.invalidRecipient
@@ -508,27 +604,39 @@ class TokenService: ObservableObject {
         
         let targetBytes = Array(targetData)
         
+        // TODO: Implement freezeTokens when dash_sdk_token_freeze is available in unified FFI
+        throw PlatformError.notImplemented("Token freezing is not yet implemented")
+        
+        /*
         return try await FFIHelpers.asyncFFICall {
             return try await withCheckedThrowingContinuation { continuation in
                 DispatchQueue.global().async {
-                    var params = DashSDKTokenFreezeParams(
-                        token_contract_id: tokenContractId,
-                        serialized_contract: nil,
-                        serialized_contract_len: 0,
-                        token_position: tokenPosition,
-                        target_identity_id: targetBytes,
-                        public_note: publicNote
-                    )
-                    
-                    let result = dash_sdk_token_freeze(
-                        sdkHandle,
-                        identityData,
-                        &params,
-                        nil, // identity_public_key_handle - auto-select
-                        signerHandle,
-                        nil, // put_settings - use defaults
-                        nil  // state_transition_creation_options - use defaults
-                    )
+                    let result = tokenContractId.withCString { contractIdPtr in
+                        return targetBytes.withUnsafeBufferPointer { targetPtr in
+                            return (publicNote ?? "").withCString { publicNotePtr in
+                                var params = DashSDKTokenFreezeParams(
+                                    token_contract_id: contractIdPtr,
+                                    serialized_contract: nil,
+                                    serialized_contract_len: 0,
+                                    token_position: tokenPosition,
+                                    target_identity_id: targetPtr.baseAddress,
+                                    public_note: publicNote != nil ? publicNotePtr : nil
+                                )
+                                
+                                return identityData.withUnsafeBytes { identityBytes in
+                                    return dash_sdk_token_freeze(
+                                        sdkHandle,
+                                        identityBytes.bindMemory(to: UInt8.self).baseAddress!,
+                                        &params,
+                                        nil, // identity_public_key_handle - auto-select
+                                        signerHandle!,
+                                        nil, // put_settings - use defaults
+                                        nil  // state_transition_creation_options - use defaults
+                                    )
+                                }
+                            }
+                        }
+                    }
                     
                     do {
                         if let error = result.error {
@@ -552,6 +660,7 @@ class TokenService: ObservableObject {
                 }
             }
         }
+        */
     }
     
     /// Unfreeze tokens for a specific identity
@@ -564,14 +673,16 @@ class TokenService: ObservableObject {
         targetIdentityId: String,
         publicNote: String? = nil
     ) async throws -> String {
-        guard let sdkHandle = sdk.handle,
-              let signerHandle = signer.handle else {
+        guard let sdkHandle = sdk.handle else {
             throw TokenServiceError.sdkNotInitialized
         }
         
-        guard let identityData = authorizedIdentity.id else {
-            throw TokenServiceError.invalidIdentity
+        let signerHandle = await signer.handle
+        guard signerHandle != nil else {
+            throw TokenServiceError.sdkNotInitialized
         }
+        
+        let identityData = authorizedIdentity.id
         
         guard let targetData = Data(base58: targetIdentityId) else {
             throw TokenServiceError.invalidRecipient
@@ -579,27 +690,39 @@ class TokenService: ObservableObject {
         
         let targetBytes = Array(targetData)
         
+        // TODO: Implement unfreezeTokens when dash_sdk_token_unfreeze is available in unified FFI
+        throw PlatformError.notImplemented("Token unfreezing is not yet implemented")
+        
+        /*
         return try await FFIHelpers.asyncFFICall {
             return try await withCheckedThrowingContinuation { continuation in
                 DispatchQueue.global().async {
-                    var params = DashSDKTokenFreezeParams(
-                        token_contract_id: tokenContractId,
-                        serialized_contract: nil,
-                        serialized_contract_len: 0,
-                        token_position: tokenPosition,
-                        target_identity_id: targetBytes,
-                        public_note: publicNote
-                    )
-                    
-                    let result = dash_sdk_token_unfreeze(
-                        sdkHandle,
-                        identityData,
-                        &params,
-                        nil, // identity_public_key_handle - auto-select
-                        signerHandle,
-                        nil, // put_settings - use defaults
-                        nil  // state_transition_creation_options - use defaults
-                    )
+                    let result = tokenContractId.withCString { contractIdPtr in
+                        return targetBytes.withUnsafeBufferPointer { targetPtr in
+                            return (publicNote ?? "").withCString { publicNotePtr in
+                                var params = DashSDKTokenFreezeParams(
+                                    token_contract_id: contractIdPtr,
+                                    serialized_contract: nil,
+                                    serialized_contract_len: 0,
+                                    token_position: tokenPosition,
+                                    target_identity_id: targetPtr.baseAddress,
+                                    public_note: publicNote != nil ? publicNotePtr : nil
+                                )
+                                
+                                return identityData.withUnsafeBytes { identityBytes in
+                                    return dash_sdk_token_unfreeze(
+                                        sdkHandle,
+                                        identityBytes.bindMemory(to: UInt8.self).baseAddress!,
+                                        &params,
+                                        nil, // identity_public_key_handle - auto-select
+                                        signerHandle!,
+                                        nil, // put_settings - use defaults
+                                        nil  // state_transition_creation_options - use defaults
+                                    )
+                                }
+                            }
+                        }
+                    }
                     
                     do {
                         if let error = result.error {
@@ -623,6 +746,7 @@ class TokenService: ObservableObject {
                 }
             }
         }
+        */
     }
     
     // MARK: Token Purchase Operations
@@ -637,36 +761,46 @@ class TokenService: ObservableObject {
         amount: UInt64,
         totalAgreedPrice: UInt64
     ) async throws -> String {
-        guard let sdkHandle = sdk.handle,
-              let signerHandle = signer.handle else {
+        guard let sdkHandle = sdk.handle else {
             throw TokenServiceError.sdkNotInitialized
         }
         
-        guard let identityData = buyerIdentity.id else {
-            throw TokenServiceError.invalidIdentity
+        let signerHandle = await signer.handle
+        guard signerHandle != nil else {
+            throw TokenServiceError.sdkNotInitialized
         }
         
+        let identityData = buyerIdentity.id
+        
+        // TODO: Implement purchaseTokens when dash_sdk_token_purchase is available in unified FFI
+        throw PlatformError.notImplemented("Token purchasing is not yet implemented")
+        
+        /*
         return try await FFIHelpers.asyncFFICall {
             return try await withCheckedThrowingContinuation { continuation in
                 DispatchQueue.global().async {
-                    var params = DashSDKTokenPurchaseParams(
-                        token_contract_id: tokenContractId,
-                        serialized_contract: nil,
-                        serialized_contract_len: 0,
-                        token_position: tokenPosition,
-                        amount: amount,
-                        total_agreed_price: totalAgreedPrice
-                    )
-                    
-                    let result = dash_sdk_token_purchase(
-                        sdkHandle,
-                        identityData,
-                        &params,
-                        nil, // identity_public_key_handle - auto-select
-                        signerHandle,
-                        nil, // put_settings - use defaults
-                        nil  // state_transition_creation_options - use defaults
-                    )
+                    let result = tokenContractId.withCString { contractIdPtr in
+                        var params = DashSDKTokenPurchaseParams(
+                            token_contract_id: contractIdPtr,
+                            serialized_contract: nil,
+                            serialized_contract_len: 0,
+                            token_position: tokenPosition,
+                            amount: amount,
+                            total_agreed_price: totalAgreedPrice
+                        )
+                        
+                        return identityData.withUnsafeBytes { identityBytes in
+                            return dash_sdk_token_purchase(
+                                sdkHandle,
+                                identityBytes.bindMemory(to: UInt8.self).baseAddress!,
+                                &params,
+                                nil, // identity_public_key_handle - auto-select
+                                signerHandle!,
+                                nil, // put_settings - use defaults
+                                nil  // state_transition_creation_options - use defaults
+                            )
+                        }
+                    }
                     
                     do {
                         if let error = result.error {
@@ -690,6 +824,7 @@ class TokenService: ObservableObject {
                 }
             }
         }
+        */
     }
     
     // MARK: Token Management Operations
@@ -704,14 +839,16 @@ class TokenService: ObservableObject {
         frozenIdentityId: String,
         publicNote: String? = nil
     ) async throws -> String {
-        guard let sdkHandle = sdk.handle,
-              let signerHandle = signer.handle else {
+        guard let sdkHandle = sdk.handle else {
             throw TokenServiceError.sdkNotInitialized
         }
         
-        guard let identityData = authorizedIdentity.id else {
-            throw TokenServiceError.invalidIdentity
+        let signerHandle = await signer.handle
+        guard signerHandle != nil else {
+            throw TokenServiceError.sdkNotInitialized
         }
+        
+        let identityData = authorizedIdentity.id
         
         guard let frozenData = Data(base58: frozenIdentityId) else {
             throw TokenServiceError.invalidRecipient
@@ -719,28 +856,38 @@ class TokenService: ObservableObject {
         
         let frozenBytes = Array(frozenData)
         
+        // TODO: Implement destroyFrozenFunds when dash_sdk_token_destroy_frozen_funds is available in unified FFI
+        throw PlatformError.notImplemented("Destroying frozen funds is not yet implemented")
+        
+        /*
         return try await FFIHelpers.asyncFFICall {
             return try await withCheckedThrowingContinuation { continuation in
                 DispatchQueue.global().async {
-                    var params = DashSDKTokenDestroyFrozenFundsParams(
-                        token_contract_id: tokenContractId,
-                        serialized_contract: nil,
-                        serialized_contract_len: 0,
-                        token_position: tokenPosition,
-                        frozen_identity_id: frozenBytes,
-                        public_note: publicNote
-                    )
-                    
-                    let result = identityData.withUnsafeBytes { identityBytes in
-                        return dash_sdk_token_destroy_frozen_funds(
-                            sdkHandle,
-                            identityBytes.bindMemory(to: UInt8.self).baseAddress!,
-                            &params,
-                            nil, // identity_public_key_handle - auto-select
-                            signerHandle,
-                            nil, // put_settings - use defaults
-                            nil  // state_transition_creation_options - use defaults
-                        )
+                    let result = tokenContractId.withCString { contractIdPtr in
+                        return frozenBytes.withUnsafeBufferPointer { frozenPtr in
+                            return (publicNote ?? "").withCString { publicNotePtr in
+                                var params = DashSDKTokenDestroyFrozenFundsParams(
+                                    token_contract_id: contractIdPtr,
+                                    serialized_contract: nil,
+                                    serialized_contract_len: 0,
+                                    token_position: tokenPosition,
+                                    frozen_identity_id: frozenPtr.baseAddress,
+                                    public_note: publicNote != nil ? publicNotePtr : nil
+                                )
+                                
+                                return identityData.withUnsafeBytes { identityBytes in
+                                    return dash_sdk_token_destroy_frozen_funds(
+                                        sdkHandle,
+                                        identityBytes.bindMemory(to: UInt8.self).baseAddress!,
+                                        &params,
+                                        nil, // identity_public_key_handle - auto-select
+                                        signerHandle!,
+                                        nil, // put_settings - use defaults
+                                        nil  // state_transition_creation_options - use defaults
+                                    )
+                                }
+                            }
+                        }
                     }
                     
                     do {
@@ -765,6 +912,7 @@ class TokenService: ObservableObject {
                 }
             }
         }
+        */
     }
     
     // MARK: Token Information Operations
@@ -778,6 +926,10 @@ class TokenService: ObservableObject {
             throw TokenServiceError.sdkNotInitialized
         }
         
+        // TODO: Implement getTokenContractInfo when dash_sdk_token_get_contract_info is available in unified FFI
+        throw PlatformError.notImplemented("Token contract info retrieval is not yet implemented")
+        
+        /*
         return try await FFIHelpers.asyncFFICall { [weak self] in
             return try await withCheckedThrowingContinuation { continuation in
                 DispatchQueue.global().async {
@@ -806,6 +958,7 @@ class TokenService: ObservableObject {
                 }
             }
         }
+        */
     }
     
     /// Get token direct purchase prices
@@ -819,6 +972,10 @@ class TokenService: ObservableObject {
         
         let tokenIdsString = tokenIds.joined(separator: ",")
         
+        // TODO: Implement getTokenPrices when dash_sdk_token_get_direct_purchase_prices is available in unified FFI
+        throw PlatformError.notImplemented("Token price retrieval is not yet implemented")
+        
+        /*
         return try await FFIHelpers.asyncFFICall { [weak self] in
             return try await withCheckedThrowingContinuation { continuation in
                 DispatchQueue.global().async {
@@ -847,6 +1004,7 @@ class TokenService: ObservableObject {
                 }
             }
         }
+        */
     }
     
     /// Get token statuses
@@ -860,6 +1018,10 @@ class TokenService: ObservableObject {
         
         let tokenIdsString = tokenIds.joined(separator: ",")
         
+        // TODO: Implement getTokenStatuses when dash_sdk_token_get_statuses is available in unified FFI
+        throw PlatformError.notImplemented("Token status retrieval is not yet implemented")
+        
+        /*
         return try await FFIHelpers.asyncFFICall { [weak self] in
             return try await withCheckedThrowingContinuation { continuation in
                 DispatchQueue.global().async {
@@ -888,6 +1050,7 @@ class TokenService: ObservableObject {
                 }
             }
         }
+        */
     }
     
     // MARK: - Private JSON Parsing Methods

@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 
 /// Comprehensive document creation wizard with contract schema validation
 struct DocumentCreationWizardView: View {
@@ -6,7 +7,7 @@ struct DocumentCreationWizardView: View {
     @StateObject private var documentService: DocumentService
     @Environment(\.dismiss) private var dismiss
     
-    @State private var currentStep: WizardStep = .selectContract
+    @State private var currentStep: WizardStep
     @State private var selectedContract: ContractModel?
     @State private var selectedDocumentType: String = ""
     @State private var selectedOwner: IdentityModel?
@@ -15,13 +16,28 @@ struct DocumentCreationWizardView: View {
     @State private var validationErrors: [String] = []
     @State private var showValidationAlert = false
     
-    private let steps: [WizardStep] = [.selectContract, .selectType, .selectOwner, .enterData, .review]
+    private let steps: [WizardStep]
+    private let preselectedContract: ContractModel?
     
-    init() {
+    init(contract: ContractModel? = nil) {
+        self.preselectedContract = contract
+        
+        if contract != nil {
+            // Skip contract selection if one is provided
+            self.steps = [.selectType, .selectOwner, .enterData, .review]
+            self._currentStep = State(initialValue: .selectType)
+        } else {
+            self.steps = [.selectContract, .selectType, .selectOwner, .enterData, .review]
+            self._currentStep = State(initialValue: .selectContract)
+        }
+        
         // Initialize with placeholder values - will be properly injected
-        let dummyDataManager = DataManager(modelContext: ModelContext(ModelContainer.preview()))
+        let dummyContainer = try! ModelContainer.inMemoryContainer()
+        let dummyDataManager = DataManager(modelContext: dummyContainer.mainContext)
         let dummyPlatformSDK = try! PlatformSDKWrapper(network: .testnet)
         self._documentService = StateObject(wrappedValue: DocumentService(platformSDK: dummyPlatformSDK, dataManager: dummyDataManager))
+        
+        self._selectedContract = State(initialValue: contract)
     }
     
     var body: some View {
@@ -87,13 +103,13 @@ struct DocumentCreationWizardView: View {
     // MARK: - Helper Methods
     
     private func setupDocumentService() {
-        guard let platformSDK = appState.platformSDK,
-              let dataManager = appState.dataManager else {
-            return
+        // Use the real document service from AppState if available
+        if let realDocumentService = appState.documentService {
+            // The documentService StateObject will be replaced with the real one
+            print("📄 Using real DocumentService for creation wizard")
+        } else {
+            print("⚠️ No DocumentService available in AppState")
         }
-        
-        // In a real implementation, we would recreate the service with proper dependencies
-        print("📄 Setting up DocumentService for creation wizard")
     }
     
     private var canProceedToNextStep: Bool {
@@ -167,7 +183,9 @@ struct DocumentCreationWizardView: View {
     
     private func createDocument() {
         guard let contract = selectedContract,
-              let owner = selectedOwner else {
+              let owner = selectedOwner,
+              let realDocumentService = appState.documentService else {
+            appState.showError(message: "Document service not available")
             return
         }
         
@@ -176,7 +194,7 @@ struct DocumentCreationWizardView: View {
             defer { isCreating = false }
             
             do {
-                let document = try await documentService.createDocument(
+                let document = try await realDocumentService.createDocument(
                     contractId: contract.id,
                     documentType: selectedDocumentType,
                     ownerId: owner.idString,
@@ -184,12 +202,15 @@ struct DocumentCreationWizardView: View {
                 )
                 
                 await MainActor.run {
-                    appState.addDocument(document)
+                    // Add to AppState documents
+                    appState.documents.append(document)
+                    appState.showError(message: "Document created successfully")
                     dismiss()
                 }
             } catch {
                 await MainActor.run {
                     appState.showError(message: "Failed to create document: \(error.localizedDescription)")
+                    print("🔴 Error creating document: \(error)")
                 }
             }
         }
@@ -700,7 +721,7 @@ struct IdentitySelectionCard: View {
                     ))
                     .frame(width: 50, height: 50)
                     .overlay(
-                        Text((identity.alias ?? identity.idString.prefix(2)).prefix(2).uppercased())
+                        Text(String((identity.alias ?? String(identity.idString.prefix(2))).prefix(2)).uppercased())
                             .font(.headline)
                             .fontWeight(.semibold)
                             .foregroundColor(.white)

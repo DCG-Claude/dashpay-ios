@@ -53,7 +53,8 @@ struct CrossLayerTransferView: View {
                             Button("Scan") {
                                 // QR code scanning would be implemented here
                                 // For now, show a placeholder message
-                                appState.showError(message: "QR scanning feature coming soon")
+                                errorMessage = "QR scanning feature coming soon"
+                                showError = true
                             }
                             .buttonStyle(.bordered)
                             .controlSize(.small)
@@ -67,7 +68,8 @@ struct CrossLayerTransferView: View {
                             Button("Scan") {
                                 // QR code scanning would be implemented here
                                 // For now, show a placeholder message
-                                appState.showError(message: "QR scanning feature coming soon")
+                                errorMessage = "QR scanning feature coming soon"
+                                showError = true
                             }
                             .buttonStyle(.bordered)
                             .controlSize(.small)
@@ -224,7 +226,7 @@ struct CrossLayerTransferView: View {
         
         let amountInSatoshis = UInt64(amountValue * 100_000_000)
         
-        let result = try await unifiedState.topUpIdentity(
+        _ = try await unifiedState.topUpIdentity(
             unifiedState.identities.first { $0.id == targetIdentityId } ?? Identity(id: targetIdentityId, balance: 0, revision: 0),
             from: wallet,
             amount: amountInSatoshis
@@ -277,7 +279,7 @@ struct CrossLayerTransferView: View {
         
         let amountInCredits = UInt64(amountValue)
         
-        let result = try await unifiedState.transferBetweenIdentities(
+        _ = try await unifiedState.transferBetweenIdentities(
             from: identity,
             to: targetIdentityId,
             amount: amountInCredits,

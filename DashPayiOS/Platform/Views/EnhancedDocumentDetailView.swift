@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 
 /// Enhanced document detail view with editing, history, and advanced features
 struct EnhancedDocumentDetailView: View {
@@ -21,7 +22,8 @@ struct EnhancedDocumentDetailView: View {
         self.document = document
         
         // Initialize with placeholder values - will be properly injected
-        let dummyDataManager = DataManager(modelContext: ModelContext(ModelContainer.preview()))
+        let dummyContainer = try! ModelContainer.inMemoryContainer()
+        let dummyDataManager = DataManager(modelContext: dummyContainer.mainContext)
         let dummyPlatformSDK = try! PlatformSDKWrapper(network: .testnet)
         self._documentService = StateObject(wrappedValue: DocumentService(platformSDK: dummyPlatformSDK, dataManager: dummyDataManager))
     }
@@ -353,9 +355,9 @@ struct DocumentOverviewTab: View {
                     SectionHeader(title: "Overview")
                     
                     VStack(spacing: 0) {
-                        DetailRow(label: "Document ID", value: document.id, isMono: true, copyable: true)
-                        DetailRow(label: "Owner ID", value: document.ownerIdString, isMono: true, copyable: true)
-                        DetailRow(label: "Contract ID", value: document.contractId, isMono: true, copyable: true)
+                        DetailRow(label: "Document ID", value: document.id)
+                        DetailRow(label: "Owner ID", value: document.ownerIdString)
+                        DetailRow(label: "Contract ID", value: document.contractId)
                         
                         if let created = document.createdAt {
                             DetailRow(label: "Created", value: formatDate(created))
@@ -374,19 +376,19 @@ struct DocumentOverviewTab: View {
                     SectionHeader(title: "Quick Actions")
                     
                     VStack(spacing: 12) {
-                        QuickActionButton(
+                        DocumentQuickActionButton(
                             title: "Copy Document ID",
                             icon: "doc.on.doc",
                             action: { Clipboard.copy(document.id) }
                         )
                         
-                        QuickActionButton(
+                        DocumentQuickActionButton(
                             title: showRawData ? "Hide Raw Data" : "Show Raw Data",
                             icon: showRawData ? "eye.slash" : "eye",
                             action: { showRawData.toggle() }
                         )
                         
-                        QuickActionButton(
+                        DocumentQuickActionButton(
                             title: "Refresh from Platform",
                             icon: "arrow.clockwise",
                             action: { /* Implement refresh */ }
@@ -639,9 +641,9 @@ struct DocumentMetadataTab: View {
                     VStack(spacing: 0) {
                         DetailRow(label: "Document Type", value: document.documentType)
                         DetailRow(label: "Revision", value: "\(document.revision)")
-                        DetailRow(label: "Contract ID", value: document.contractId, isMono: true)
-                        DetailRow(label: "Owner ID", value: document.ownerIdString, isMono: true)
-                        DetailRow(label: "Document ID", value: document.id, isMono: true)
+                        DetailRow(label: "Contract ID", value: document.contractId)
+                        DetailRow(label: "Owner ID", value: document.ownerIdString)
+                        DetailRow(label: "Document ID", value: document.id)
                     }
                 }
                 
@@ -695,7 +697,7 @@ struct DocumentMetadataTab: View {
     }
 }
 
-struct QuickActionButton: View {
+struct DocumentQuickActionButton: View {
     let title: String
     let icon: String
     let action: () -> Void
