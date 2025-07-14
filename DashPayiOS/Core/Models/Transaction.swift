@@ -4,6 +4,8 @@ import SwiftDashCoreSDK
 
 @Model
 final class Transaction {
+    private static let duffsPerDash: Double = 100_000_000
+    
     @Attribute(.unique) var txid: String
     var height: UInt32?
     var timestamp: Date
@@ -44,9 +46,9 @@ final class Transaction {
     }
     
     var displayAmount: String {
-        let dashAmount = Double(abs(amount)) / 100_000_000
+        let dashAmount = Double(abs(amount)) / Self.duffsPerDash
         let sign = amount < 0 ? "-" : ""
-        return "\(sign)\(String(format: "%.8g", dashAmount)) DASH"
+        return "\(sign)\(String(format: "%.8f", dashAmount)) DASH"
     }
     
     var displayStatus: String {
