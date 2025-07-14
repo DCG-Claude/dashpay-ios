@@ -74,11 +74,11 @@ public final class SPVConfigurationManager {
         config.validationMode = .full
         config.mempoolConfig = .fetchAll(maxTransactions: 5000)
         config.logLevel = "info"
-        config.maxPeers = 12
+        config.maxPeers = NetworkConstants.maxPeers
         
         // Add testnet peer if needed
         if network == .testnet {
-            config.additionalPeers = ["54.191.28.44:19999"]
+            config.additionalPeers = [NetworkConstants.primaryTestnetPeer]
         }
         
         // Set data directory

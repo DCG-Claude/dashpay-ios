@@ -382,23 +382,10 @@ class WalletService: ObservableObject {
     // MARK: - Connection & Sync
     
     /// Known good testnet peers (verified working in rust-dashcore example app)
-    private static let knownTestnetPeers = [
-        "54.149.33.167:19999",
-        "35.90.252.3:19999",
-        "18.237.170.32:19999",
-        "34.220.243.24:19999",
-        "34.214.48.68:19999"
-    ]
+    private static let knownTestnetPeers = NetworkConstants.fallbackTestnetPeers
     
     /// Known good mainnet peers (verified working in rust-dashcore example app)
-    private static let knownMainnetPeers = [
-        "142.93.154.186:9999",
-        "8.219.251.8:9999",
-        "165.22.30.195:9999",
-        "65.109.114.212:9999",
-        "188.40.21.248:9999",
-        "66.42.58.154:9999"
-    ]
+    private static let knownMainnetPeers = NetworkConstants.fallbackMainnetPeers
     
     /// Toggle between local and public peers
     func setUseLocalPeers(_ useLocal: Bool) {
@@ -484,7 +471,7 @@ class WalletService: ObservableObject {
             } else if wallet.network == .testnet && config.additionalPeers.count < 2 {
                 // Supplement testnet peers with our known-good ones
                 config.additionalPeers = Self.knownTestnetPeers
-                config.maxPeers = 1
+                config.maxPeers = 12
                 logger.info("   Applied known testnet peers: \(config.additionalPeers.count) peers")
             }
             
