@@ -140,13 +140,13 @@ extension WalletService {
         let descriptor = FetchDescriptor<HDWallet>()
         let allWallets = (try? context.fetch(descriptor)) ?? []
         
-        return allWallets.filter { wallet in
+        return allWallets.compactMap { wallet in
             // Check if wallet has been synced recently
             if let lastSync = wallet.lastSynced,
                Date().timeIntervalSince(lastSync) < 300 { // 5 minutes
-                return false
+                return nil
             }
-            return true
+            return wallet
         }
     }
 }

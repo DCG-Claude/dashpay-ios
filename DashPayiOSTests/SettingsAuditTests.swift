@@ -15,9 +15,9 @@ final class SettingsAuditTests: XCTestCase {
     
     override func tearDownWithError() throws {
         // Print audit results
-        print("\n" + "="*80)
+        print("\n" + String(repeating: "=", count: 80))
         print("DASHPAY iOS SETTINGS AUDIT REPORT")
-        print("="*80)
+        print(String(repeating: "=", count: 80))
         
         for (section, details) in auditResults {
             print("\n[\(section)]")
@@ -30,7 +30,7 @@ final class SettingsAuditTests: XCTestCase {
             }
         }
         
-        print("\n" + "="*80)
+        print("\n" + String(repeating: "=", count: 80))
         try super.tearDownWithError()
     }
     
@@ -359,9 +359,9 @@ final class SettingsTestCoverageAudit: XCTestCase {
         coverageAudit["Error Handling Testing"] = "❌ Limited - Hard to simulate all error conditions"
         
         // Print coverage analysis
-        print("\n" + "="*60)
+        print("\n" + String(repeating: "=", count: 60))
         print("SETTINGS TEST COVERAGE ANALYSIS")
-        print("="*60)
+        print(String(repeating: "=", count: 60))
         
         for (area, status) in coverageAudit {
             print("\(area): \(status)")
@@ -376,6 +376,6 @@ final class SettingsTestCoverageAudit: XCTestCase {
         
         print("\nGood Coverage: \(goodCoverage.count) areas")
         print("Limited Coverage: \(limitedCoverage.count) areas")
-        print("="*60)
+        print(String(repeating: "=", count: 60))
     }
 }

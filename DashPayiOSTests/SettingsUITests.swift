@@ -3,6 +3,7 @@ import SwiftUI
 @testable import DashPay
 
 /// UI-specific tests for the Settings view and user interactions
+@MainActor
 final class SettingsUITests: XCTestCase {
     
     override func setUpWithError() throws {
@@ -51,7 +52,7 @@ final class SettingsUITests: XCTestCase {
     
     // MARK: - Network Settings UI Tests
     
-    func testNetworkSettingsSection() {
+    func testNetworkSettingsSection() async {
         // Test the network settings section functionality
         let walletService = WalletService.shared
         
@@ -69,7 +70,7 @@ final class SettingsUITests: XCTestCase {
         XCTAssertEqual(hostName, "127.0.0.1", "Should display default local host")
     }
     
-    func testNetworkSettingsHelperText() {
+    func testNetworkSettingsHelperText() async {
         let walletService = WalletService.shared
         
         // Test helper text for local peers disabled
@@ -87,7 +88,7 @@ final class SettingsUITests: XCTestCase {
         XCTAssertNotNil(warningText, "Should show warning text for local peers")
     }
     
-    func testConnectionStatusIndicator() {
+    func testConnectionStatusIndicator() async {
         let walletService = WalletService.shared
         
         // Test connection status display
@@ -256,7 +257,7 @@ final class SettingsUITests: XCTestCase {
     
     // MARK: - Settings State Management Tests
     
-    func testSettingsStateUpdates() {
+    func testSettingsStateUpdates() async {
         // Test that settings state updates are reflected in UI
         let walletService = WalletService.shared
         
@@ -274,7 +275,7 @@ final class SettingsUITests: XCTestCase {
         XCTAssertEqual(newState, persistedState, "State should persist in UserDefaults")
     }
     
-    func testSettingsBindingUpdates() {
+    func testSettingsBindingUpdates() async {
         // Test that settings bindings update correctly
         let walletService = WalletService.shared
         
@@ -300,7 +301,7 @@ final class SettingsUITests: XCTestCase {
         XCTAssertNotNil(errorTitle, "Error dialog should have title")
     }
     
-    func testNetworkErrorHandling() {
+    func testNetworkErrorHandling() async {
         // Test network-related error handling
         let walletService = WalletService.shared
         
@@ -361,28 +362,32 @@ final class SettingsUIIntegrationTests: XCTestCase {
         try super.tearDownWithError()
     }
     
-    func testSettingsWithWalletService() {
+    func testSettingsWithWalletService() async {
         // Test settings integration with WalletService
-        let walletService = WalletService.shared
-        
-        // Test coordinated state changes
-        walletService.setUseLocalPeers(true)
-        walletService.setLocalPeerHost("10.0.0.1")
-        
-        XCTAssertTrue(walletService.isUsingLocalPeers(), "WalletService should reflect settings change")
-        XCTAssertEqual(walletService.getLocalPeerHost(), "10.0.0.1", "WalletService should reflect host change")
+        await MainActor.run {
+            let walletService = WalletService.shared
+            
+            // Test coordinated state changes
+            walletService.setUseLocalPeers(true)
+            walletService.setLocalPeerHost("10.0.0.1")
+            
+            XCTAssertTrue(walletService.isUsingLocalPeers(), "WalletService should reflect settings change")
+            XCTAssertEqual(walletService.getLocalPeerHost(), "10.0.0.1", "WalletService should reflect host change")
+        }
     }
     
-    func testSettingsWithNetworkSwitching() {
+    func testSettingsWithNetworkSwitching() async {
         // Test settings integration with network switching
-        let appState = AppState()
-        let originalNetwork = appState.currentNetwork
-        
-        // Test network change
-        let targetNetwork: PlatformNetwork = originalNetwork == .testnet ? .mainnet : .testnet
-        appState.currentNetwork = targetNetwork
-        
-        XCTAssertEqual(appState.currentNetwork, targetNetwork, "Network should be switched")
+        await MainActor.run {
+            let appState = AppState()
+            let originalNetwork = appState.currentNetwork
+            
+            // Test network change
+            let targetNetwork: PlatformNetwork = originalNetwork == .testnet ? .mainnet : .testnet
+            appState.currentNetwork = targetNetwork
+            
+            XCTAssertEqual(appState.currentNetwork, targetNetwork, "Network should be switched")
+        }
         
         // Test settings persistence across network changes
         UserDefaults.standard.set("test-setting", forKey: "testSetting")

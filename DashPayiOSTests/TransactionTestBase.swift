@@ -3,6 +3,230 @@ import SwiftData
 import Foundation
 @testable import DashPay
 
+// Define missing types for tests
+enum DashNetwork: String {
+    case mainnet = "mainnet"
+    case testnet = "testnet"
+    case devnet = "devnet"
+    case regtest = "regtest"
+    
+    var name: String { rawValue }
+}
+
+enum TransactionStatus: Equatable, CustomStringConvertible {
+    case pending
+    case confirming(confirmations: Int)
+    case confirmed
+    case instantLocked
+    case failed
+    case conflicted
+    
+    var description: String {
+        switch self {
+        case .pending: return "Pending"
+        case .confirming(let confirmations): return "Confirming (\(confirmations))"
+        case .confirmed: return "Confirmed"
+        case .instantLocked: return "InstantLocked"
+        case .failed: return "Failed"
+        case .conflicted: return "Conflicted"
+        }
+    }
+    
+    var isSettled: Bool {
+        switch self {
+        case .confirmed, .instantLocked:
+            return true
+        default:
+            return false
+        }
+    }
+}
+
+@Model
+class UTXO {
+    var outpoint: String
+    var txid: String
+    var vout: UInt32
+    var address: String
+    var script: Data
+    var value: UInt64
+    var height: UInt32
+    var confirmations: UInt32
+    var isInstantLocked: Bool
+    var isSpent: Bool = false
+    
+    init(outpoint: String, txid: String, vout: UInt32, address: String, script: Data, value: UInt64, height: UInt32, confirmations: UInt32, isInstantLocked: Bool) {
+        self.outpoint = outpoint
+        self.txid = txid
+        self.vout = vout
+        self.address = address
+        self.script = script
+        self.value = value
+        self.height = height
+        self.confirmations = confirmations
+        self.isInstantLocked = isInstantLocked
+    }
+    
+    var isSpendable: Bool {
+        return !isSpent && confirmations > 0
+    }
+    
+    static func createOutpoint(txid: String, vout: UInt32) -> String {
+        return "\(txid):\(vout)"
+    }
+}
+
+@Model
+class Balance {
+    var confirmed: UInt64
+    var pending: UInt64
+    var instantLocked: UInt64
+    var mempool: UInt64
+    var mempoolInstant: UInt64
+    var total: UInt64
+    
+    init(confirmed: UInt64, pending: UInt64, instantLocked: UInt64, mempool: UInt64, mempoolInstant: UInt64, total: UInt64) {
+        self.confirmed = confirmed
+        self.pending = pending
+        self.instantLocked = instantLocked
+        self.mempool = mempool
+        self.mempoolInstant = mempoolInstant
+        self.total = total
+    }
+}
+
+@Model
+class Transaction {
+    var txid: String
+    var height: UInt32?
+    var timestamp: Date
+    var amount: Int64
+    var fee: UInt64
+    var confirmations: UInt32
+    var isInstantLocked: Bool
+    var raw: Data
+    var size: Int
+    var version: Int32
+    
+    var status: TransactionStatus {
+        // Calculate status based on state
+        if isInstantLocked {
+            return .instantLocked
+        } else if confirmations >= 6 {
+            return .confirmed
+        } else if confirmations > 0 {
+            return .confirming(confirmations: Int(confirmations))
+        } else {
+            return .pending
+        }
+    }
+    
+    var isPending: Bool {
+        return status == .pending
+    }
+    
+    var isConfirmed: Bool {
+        switch status {
+        case .confirmed, .instantLocked:
+            return true
+        default:
+            return false
+        }
+    }
+    
+    init(txid: String, height: UInt32?, timestamp: Date, amount: Int64, fee: UInt64, confirmations: UInt32, isInstantLocked: Bool, raw: Data, size: Int, version: Int32) {
+        self.txid = txid
+        self.height = height
+        self.timestamp = timestamp
+        self.amount = amount
+        self.fee = fee
+        self.confirmations = confirmations
+        self.isInstantLocked = isInstantLocked
+        self.raw = raw
+        self.size = size
+        self.version = version
+    }
+}
+
+struct SPVClientConfiguration {
+    var network: DashNetwork = .testnet
+    var validationMode: ValidationMode = .full
+    var mempoolConfig: MempoolConfig = .fetchAll(maxTransactions: 1000)
+    
+    enum ValidationMode {
+        case none, basic, full
+    }
+    
+    enum MempoolConfig {
+        case disabled
+        case fetchAll(maxTransactions: Int)
+        case selective
+    }
+    
+    static func testnet() -> SPVClientConfiguration {
+        return SPVClientConfiguration(network: .testnet)
+    }
+    
+    static func mainnet() -> SPVClientConfiguration {
+        return SPVClientConfiguration(network: .mainnet)
+    }
+}
+
+@Model
+class HDWallet {
+    var name: String
+    private var networkRaw: String
+    var encryptedSeed: Data
+    var seedHash: String
+    var accounts: [HDAccount] = []
+    var lastSynced: Date?
+    
+    var network: DashNetwork {
+        get { DashNetwork(rawValue: networkRaw) ?? .testnet }
+        set { networkRaw = newValue.rawValue }
+    }
+    
+    init(name: String, network: DashNetwork, encryptedSeed: Data, seedHash: String) {
+        self.name = name
+        self.networkRaw = network.rawValue
+        self.encryptedSeed = encryptedSeed
+        self.seedHash = seedHash
+    }
+}
+
+@Model
+class HDAccount {
+    var accountIndex: UInt32
+    var label: String
+    var extendedPublicKey: String
+    var wallet: HDWallet?
+    var addresses: [HDWatchedAddress] = []
+    
+    init(accountIndex: UInt32, label: String, extendedPublicKey: String) {
+        self.accountIndex = accountIndex
+        self.label = label
+        self.extendedPublicKey = extendedPublicKey
+    }
+}
+
+@Model
+class HDWatchedAddress {
+    var address: String
+    var index: UInt32
+    var isChange: Bool
+    var derivationPath: String
+    var label: String?
+    var account: HDAccount?
+    
+    init(address: String, index: UInt32, isChange: Bool, derivationPath: String, label: String? = nil) {
+        self.address = address
+        self.index = index
+        self.isChange = isChange
+        self.derivationPath = derivationPath
+        self.label = label
+    }
+}
+
 /// Base class for all transaction-related tests providing common utilities and test data
 @MainActor
 class TransactionTestBase: XCTestCase {

@@ -278,7 +278,7 @@ final class TransactionModelTests: TransactionTestBase {
     
     func testTransactionSize() {
         // Given: Transaction with size
-        let size: UInt32 = 250
+        let size: Int = 250
         let transaction = createTestTransaction()
         transaction.size = size
         

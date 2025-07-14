@@ -2,6 +2,7 @@ import XCTest
 import SwiftData
 @testable import DashPay
 
+@MainActor
 final class WalletMigrationPlanTests: XCTestCase {
     
     override func setUp() {
