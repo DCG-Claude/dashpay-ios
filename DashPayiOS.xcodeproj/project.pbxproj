@@ -62,7 +62,6 @@
 		5E510F4F1D3807F3D9495FE7 /* SyncProgressView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93A1CE56A9C41B7FD9251F59 /* SyncProgressView.swift */; };
 		5EB063703F2B7796ED511FDD /* CreateAccountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 998DC64FD82E72214E1FA7AB /* CreateAccountView.swift */; };
 		63ACA517B43486DC47FD63CD /* FFIHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEB71F943B21FCA8F6A816CB /* FFIHelpers.swift */; };
-		6444B2BB99CF8542B4942875 /* libkey_wallet_ffi_ios.a in Resources */ = {isa = PBXBuildFile; fileRef = 6E583D42F8A321D5879756A4 /* libkey_wallet_ffi_ios.a */; };
 		65BD3B6A9EFBE5A71BEF6C39 /* PlatformNetwork.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8248732FB8268EE061CAB061 /* PlatformNetwork.swift */; };
 		68258C8A9F30ED4B720A237D /* MockSPVClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DC0CF12FEAE6B2EA658E94D /* MockSPVClient.swift */; };
 		69A6B3BB1F0E18E61D0071E3 /* DashPayApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE2BB73A3D9548916F87EE11 /* DashPayApp.swift */; };
@@ -70,7 +69,6 @@
 		6C940F9B37E3F2A6C23B3987 /* SettingsConfigurationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF97B95E545ECB925F021DD6 /* SettingsConfigurationTests.swift */; };
 		6D72BCB29AA93AD811374557 /* AssetLockBridgeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7006FDC80DC8F302F15A09B /* AssetLockBridgeTests.swift */; };
 		6ECAE0ADE78F8E3595EB45FA /* DocumentDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFD6C4D48B572D3274C27D64 /* DocumentDetailView.swift */; };
-		72804E54EDC5469732ABD430 /* libkey_wallet_ffi_sim.a in Resources */ = {isa = PBXBuildFile; fileRef = 398C007F617F0A749125984E /* libkey_wallet_ffi_sim.a */; };
 		7531DA18AD6D8B0F293DBF1D /* TokensView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45107DD05390DA8131FEC908 /* TokensView.swift */; };
 		7B022AD34CDEAFF53600BFC6 /* SendTransactionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F83D502D320F833CD3140CDE /* SendTransactionView.swift */; };
 		7B36BD890DBF94DEBC834274 /* DAPIConfigurationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 965767F03223FB674A164D28 /* DAPIConfigurationService.swift */; };
@@ -84,7 +82,6 @@
 		8A97F0EF71EA495F057A39A1 /* NetworkMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F4AE39F5429DF13E57439A4 /* NetworkMonitor.swift */; };
 		8DAD5CBD20BB91FD7B7A4E81 /* ReceiveAddressView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37B31624F42C885197B3736A /* ReceiveAddressView.swift */; };
 		8E26C55CAB4911AB98AD4107 /* Balance.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34601A872F5A1D8E51583CC8 /* Balance.swift */; };
-		8ECF51BF0838C45FBB7900CD /* libkey_wallet_ffi.a in Resources */ = {isa = PBXBuildFile; fileRef = 78B2FBFF99A0DB8B920D6C77 /* libkey_wallet_ffi.a */; };
 		9100049B6111126975BF5B1E /* IdentitiesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6C552E104F67A4C821059CF /* IdentitiesView.swift */; };
 		914646599956C7EA10C49261 /* BalanceManagementView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF70592C6127F66FFE14CE63 /* BalanceManagementView.swift */; };
 		9247DDD2B2166556D6C2BCC7 /* SimpleIntegrationTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FB17F7F465BE19CCC027252 /* SimpleIntegrationTest.swift */; };
@@ -161,6 +158,9 @@
 		FE10CBBF0C46EE9D2E5B9110 /* tokens.json in Resources */ = {isa = PBXBuildFile; fileRef = F6D090A608BE339258C2590F /* tokens.json */; };
 		FE73690264A618D7EBC8E010 /* EnhancedDocumentsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B87981DBF54EFC3A88243275 /* EnhancedDocumentsView.swift */; };
 		FF259917D23F6B286E17D3DC /* WalletService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEA98383216475B572905E71 /* WalletService.swift */; };
+		B192BA5545104E5FAD982B81 /* libkey_wallet_ffi.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 78B2FBFF99A0DB8B920D6C77 /* libkey_wallet_ffi.a */; };
+		4BCFAE9988B64F0E93D5F114 /* libkey_wallet_ffi_ios.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 6E583D42F8A321D5879756A4 /* libkey_wallet_ffi_ios.a */; };
+		A7442493D69743028DBBDDAF /* libkey_wallet_ffi_sim.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 398C007F617F0A749125984E /* libkey_wallet_ffi_sim.a */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -366,6 +366,9 @@
 				B0E3CC9CB09D957C537C50CC /* KeyWalletFFISwift in Frameworks */,
 				0812D1EF68B7933D35C3337D /* P256K in Frameworks */,
 				3687CB5D793D82C0B3927EF0 /* DashUnified.xcframework in Frameworks */,
+				B192BA5545104E5FAD982B81 /* libkey_wallet_ffi.a in Frameworks */,
+				4BCFAE9988B64F0E93D5F114 /* libkey_wallet_ffi_ios.a in Frameworks */,
+				A7442493D69743028DBBDDAF /* libkey_wallet_ffi_sim.a in Frameworks */,
 				1DD3416389421A1882557B6B /* libc++.tbd in Frameworks */,
 				34A3F7DFE31C9EAAD2EAED84 /* libz.tbd in Frameworks */,
 				300DE08EAB7C0919A592872C /* Foundation.framework in Frameworks */,
@@ -968,9 +971,6 @@
 				F730936121CA9491C3BA5F27 /* DAPIEndpoints.plist in Resources */,
 				EFBD0AD5DB8553F9CF1C0BBF /* DashPayiOS-Bridging-Header.h.backup in Resources */,
 				03224BB28259F6FCE84D2E22 /* DashUnified.xcframework in Resources */,
-				8ECF51BF0838C45FBB7900CD /* libkey_wallet_ffi.a in Resources */,
-				6444B2BB99CF8542B4942875 /* libkey_wallet_ffi_ios.a in Resources */,
-				72804E54EDC5469732ABD430 /* libkey_wallet_ffi_sim.a in Resources */,
 				FE10CBBF0C46EE9D2E5B9110 /* tokens.json in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
