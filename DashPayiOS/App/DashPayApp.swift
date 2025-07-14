@@ -209,12 +209,17 @@ class UnifiedAppState: ObservableObject {
                 // INTENTIONALLY DISABLED: Auto-sync and periodic sync features
                 // 
                 // Auto-sync and periodic sync are disabled to provide manual sync control.
-                // This allows developers and users to explicitly control when synchronization
-                // occurs, which is useful for:
-                // - Testing specific sync scenarios
-                // - Debugging sync-related issues
+                // This behavioral change allows developers and users to explicitly control when 
+                // synchronization occurs, which is useful for:
+                // - Testing specific sync scenarios without interference
+                // - Debugging sync-related issues in a controlled environment
                 // - Avoiding background sync interference during development
-                // - Giving users explicit control over network usage
+                // - Giving users explicit control over network usage and battery consumption
+                // - Preventing unexpected sync operations during testing
+                //
+                // RATIONALE: Manual sync control provides better predictability and control
+                // for both development and production use cases. Users can initiate sync
+                // operations when desired through the UI.
                 //
                 // To re-enable automatic sync, uncomment the code blocks below:
                 
@@ -289,9 +294,19 @@ class UnifiedAppState: ObservableObject {
     @objc private func appWillEnterForeground() {
         Task {
             // INTENTIONALLY DISABLED: Auto-sync on app foreground
+            // 
             // Auto-sync is disabled to provide manual sync control when the app returns to foreground.
-            // This prevents automatic network activity and gives users explicit control over when sync occurs.
-            // To re-enable, uncomment the line below:
+            // This behavioral change prevents automatic network activity and gives users explicit 
+            // control over when sync occurs. This is particularly important for:
+            // - Battery conservation by avoiding unnecessary background sync
+            // - Network usage control in metered connection scenarios
+            // - Predictable testing behavior without surprise sync operations
+            // - User privacy by not automatically connecting to network on app resume
+            //
+            // RATIONALE: Manual sync control allows users to choose when to sync, providing
+            // better control over their device resources and network usage.
+            //
+            // To re-enable automatic sync on app foreground, uncomment the line below:
             // await walletService.startAutoSync()
         }
     }
