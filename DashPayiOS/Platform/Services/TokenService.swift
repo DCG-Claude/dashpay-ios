@@ -518,7 +518,7 @@ class TokenService: ObservableObject {
         claimerIdentity: IdentityModel,
         tokenContractId: String,
         tokenPosition: UInt16 = 0,
-        distributionType: DashSDKTokenDistributionType = PreProgrammed,
+        distributionType: DashSDKTokenDistributionType = DashSDKTokenDistributionType.preProgrammed,
         publicNote: String? = nil
     ) async throws -> String {
         guard let sdkHandle = sdk.handle else {
