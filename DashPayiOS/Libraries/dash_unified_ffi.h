@@ -215,22 +215,87 @@ typedef struct FFIArray {
  * - The callback should not modify or free `user_data` unless explicitly coordinated
  */
 typedef void (*BlockCallback)(uint32_t height, const uint8_t (*hash)[32], void *user_data);
+/**
+ * Callback function type for transaction notifications.
+ * 
+ * Thread Safety:
+ * - This callback may be invoked from multiple threads simultaneously
+ * - The callback implementation must be thread-safe
+ * 
+ * User Data Lifetime and Ownership:
+ * - `user_data` must remain valid and accessible for the entire callback registration period
+ * - The caller is responsible for managing `user_data` memory lifecycle
+ * - If `user_data` is mutable, the caller must ensure proper synchronization
+ * - The callback should not modify or free `user_data` unless explicitly coordinated
+ */
 typedef void (*TransactionCallback)(const uint8_t (*txid)[32],
                                     bool confirmed,
                                     int64_t amount,
                                     const char *addresses,
                                     uint32_t block_height,
                                     void *user_data);
+/**
+ * Callback function type for balance update notifications.
+ * 
+ * Thread Safety:
+ * - This callback may be invoked from multiple threads simultaneously
+ * - The callback implementation must be thread-safe
+ * 
+ * User Data Lifetime and Ownership:
+ * - `user_data` must remain valid and accessible for the entire callback registration period
+ * - The caller is responsible for managing `user_data` memory lifecycle
+ * - If `user_data` is mutable, the caller must ensure proper synchronization
+ * - The callback should not modify or free `user_data` unless explicitly coordinated
+ */
 typedef void (*BalanceCallback)(uint64_t confirmed, uint64_t unconfirmed, void *user_data);
+/**
+ * Callback function type for mempool transaction notifications.
+ * 
+ * Thread Safety:
+ * - This callback may be invoked from multiple threads simultaneously
+ * - The callback implementation must be thread-safe
+ * 
+ * User Data Lifetime and Ownership:
+ * - `user_data` must remain valid and accessible for the entire callback registration period
+ * - The caller is responsible for managing `user_data` memory lifecycle
+ * - If `user_data` is mutable, the caller must ensure proper synchronization
+ * - The callback should not modify or free `user_data` unless explicitly coordinated
+ */
 typedef void (*MempoolTransactionCallback)(const uint8_t (*txid)[32],
                                            int64_t amount,
                                            const char *addresses,
                                            bool is_instant_send,
                                            void *user_data);
+/**
+ * Callback function type for mempool transaction confirmation notifications.
+ * 
+ * Thread Safety:
+ * - This callback may be invoked from multiple threads simultaneously
+ * - The callback implementation must be thread-safe
+ * 
+ * User Data Lifetime and Ownership:
+ * - `user_data` must remain valid and accessible for the entire callback registration period
+ * - The caller is responsible for managing `user_data` memory lifecycle
+ * - If `user_data` is mutable, the caller must ensure proper synchronization
+ * - The callback should not modify or free `user_data` unless explicitly coordinated
+ */
 typedef void (*MempoolConfirmedCallback)(const uint8_t (*txid)[32],
                                          uint32_t block_height,
                                          const uint8_t (*block_hash)[32],
                                          void *user_data);
+/**
+ * Callback function type for mempool transaction removal notifications.
+ * 
+ * Thread Safety:
+ * - This callback may be invoked from multiple threads simultaneously
+ * - The callback implementation must be thread-safe
+ * 
+ * User Data Lifetime and Ownership:
+ * - `user_data` must remain valid and accessible for the entire callback registration period
+ * - The caller is responsible for managing `user_data` memory lifecycle
+ * - If `user_data` is mutable, the caller must ensure proper synchronization
+ * - The callback should not modify or free `user_data` unless explicitly coordinated
+ */
 typedef void (*MempoolRemovedCallback)(const uint8_t (*txid)[32], uint8_t reason, void *user_data);
 typedef struct FFIEventCallbacks {
   BlockCallback on_block;
@@ -744,18 +809,18 @@ typedef struct FFIDashSpvClient {
 // This matches the definition from dash_spv_ffi.h
 // Document creation parameters
 typedef struct DashSDKDocumentCreateParams {
-  // Data contract handle
+  // Data contract handle (borrowed, must remain valid during call)
   const struct DataContractHandle *data_contract_handle;
-  // Document type name
+  // Document type name (borrowed, null-terminated UTF-8 string, must remain valid during call)
   const char *document_type;
-  // Owner identity handle
+  // Owner identity handle (borrowed, must remain valid during call)
   const struct IdentityHandle *owner_identity_handle;
-  // JSON string of document properties
+  // JSON string of document properties (borrowed, null-terminated UTF-8 string, must remain valid during call)
   const char *properties_json;
 } DashSDKDocumentCreateParams;
 // Token payment information for transactions
 typedef struct DashSDKTokenPaymentInfo {
-  // Payment token contract ID (32 bytes), null for same contract
+  // Payment token contract ID (borrowed, pointer to 32-byte array, must remain valid during call, null for same contract)
   const uint8_t (*payment_token_contract_id)[32];
   // Token position within the contract (0-based index)
   uint16_t token_contract_position;
@@ -802,13 +867,13 @@ typedef struct DashSDKStateTransitionCreationOptions {
 } DashSDKStateTransitionCreationOptions;
 // Document information
 typedef struct DashSDKDocumentInfo {
-  // Document ID as hex string (null-terminated)
+  // Document ID as hex string (owned, null-terminated UTF-8 string, caller must free)
   char *id;
-  // Owner ID as hex string (null-terminated)
+  // Owner ID as hex string (owned, null-terminated UTF-8 string, caller must free)
   char *owner_id;
-  // Data contract ID as hex string (null-terminated)
+  // Data contract ID as hex string (owned, null-terminated UTF-8 string, caller must free)
   char *data_contract_id;
-  // Document type (null-terminated)
+  // Document type (owned, null-terminated UTF-8 string, caller must free)
   char *document_type;
   // Revision number
   uint64_t revision;
@@ -819,13 +884,13 @@ typedef struct DashSDKDocumentInfo {
 } DashSDKDocumentInfo;
 // Document search parameters
 typedef struct DashSDKDocumentSearchParams {
-  // Data contract handle
+  // Data contract handle (borrowed, must remain valid during call)
   const struct DataContractHandle *data_contract_handle;
-  // Document type name
+  // Document type name (borrowed, null-terminated UTF-8 string, must remain valid during call)
   const char *document_type;
-  // JSON string of where clauses (optional)
+  // JSON string of where clauses (borrowed, null-terminated UTF-8 string, must remain valid during call, optional)
   const char *where_json;
-  // JSON string of order by clauses (optional)
+  // JSON string of order by clauses (borrowed, null-terminated UTF-8 string, must remain valid during call, optional)
   const char *order_by_json;
   // Limit number of results (0 = default)
   uint32_t limit;
