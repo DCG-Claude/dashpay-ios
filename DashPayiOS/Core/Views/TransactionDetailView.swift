@@ -283,7 +283,7 @@ struct TransactionActionsSection: View {
     }
     
     private func copyTransactionId() {
-        UIPasteboard.general.string = transaction.txid
+        Clipboard.copy(transaction.txid)
         
         withAnimation {
             isCopied = true
