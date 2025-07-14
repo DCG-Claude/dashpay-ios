@@ -132,14 +132,20 @@ extension DashSDK {
         return transaction.txid
     }
     
-    /// Get transaction confirmations using public API
-    internal func getTransactionConfirmations(_ txid: String) async throws -> Int32 {
-        // Use the public API to get transaction information
-        // Since getTransactions() is available internally, we can use it
-        let transactions = try await getTransactions(limit: 1000)
+    /// Get a single transaction by txid using public API
+    internal func getTransaction(txid: String) async throws -> SwiftDashCoreSDK.Transaction? {
+        // TODO: Replace with direct backend call when DashSDK supports single transaction queries
+        // Current implementation fetches limited transactions to reduce performance impact
+        let transactions = try await getTransactions(limit: 100) // Reduced from 1000 to minimize performance impact
         
         // Find the transaction with matching txid
-        if let transaction = transactions.first(where: { $0.txid == txid }) {
+        return transactions.first(where: { $0.txid == txid })
+    }
+    
+    /// Get transaction confirmations using public API
+    internal func getTransactionConfirmations(_ txid: String) async throws -> Int32 {
+        // Use the new getTransaction method for better performance
+        if let transaction = try await getTransaction(txid: txid) {
             return transaction.confirmations
         }
         
@@ -149,12 +155,9 @@ extension DashSDK {
     
     /// Check if transaction has InstantSend lock using public API
     internal func isTransactionInstantLocked(_ txid: String) async -> Bool {
-        // Use the public API to get transaction information
+        // Use the new getTransaction method for better performance
         do {
-            let transactions = try await getTransactions(limit: 1000)
-            
-            // Find the transaction with matching txid
-            if let transaction = transactions.first(where: { $0.txid == txid }) {
+            if let transaction = try await getTransaction(txid: txid) {
                 return transaction.isInstantLocked
             }
         } catch {
