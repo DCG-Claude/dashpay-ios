@@ -74,31 +74,29 @@ actor PlatformSDKWrapper {
     // Static flag to ensure dash_sdk_init() is called only once
     private static var sdkInitialized = false
     
-    init(network: PlatformNetwork) throws {
+    init(network: PlatformNetwork) async throws {
         self.coreSDK = nil
         self.network = network
         self.platformSigner = PlatformSigner()
-        self.sdk = try Self.createPlatformSDK(for: network, withCore: nil)
+        self.sdk = try await Self.createPlatformSDK(for: network, withCore: nil)
     }
     
-    init(network: PlatformNetwork, coreSDK: DashSDK) throws {
+    init(network: PlatformNetwork, coreSDK: DashSDK) async throws {
         self.coreSDK = coreSDK
         self.network = network
         self.platformSigner = PlatformSigner()
-        self.sdk = try Self.createPlatformSDK(for: network, withCore: coreSDK)
+        self.sdk = try await Self.createPlatformSDK(for: network, withCore: coreSDK)
         
         // Test the connection after initialization
-        Task {
-            do {
-                try await testConnection()
-                print("✅ Platform SDK connection test passed")
-            } catch {
-                print("⚠️ Platform SDK connection test failed: \(error)")
-            }
+        do {
+            try await testConnection()
+            print("✅ Platform SDK connection test passed")
+        } catch {
+            print("⚠️ Platform SDK connection test failed: \(error)")
         }
     }
     
-    private static func createPlatformSDK(for network: PlatformNetwork, withCore coreSDK: DashSDK?) throws -> OpaquePointer {
+    private static func createPlatformSDK(for network: PlatformNetwork, withCore coreSDK: DashSDK?) async throws -> OpaquePointer {
         // Initialize unified library first (replaces dash_sdk_init)
         UnifiedFFIInitializer.shared.initialize()
         
@@ -111,58 +109,18 @@ actor PlatformSDKWrapper {
         config.request_retry_count = 3
         config.request_timeout_ms = 30000
         
-        // Set DAPI addresses based on network - updated with working testnet addresses
-        let testnetAddresses = [
-            "https://seed-1.testnet.networks.dash.org:1443",
-            "https://seed-2.testnet.networks.dash.org:1443",
-            "https://seed-3.testnet.networks.dash.org:1443",
-            "https://seed-4.testnet.networks.dash.org:1443",
-            "https://seed-5.testnet.networks.dash.org:1443",
-            "https://54.186.161.118:1443",    // AWS testnet DAPI
-            "https://52.43.70.6:1443",        // AWS testnet DAPI
-            "https://18.237.42.109:1443",     // AWS testnet DAPI
-            "https://52.42.192.140:1443",     // AWS testnet DAPI
-            "https://35.166.242.82:1443"      // AWS testnet DAPI
-        ].joined(separator: ",")
+        // Get DAPI addresses dynamically using the endpoint manager
+        let endpointManager = DAPIEndpointManager(network: network)
+        let dapiAddresses = await endpointManager.getHealthyEndpointsString()
         
-        // Configure DAPI addresses
-        let result: DashSDKResult
-        switch network {
-        case .testnet:
-            result = testnetAddresses.withCString { addressesCStr -> DashSDKResult in
-                var mutableConfig = config
-                mutableConfig.dapi_addresses = addressesCStr
-                
-                // Create Platform SDK with standard configuration
-                print("🔧 Creating Platform SDK for testnet")
-                return dash_sdk_create(&mutableConfig)
-            }
-        case .mainnet:
-            // Mainnet DAPI addresses - using official Dash DAPI endpoints
-            let mainnetAddresses = [
-                "https://dapi.dash.org:443",
-                "https://seed-1.evonet.networks.dash.org:1443",
-                "https://seed-2.evonet.networks.dash.org:1443"
-            ].joined(separator: ",")
-            result = mainnetAddresses.withCString { addressesCStr -> DashSDKResult in
-                var mutableConfig = config
-                mutableConfig.dapi_addresses = addressesCStr
-                
-                // Create Platform SDK with standard configuration
-                print("🔧 Creating Platform SDK for mainnet")
-                return dash_sdk_create(&mutableConfig)
-            }
-        case .devnet:
-            // For devnet, assume local development
-            let devnetAddresses = "http://127.0.0.1:3000,http://127.0.0.1:3001"
-            result = devnetAddresses.withCString { addressesCStr -> DashSDKResult in
-                var mutableConfig = config
-                mutableConfig.dapi_addresses = addressesCStr
-                
-                // Create Platform SDK with standard configuration
-                print("🔧 Creating Platform SDK for devnet")
-                return dash_sdk_create(&mutableConfig)
-            }
+        // Configure DAPI addresses dynamically
+        let result: DashSDKResult = dapiAddresses.withCString { addressesCStr -> DashSDKResult in
+            var mutableConfig = config
+            mutableConfig.dapi_addresses = addressesCStr
+            
+            // Create Platform SDK with standard configuration
+            print("🔧 Creating Platform SDK for \(network) with endpoints: \(dapiAddresses)")
+            return dash_sdk_create(&mutableConfig)
         }
         
         // Check for errors
@@ -209,7 +167,7 @@ actor PlatformSDKWrapper {
         
         // Test by trying to fetch a well-known contract (DPNS contract)
         // This is a more reliable test as it exercises the DAPI connection
-        let dpnsContractId = "GWRSAVFMjXx8HpQFaNJMqBV7MBgMK4br5UESsB4S31EC" // DPNS contract ID on testnet
+        let dpnsContractId = getDPNSContractId()
         
         let testResult = dpnsContractId.withCString { contractIdCStr in
             dash_sdk_data_contract_fetch(sdk, contractIdCStr)
@@ -225,10 +183,26 @@ actor PlatformSDKWrapper {
         if let contractHandle = testResult.data {
             // Clean up the contract handle
             dash_sdk_data_contract_destroy(OpaquePointer(contractHandle))
-            print("✅ Platform SDK connected! Successfully fetched DPNS contract")
+            print("✅ Platform SDK connected! Successfully fetched DPNS contract for \(network.displayName)")
         } else {
             print("🔴 Platform connection test failed: No contract data returned")
             throw PlatformError.sdkInitializationFailed
+        }
+    }
+    
+    /// Get the DPNS contract ID for the current network
+    private func getDPNSContractId() -> String {
+        switch network {
+        case .mainnet:
+            // TODO: Replace with actual mainnet DPNS contract ID when available
+            // Note: As of Platform v0.22+, system contract IDs are static across networks
+            return "GWRSAVFMjXx8HpQFaNJMqBV7MBgMK4br5UESsB4S31EC" // Placeholder - needs actual mainnet ID
+        case .testnet:
+            return "GWRSAVFMjXx8HpQFaNJMqBV7MBgMK4br5UESsB4S31EC" // Known testnet DPNS contract ID
+        case .devnet:
+            // TODO: Replace with actual devnet DPNS contract ID when available
+            // Note: As of Platform v0.22+, system contract IDs are static across networks
+            return "GWRSAVFMjXx8HpQFaNJMqBV7MBgMK4br5UESsB4S31EC" // Placeholder - needs actual devnet ID
         }
     }
     
@@ -251,7 +225,7 @@ actor PlatformSDKWrapper {
         
         if isConnected {
             // Test connectivity to multiple DAPI nodes
-            let testNodes = getTestNodes()
+            let testNodes = await getTestNodes()
             var successfulNodes = 0
             var totalResponseTime: TimeInterval = 0
             
@@ -279,22 +253,10 @@ actor PlatformSDKWrapper {
         )
     }
     
-    private func getTestNodes() -> [String] {
-        switch network {
-        case .testnet:
-            return [
-                "https://seed-1.testnet.networks.dash.org:1443",
-                "https://seed-2.testnet.networks.dash.org:1443",
-                "https://seed-3.testnet.networks.dash.org:1443",
-                "https://54.186.161.118:1443",
-                "https://52.43.70.6:1443",
-                "https://18.237.42.109:1443"
-            ]
-        case .mainnet:
-            return ["https://dapi.dash.org:443"]
-        case .devnet:
-            return ["http://127.0.0.1:3000", "http://127.0.0.1:3001"]
-        }
+    private func getTestNodes() async -> [String] {
+        // Use the endpoint manager to get healthy endpoints for testing
+        let endpointManager = DAPIEndpointManager(network: network)
+        return await endpointManager.getHealthyEndpoints()
     }
     
     private func testNodeConnectivity(_ nodeUrl: String) async -> Bool {
