@@ -224,10 +224,14 @@ struct CrossLayerTransferView: View {
     private func performCoreToIdentityTransfer(_ amountValue: Double) async throws {
         guard let wallet = sourceWallet else { throw TransferError.invalidSource }
         
+        guard let targetIdentity = unifiedState.identities.first(where: { $0.id == targetIdentityId }) else {
+            throw TransferError.invalidTarget
+        }
+        
         let amountInSatoshis = UInt64(amountValue * 100_000_000)
         
         _ = try await unifiedState.topUpIdentity(
-            unifiedState.identities.first { $0.id == targetIdentityId } ?? Identity(id: targetIdentityId, balance: 0, revision: 0),
+            targetIdentity,
             from: wallet,
             amount: amountInSatoshis
         )
@@ -284,7 +288,7 @@ struct CrossLayerTransferView: View {
             to: targetIdentityId,
             amount: amountInCredits,
             useBackupFunding: useBackupFunding,
-            backupWallet: sourceWallet
+            backupWallet: useBackupFunding ? sourceWallet : nil
         )
         
         await MainActor.run {

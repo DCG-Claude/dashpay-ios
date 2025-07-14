@@ -433,8 +433,13 @@ class DocumentContractTestSuite: XCTestCase {
             "publicMessage": "Original Message"
         ]
         
-        XCTAssertTrue(NSDictionary(dictionary: originalData).isEqual(to: unchangedData), "Unchanged data should be detected as same")
-        XCTAssertFalse(NSDictionary(dictionary: originalData).isEqual(to: changedData), "Changed data should be detected as different")
+        // Use JSON serialization for reliable deep comparison of complex data structures
+        let originalJSON = try JSONSerialization.data(withJSONObject: originalData, options: .sortedKeys)
+        let unchangedJSON = try JSONSerialization.data(withJSONObject: unchangedData, options: .sortedKeys)
+        let changedJSON = try JSONSerialization.data(withJSONObject: changedData, options: .sortedKeys)
+        
+        XCTAssertEqual(originalJSON, unchangedJSON, "Unchanged data should be detected as same")
+        XCTAssertNotEqual(originalJSON, changedJSON, "Changed data should be detected as different")
     }
     
     private func testSaveFunctionality() async throws {
