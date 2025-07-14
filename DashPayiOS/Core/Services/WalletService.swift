@@ -361,7 +361,7 @@ class WalletService: ObservableObject {
     
     // MARK: - Private Connection Helper Methods
     
-    private func setupConfiguration(wallet: HDWallet) throws -> SPVConfiguration {
+    private func setupConfiguration(wallet: HDWallet) async throws -> SPVConfiguration {
         logger.info("🔧 Getting SPV configuration from manager...")
         let config = SPVConfigurationManager.shared.configuration(for: wallet.network)
         logger.info("📁 SPV data directory: \(config.dataDirectory?.path ?? "nil")")
@@ -399,10 +399,10 @@ class WalletService: ObservableObject {
                 config.additionalPeers = Self.knownMainnetPeers
                 logger.info("   Applied known mainnet peers: \(config.additionalPeers.count) peers")
             } else if wallet.network == .testnet && config.additionalPeers.count < 2 {
-                // Supplement testnet peers with our known-good ones
-                config.additionalPeers = Self.knownTestnetPeers
+                // Discover testnet peers using DNS seeds with fallback to hardcoded peers
+                config.additionalPeers = await NetworkConstants.discoverTestnetPeers()
                 config.maxPeers = 12
-                logger.info("   Applied known testnet peers: \(config.additionalPeers.count) peers")
+                logger.info("   Applied testnet peers: \(config.additionalPeers.count) peers")
             }
             
             // Log configured peers
@@ -596,7 +596,7 @@ class WalletService: ObservableObject {
         }
         
         // Setup configuration
-        let config = try setupConfiguration(wallet: wallet)
+        let config = try await setupConfiguration(wallet: wallet)
         
         // Initialize SDK
         try await initializeSDK(with: config)
