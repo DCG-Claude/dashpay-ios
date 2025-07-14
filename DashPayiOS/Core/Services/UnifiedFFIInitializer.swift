@@ -73,12 +73,17 @@ final class UnifiedFFIInitializer {
     }
     
     /// Cleanup resources and reset initialization state
-    private func cleanup() {
+    func cleanup() {
         queue.sync {
             if isInitialized {
+                // Clear the stored handle to prevent memory leak
+                if coreSDKHandle != nil {
+                    print("🧹 Releasing Core SDK handle")
+                    coreSDKHandle = nil
+                }
+                
                 // Note: Add proper cleanup calls here when available in the FFI
                 // For now, we'll just reset the state
-                coreSDKHandle = nil
                 isInitialized = false
                 print("🧹 Unified FFI library cleaned up")
             }

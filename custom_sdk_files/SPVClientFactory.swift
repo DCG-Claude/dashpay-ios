@@ -32,14 +32,24 @@ public class SPVClientFactory {
             #endif
             
         case .auto:
-            // Always use real SPVClient for production builds
+            #if DEBUG
+            // In debug builds, check if mock client should be used
+            if SPVEnvironment.useMockClient {
+                print("🎭 SPVClientFactory: Creating mock SPVClient for debug environment")
+                return MockSPVClient(configuration: configuration)
+            } else {
+                print("🚀 SPVClientFactory: Creating real SPVClient for debug environment")
+                return SPVClient(configuration: configuration)
+            }
+            #else
+            // In production builds, always use real SPVClient
             print("🚀 SPVClientFactory: Creating real SPVClient for production use")
             
             // FFI initialization is handled internally by SPVClient
             print("📝 SPVClient will handle FFI initialization internally")
             
-            // Always return real SPVClient
             return SPVClient(configuration: configuration)
+            #endif
         }
     }
     
