@@ -441,9 +441,13 @@ struct ModelContainerHelper {
             print("Potential migration needed: schema validation failed with error: \(error)")
             
             // Check if this is a specific migration-related error
-            if error.localizedDescription.contains("migration") ||
-               error.localizedDescription.contains("schema") ||
-               error.localizedDescription.contains("model") {
+            let migrationErrorSubstrings = [
+                "migration",
+                "schema",
+                "model"
+            ]
+            
+            if migrationErrorSubstrings.contains(where: { error.localizedDescription.contains($0) }) {
                 return true
             }
             
