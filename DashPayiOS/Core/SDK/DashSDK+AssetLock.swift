@@ -130,18 +130,35 @@ extension DashSDK {
     
     /// Get transaction confirmations using public API
     internal func getTransactionConfirmations(_ txid: String) async throws -> Int32 {
-        // For now, assume all transactions have at least 1 confirmation
-        // This is a simplified implementation for the public API
-        // In a real implementation, we would need access to the transaction details
-        return 1
+        // Use the public API to get transaction information
+        // Since getTransactions() is available internally, we can use it
+        let transactions = try await getTransactions(limit: 1000)
+        
+        // Find the transaction with matching txid
+        if let transaction = transactions.first(where: { $0.txid == txid }) {
+            return transaction.confirmations
+        }
+        
+        // If not found, return 0 confirmations
+        return 0
     }
     
     /// Check if transaction has InstantSend lock using public API
     internal func isTransactionInstantLocked(_ txid: String) async -> Bool {
-        // For now, assume all transactions are InstantSend locked
-        // This is a simplified implementation for the public API
-        // In a real implementation, we would need access to the transaction details
-        return true
+        // Use the public API to get transaction information
+        do {
+            let transactions = try await getTransactions(limit: 1000)
+            
+            // Find the transaction with matching txid
+            if let transaction = transactions.first(where: { $0.txid == txid }) {
+                return transaction.isInstantLocked
+            }
+        } catch {
+            print("⚠️ Error checking InstantLock status: \(error)")
+        }
+        
+        // If not found or error, return false
+        return false
     }
     
     /// Wait for InstantSend lock confirmation using public API
