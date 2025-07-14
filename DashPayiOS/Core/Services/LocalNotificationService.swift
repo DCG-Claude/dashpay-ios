@@ -110,7 +110,7 @@ class LocalNotificationService: ObservableObject {
         let balanceUpdateObserver = NotificationCenter.default.addObserver(
             forName: NSNotification.Name("BalanceUpdated"),
             object: nil,
-            queue: OperationQueue.main
+            queue: notificationOperationQueue
         ) { [weak self] notification in
             guard let self = self,
                   let userInfo = notification.userInfo,
