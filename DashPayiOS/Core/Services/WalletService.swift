@@ -37,7 +37,6 @@ class WalletService: ObservableObject {
     
     // FIX: Proper sync state management to prevent duplicate syncs
     private var activeSyncTask: Task<Void, Never>?
-    private let syncLock = NSLock()
     private var syncRequestId: UUID?
     var modelContext: ModelContext?
     private var autoSyncTimer: Timer?
@@ -645,10 +644,7 @@ class WalletService: ObservableObject {
             throw WalletError.notConnected
         }
         
-        // FIX: Prevent multiple concurrent syncs
-        syncLock.lock()
-        defer { syncLock.unlock() }
-        
+        // FIX: Prevent multiple concurrent syncs using @MainActor serialization
         // Check if sync is already in progress
         if let existingTask = activeSyncTask, !existingTask.isCancelled {
             logger.warning("⚠️ Sync already in progress, skipping duplicate request")
@@ -759,11 +755,8 @@ class WalletService: ObservableObject {
         cancelActiveSync()
     }
     
-    // FIX: Proper sync cancellation with thread safety
+    // FIX: Proper sync cancellation with @MainActor thread safety
     private func cancelActiveSync() {
-        syncLock.lock()
-        defer { syncLock.unlock() }
-        
         if let task = activeSyncTask {
             logger.info("🛑 Cancelling active sync")
             task.cancel()
