@@ -59,6 +59,9 @@ final class LocalUTXO {
     }
     
     var isSpendable: Bool {
-        !isSpent && (confirmations > 0 || isInstantLocked)
+        guard !isSpent else { return false }
+        
+        // UTXO is spendable if it has confirmations or is locked by InstantSend
+        return confirmations > 0 || isInstantLocked
     }
 }

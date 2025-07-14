@@ -10,6 +10,11 @@ public class SPVClientFactory {
         case auto // Automatically choose based on FFI availability
     }
     
+    // Cached testnet configuration instance
+    private static let testnetConfiguration: SPVClientConfiguration = {
+        return SPVConfigurationManager.shared.configuration(for: .testnet)
+    }()
+    
     /// Create an SPV client instance
     /// - Parameters:
     ///   - configuration: SPV client configuration
@@ -35,25 +40,35 @@ public class SPVClientFactory {
             #endif
             
         case .auto:
-            // Always use real SPVClient for production builds
+            #if DEBUG
+            // In debug builds, check if mock client should be used
+            if SPVEnvironment.useMockClient {
+                print("🎭 SPVClientFactory: Creating mock SPVClient for debug environment")
+                return MockSPVClient(configuration: configuration)
+            } else {
+                print("🚀 SPVClientFactory: Creating real SPVClient for debug environment")
+                let client = SwiftDashCoreSDK.SPVClient(configuration: configuration)
+                return SPVClientWrapper(client)
+            }
+            #else
+            // In production builds, always use real SPVClient
             print("🚀 SPVClientFactory: Creating real SPVClient for production use")
             
             // FFI initialization is handled by unified library at app startup
             // No need to check or initialize here
             print("✅ SPVClientFactory: Using unified FFI (initialized at app startup)")
             
-            // Always return real SPVClient
             let client = SwiftDashCoreSDK.SPVClient(configuration: configuration)
             return SPVClientWrapper(client)
+            #endif
         }
     }
     
     /// Create a client with default configuration
     @MainActor
     public static func createDefaultClient(type: ClientType = .auto) -> SPVClientProtocol {
-        // Use cached configuration from manager
-        let config = SPVConfigurationManager.shared.configuration(for: .testnet)
-        return createClient(configuration: config, type: type)
+        // Use cached testnet configuration instance
+        return createClient(configuration: testnetConfiguration, type: type)
     }
 }
 
