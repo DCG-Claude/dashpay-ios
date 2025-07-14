@@ -1112,6 +1112,7 @@ typedef struct DashSDKIdentityBalanceMap {
 // This should be called once at app startup before using any other functions.
 void dash_sdk_init(void);
 // Get the version of the Dash SDK FFI library
+// Returns a null-terminated C string containing the version
 const char *dash_sdk_version(void);
 // Fetches contested resource identity votes
 //
@@ -1758,7 +1759,7 @@ struct DashSDKResult dash_sdk_identity_fetch_public_keys(const struct SDKHandle 
 //
 // # Arguments
 // * `sdk_handle` - Handle to the SDK instance
-// * `name` - C string containing the name to resolve
+// * `name` - Null-terminated C string containing the name to resolve
 //
 // # Returns
 // * On success: A result containing the resolved identity ID
