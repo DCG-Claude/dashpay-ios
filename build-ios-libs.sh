@@ -30,6 +30,13 @@ rustup target add aarch64-apple-ios-sim
 rustup target add aarch64-apple-ios
 rustup target add x86_64-apple-ios
 
+# Set dynamic SDK paths using xcrun for better portability
+echo -e "${YELLOW}Setting dynamic SDK paths...${NC}"
+export IPHONESIMULATOR_SDK_PATH=$(xcrun --sdk iphonesimulator --show-sdk-path)
+export IPHONEOS_SDK_PATH=$(xcrun --sdk iphoneos --show-sdk-path)
+echo "iOS Simulator SDK: $IPHONESIMULATOR_SDK_PATH"
+echo "iOS Device SDK: $IPHONEOS_SDK_PATH"
+
 # Build for iOS Simulator (arm64) - for Apple Silicon Macs
 echo -e "${GREEN}Building for iOS Simulator (arm64)...${NC}"
 cargo build --release --target aarch64-apple-ios-sim -p dash-spv-ffi
