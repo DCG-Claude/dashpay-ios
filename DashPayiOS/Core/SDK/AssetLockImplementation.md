@@ -82,6 +82,43 @@ let proof = AssetLockProof(
 - `dash_spv_ffi_client_get_address_balance` - Get address balances
 - `dash_spv_ffi_client_get_utxos` - Get available UTXOs
 
+## Error Handling
+
+Most FFI client calls return an `int32_t` status code where `0` indicates success and non-zero values indicate errors. When an error occurs, you can retrieve detailed error information using the following pattern:
+
+1. **Get Error Message**: Call `dash_spv_ffi_get_last_error()` to retrieve the last error message as a C string
+2. **Clear Error State**: Call `dash_spv_ffi_clear_error()` to reset the error state for future calls
+3. **Free Memory**: The error string must be freed using `dash_sdk_error_free(...)` to prevent memory leaks
+
+### Swift Error Handling Example
+
+```swift
+func broadcastTransactionWithErrorHandling(_ transaction: Transaction) throws -> String {
+    let result = dash_spv_ffi_client_broadcast_transaction(client, transaction.rawData)
+    
+    if result != 0 {
+        // Get the error message
+        let errorPtr = dash_spv_ffi_get_last_error()
+        let errorMessage = errorPtr != nil ? String(cString: errorPtr!) : "Unknown error"
+        
+        // Free the error message memory
+        if errorPtr != nil {
+            dash_sdk_error_free(errorPtr)
+        }
+        
+        // Clear the error state
+        dash_spv_ffi_clear_error()
+        
+        throw DashSDKError.broadcastFailed(message: errorMessage)
+    }
+    
+    // Success case - extract transaction ID
+    return extractTransactionID(from: result)
+}
+```
+
+This error handling pattern should be applied consistently across all FFI calls to ensure proper error reporting and memory management.
+
 ## Future Improvements
 
 1. **Transaction Building**: Implement full transaction building with proper input signing using FFI

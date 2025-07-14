@@ -14,7 +14,7 @@ struct CreateAccountView: View {
     @State private var errorMessage = ""
     
     var nextAvailableIndex: UInt32 {
-        let usedIndices = wallet.accounts.map { $0.accountIndex }
+        let usedIndices = Set(wallet.accounts.map { $0.accountIndex })
         var index: UInt32 = 0
         while usedIndices.contains(index) {
             index += 1
@@ -97,29 +97,47 @@ struct CreateAccountView: View {
         isCreating = true
         errorMessage = ""
         
-        do {
-            let label = accountLabel.isEmpty ? "Account #\(accountIndex)" : accountLabel
-            
-            let account = try walletService.createAccount(
-                for: wallet,
-                index: accountIndex,
-                label: label,
-                password: password
-            )
-            
-            wallet.accounts.append(account)
-            
-            // Save to storage
-            if let context = walletService.modelContext {
-                try context.save()
+        Task {
+            do {
+                let label = accountLabel.isEmpty ? "Account #\(accountIndex)" : accountLabel
+                let currentAccountIndex = accountIndex
+                let currentPassword = password
+                
+                // Perform account creation on background thread
+                let account = try await Task.detached(priority: .userInitiated) {
+                    try walletService.createAccount(
+                        for: wallet,
+                        index: currentAccountIndex,
+                        label: label,
+                        password: currentPassword
+                    )
+                }.value
+                
+                // Update UI and data on main thread
+                await MainActor.run {
+                    wallet.accounts.append(account)
+                    
+                    // Save to storage
+                    if let context = walletService.modelContext {
+                        do {
+                            try context.save()
+                        } catch {
+                            errorMessage = "Failed to save account: \(error.localizedDescription)"
+                            isCreating = false
+                            return
+                        }
+                    }
+                    
+                    onComplete(account)
+                    dismiss()
+                }
+                
+            } catch {
+                await MainActor.run {
+                    errorMessage = error.localizedDescription
+                    isCreating = false
+                }
             }
-            
-            onComplete(account)
-            dismiss()
-            
-        } catch {
-            errorMessage = error.localizedDescription
-            isCreating = false
         }
     }
 }
