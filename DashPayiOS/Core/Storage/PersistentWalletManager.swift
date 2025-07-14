@@ -2,6 +2,7 @@ import Foundation
 import Combine
 import SwiftData
 import SwiftDashCoreSDK
+import CryptoKit
 import os.log
 
 /// Protocol for UTXO and transaction synchronization
@@ -17,6 +18,11 @@ final class PersistentWalletManager {
     private weak var syncDelegate: UTXOTransactionSyncProtocol?
     private var syncTask: Task<Void, Never>?
     private let logger = Logger(subsystem: "com.dash.wallet", category: "PersistentWalletManager")
+    
+    // HD Wallet context for proper change address derivation
+    private var currentNetwork: DashNetwork = .testnet
+    private var currentAccountXPub: String?
+    private var nextChangeAddressIndex: UInt32 = 0
     
     var watchedAddresses: Set<String> = []
     var totalBalance: SwiftDashCoreSDK.Balance = SwiftDashCoreSDK.Balance(
@@ -47,6 +53,40 @@ final class PersistentWalletManager {
     /// Set the sync delegate for UTXO and transaction synchronization
     func setSyncDelegate(_ syncDelegate: UTXOTransactionSyncProtocol) {
         self.syncDelegate = syncDelegate
+    }
+    
+    /// Configure HD wallet context for proper change address derivation
+    func configureHDWallet(network: DashNetwork, accountXPub: String, nextChangeIndex: UInt32 = 0) {
+        logger.info("Configuring HD wallet context - network: \(network), nextChangeIndex: \(nextChangeIndex)")
+        self.currentNetwork = network
+        self.currentAccountXPub = accountXPub
+        self.nextChangeAddressIndex = nextChangeIndex
+    }
+    
+    /// Derive the next change address from HD wallet internal chain
+    private func deriveNextChangeAddress() throws -> String {
+        guard let xpub = currentAccountXPub else {
+            logger.error("Cannot derive change address: no account xpub configured")
+            throw WalletError.invalidState
+        }
+        
+        do {
+            let changeAddress = try HDWalletService.deriveAddress(
+                xpub: xpub,
+                network: currentNetwork,
+                change: true,  // Use internal/change chain
+                index: nextChangeAddressIndex
+            )
+            
+            // Increment the change index for next use
+            nextChangeAddressIndex += 1
+            
+            logger.info("✅ Derived change address: \(changeAddress) (index: \(nextChangeAddressIndex - 1))")
+            return changeAddress
+        } catch {
+            logger.error("🔴 Failed to derive change address: \(error)")
+            throw WalletError.derivationFailed
+        }
     }
     
     // MARK: - Public Methods
@@ -361,12 +401,21 @@ final class PersistentWalletManager {
         if changeAmount > 546 {
             rawTx.append(contentsOf: withUnsafeBytes(of: changeAmount.littleEndian) { Array($0) })
             
-            // TODO: Implement proper change address derivation instead of using first watched address
-            // This should derive a new address from the HD wallet for better privacy
-            let changeAddress = watchedAddresses.first ?? "default_change_address"
-            if changeAddress == "default_change_address" {
-                logger.warning("Using default change address - proper HD wallet derivation should be implemented")
+            // Derive proper change address from HD wallet internal chain
+            let changeAddress: String
+            do {
+                changeAddress = try deriveNextChangeAddress()
+                logger.info("Using derived change address: \(changeAddress)")
+            } catch {
+                // Fallback to first watched address only if derivation fails
+                logger.warning("Change address derivation failed (\(error)), falling back to first watched address")
+                changeAddress = watchedAddresses.first ?? "default_change_address"
+                if changeAddress == "default_change_address" {
+                    logger.error("No watched addresses available for change output")
+                    throw DashSDKError.transactionCreationFailed("No change address available")
+                }
             }
+            
             let changeScript = try createP2PKHScript(for: changeAddress)
             rawTx.append(UInt8(changeScript.count))
             rawTx.append(changeScript)
