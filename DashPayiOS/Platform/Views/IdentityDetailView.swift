@@ -75,6 +75,11 @@ struct IdentityDetailView: View {
             } message: {
                 Text(errorMessage)
             }
+            .alert("Success", isPresented: $appState.showSuccess) {
+                Button("OK") { }
+            } message: {
+                Text(appState.successMessage)
+            }
             .onAppear {
                 loadCacheStatistics()
             }
@@ -451,7 +456,7 @@ struct CreditTransferView: View {
             try? await Task.sleep(nanoseconds: 2_000_000_000)
             
             await MainActor.run {
-                appState.showError(message: "Transfer completed successfully")
+                appState.showSuccess(message: "Transfer completed successfully")
                 dismiss()
             }
         }
@@ -556,7 +561,7 @@ struct IdentityTopUpView: View {
             }
             
             await MainActor.run {
-                appState.showError(message: "Top up completed successfully")
+                appState.showSuccess(message: "Top up completed successfully")
                 dismiss()
             }
         }
