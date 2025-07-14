@@ -648,7 +648,21 @@ struct ComparisonWithCurrentView: View {
         case (nil, nil):
             return true
         case (let v1?, let v2?):
-            return "\(v1)" == "\(v2)" // Simple string comparison
+            // Type-aware equality checks for complex types
+            if let nsObj1 = v1 as? NSObject, let nsObj2 = v2 as? NSObject {
+                return nsObj1.isEqual(nsObj2)
+            } else if let dict1 = v1 as? NSDictionary, let dict2 = v2 as? NSDictionary {
+                return dict1.isEqual(to: dict2 as? [AnyHashable: Any] ?? [:])
+            } else if let array1 = v1 as? NSArray, let array2 = v2 as? NSArray {
+                return array1.isEqual(to: array2 as? [Any] ?? [])
+            } else if let dict1 = v1 as? [String: Any], let dict2 = v2 as? [String: Any] {
+                return NSDictionary(dictionary: dict1).isEqual(to: dict2)
+            } else if let array1 = v1 as? [Any], let array2 = v2 as? [Any] {
+                return NSArray(array: array1).isEqual(to: array2)
+            } else {
+                // Fallback to string comparison for primitive types
+                return "\(v1)" == "\(v2)"
+            }
         default:
             return false
         }
