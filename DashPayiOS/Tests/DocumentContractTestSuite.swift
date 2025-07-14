@@ -56,10 +56,14 @@ class DocumentContractTestSuite: XCTestCase {
         while currentStep <= totalSteps {
             print("  Step \(currentStep) of \(totalSteps)")
             // Simulate step validation and progression
-            currentStep += 1
+            if currentStep < totalSteps {
+                currentStep += 1
+            } else {
+                break
+            }
         }
         
-        XCTAssertEqual(currentStep, totalSteps + 1, "Wizard should complete all steps")
+        XCTAssertEqual(currentStep, totalSteps, "Wizard should complete all steps")
     }
     
     private func testContractSelectionStep() async throws {
