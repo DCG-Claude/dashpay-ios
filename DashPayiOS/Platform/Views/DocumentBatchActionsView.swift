@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import UIKit
 
 /// Batch operations view for multiple document actions
 struct DocumentBatchActionsView: View {
@@ -162,10 +163,15 @@ struct DocumentBatchActionsView: View {
     private func setupDocumentService() {
         guard let platformSDK = appState.platformSDK,
               let dataManager = appState.dataManager else {
+            print("⚠️ DocumentService setup failed: platformSDK or dataManager not available")
             return
         }
         
         print("📄 Setting up DocumentService for batch operations")
+        
+        // Update the documentService with the real platformSDK and dataManager
+        // replacing the dummy dependencies that were set during initialization
+        documentService.configure(platformSDK: platformSDK, dataManager: dataManager)
     }
     
     private func refreshDocuments() {
