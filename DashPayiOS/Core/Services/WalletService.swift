@@ -19,17 +19,13 @@ class WalletService: ObservableObject {
     
     @Published var activeWallet: HDWallet?
     @Published var activeAccount: HDAccount?
-    @Published var syncProgress: SyncProgress?
-    @Published var detailedSyncProgress: DetailedSyncProgress?
-    @Published var isConnected: Bool = false
-    @Published var isSyncing: Bool = false
-    @Published var watchAddressErrors: [WatchAddressError] = []
-    @Published var pendingWatchCount: Int = 0
-    @Published var watchVerificationStatus: WatchVerificationStatus = .unknown
     @Published var mempoolTransactionCount: Int = 0
-    @Published var autoSyncEnabled = true
-    @Published var lastAutoSyncDate: Date?
-    @Published var syncQueue: [HDWallet] = []
+    
+    // Service dependencies
+    private let connectionService = ConnectionStateService()
+    private let syncService = SyncStateService()
+    private let watchAddressService = WatchAddressService()
+    private let autoSyncService = AutoSyncService()
     
     var sdk: DashSDK?
     // FIX: Removed duplicate spvClient - use only sdk which has its own SPVClient
@@ -386,51 +382,9 @@ class WalletService: ObservableObject {
     /// Known good mainnet peers (verified working in rust-dashcore example app)
     private static let knownMainnetPeers = NetworkConstants.fallbackMainnetPeers
     
-    /// Toggle between local and public peers
-    func setUseLocalPeers(_ useLocal: Bool) {
-        UserDefaults.standard.set(useLocal, forKey: "useLocalPeers")
-        print("🔧 Peer configuration updated: useLocalPeers = \(useLocal)")
-    }
+    // MARK: - Private Connection Helper Methods
     
-    /// Check current peer configuration
-    func isUsingLocalPeers() -> Bool {
-        return UserDefaults.standard.bool(forKey: "useLocalPeers")
-    }
-    
-    /// Set custom local peer host (for development)
-    func setLocalPeerHost(_ host: String) {
-        UserDefaults.standard.set(host, forKey: "localPeerHost")
-        print("🔧 Local peer host updated: \(host)")
-    }
-    
-    /// Get current local peer host
-    func getLocalPeerHost() -> String {
-        return UserDefaults.standard.string(forKey: "localPeerHost") ?? "127.0.0.1"
-    }
-    
-    func connect(wallet: HDWallet, account: HDAccount) async throws {
-        logger.info("🔗 === WALLET CONNECTION START ===")
-        logger.info("📋 Connection Details:")
-        logger.info("   Wallet: \(wallet.name)")
-        logger.info("   Account: \(account.displayName)")
-        logger.info("   Network: \(wallet.network.rawValue)")
-        logger.info("   Thread: \(Thread.isMainThread ? "Main" : "Background")")
-        logger.info("   Timestamp: \(Date())")
-        
-        // Log system state
-        logger.info("📊 System State:")
-        logger.info("   SDK exists: \(self.sdk != nil)")
-        logger.info("   Currently connected: \(self.isConnected)")
-        logger.info("   Network Monitor: \(self.networkMonitor?.isConnected ?? false)")
-        
-        // Disconnect if needed
-        if isConnected {
-            logger.warning("⚠️ Disconnecting existing connection...")
-            await disconnect()
-            logger.info("✅ Previous connection disconnected")
-        }
-        
-        // Create SDK configuration
+    private func setupConfiguration(wallet: HDWallet) throws -> SPVConfiguration {
         logger.info("🔧 Getting SPV configuration from manager...")
         let config = SPVConfigurationManager.shared.configuration(for: wallet.network)
         logger.info("📁 SPV data directory: \(config.dataDirectory?.path ?? "nil")")
@@ -489,6 +443,10 @@ class WalletService: ObservableObject {
         logger.info("   Log Level: \(config.logLevel)")
         logger.info("   Mempool Config: \(String(describing: config.mempoolConfig))")
         
+        return config
+    }
+    
+    private func initializeSDK(with config: SPVConfiguration) async throws {
         logger.info("📡 Initializing SDK components...")
         logger.info("   Thread before MainActor: \(Thread.isMainThread ? "Main" : "Background")")
         
@@ -507,9 +465,6 @@ class WalletService: ObservableObject {
             }
             logger.info("✅ All SDK components initialized successfully")
             
-            // Setup event handling now that SDK is created
-            setupEventHandling()
-            
         } catch {
             logger.error("❌ Failed to initialize SDK components: \(error)")
             logger.error("   Error type: \(type(of: error))")
@@ -520,7 +475,9 @@ class WalletService: ObservableObject {
             }
             throw error
         }
-        
+    }
+    
+    private func connectToNetwork() async throws {
         // Connect using DashSDK
         logger.info("🌐 Attempting to connect to Dash network...")
         logger.info("   SDK exists: \(self.sdk != nil)")
@@ -565,6 +522,7 @@ class WalletService: ObservableObject {
                 if case .networkError(let message) = sdkError {
                     logger.error("   Network error: \(message)")
                     // Try fallback to different peers
+                    let useLocalPeers = UserDefaults.standard.bool(forKey: "useLocalPeers")
                     if !useLocalPeers {
                         logger.info("🔄 Attempting peer connectivity fallback...")
                         await handlePeerConnectivityIssue()
@@ -589,12 +547,9 @@ class WalletService: ObservableObject {
             // Log the error but continue since this is not critical to basic wallet functionality
             logger.info("ℹ️ Wallet will continue without mempool tracking")
         }
-        
-        activeWallet = wallet
-        activeAccount = account
-        
-        // Event handling will be set up after SDK is created
-        
+    }
+    
+    private func watchAddresses(account: HDAccount) async {
         // Start watching addresses
         logger.info("👀 Watching account addresses...")
         logger.info("   Account has \(account.addresses.count) addresses")
@@ -603,7 +558,9 @@ class WalletService: ObservableObject {
         
         // Start watch address verification
         startWatchVerification()
-        
+    }
+    
+    private func fetchInitialBalance(account: HDAccount) async throws {
         // Update account balance after adding watch addresses
         logger.info("💰 Fetching initial balance...")
         do {
@@ -614,9 +571,73 @@ class WalletService: ObservableObject {
             // Log the error but continue since connection is still valid
             logger.info("ℹ️ Balance will be updated later during sync")
         }
+    }
+    
+    /// Toggle between local and public peers
+    func setUseLocalPeers(_ useLocal: Bool) {
+        UserDefaults.standard.set(useLocal, forKey: "useLocalPeers")
+        print("🔧 Peer configuration updated: useLocalPeers = \(useLocal)")
+    }
+    
+    /// Check current peer configuration
+    func isUsingLocalPeers() -> Bool {
+        return UserDefaults.standard.bool(forKey: "useLocalPeers")
+    }
+    
+    /// Set custom local peer host (for development)
+    func setLocalPeerHost(_ host: String) {
+        UserDefaults.standard.set(host, forKey: "localPeerHost")
+        print("🔧 Local peer host updated: \(host)")
+    }
+    
+    /// Get current local peer host
+    func getLocalPeerHost() -> String {
+        return UserDefaults.standard.string(forKey: "localPeerHost") ?? "127.0.0.1"
+    }
+    
+    func connect(wallet: HDWallet, account: HDAccount) async throws {
+        logger.info("🔗 === WALLET CONNECTION START ===")
+        logger.info("📋 Connection Details:")
+        logger.info("   Wallet: \(wallet.name)")
+        logger.info("   Account: \(account.displayName)")
+        logger.info("   Network: \(wallet.network.rawValue)")
+        logger.info("   Thread: \(Thread.isMainThread ? "Main" : "Background")")
+        logger.info("   Timestamp: \(Date())")
+        
+        // Log system state
+        logger.info("📊 System State:")
+        logger.info("   SDK exists: \(self.sdk != nil)")
+        logger.info("   Currently connected: \(self.isConnected)")
+        logger.info("   Network Monitor: \(self.networkMonitor?.isConnected ?? false)")
+        
+        // Disconnect if needed
+        if isConnected {
+            logger.warning("⚠️ Disconnecting existing connection...")
+            await disconnect()
+            logger.info("✅ Previous connection disconnected")
+        }
+        
+        // Setup configuration
+        let config = try setupConfiguration(wallet: wallet)
+        
+        // Initialize SDK
+        try await initializeSDK(with: config)
+        
+        // Connect to network
+        try await connectToNetwork()
+        
+        // Setup event handling
+        setupEventHandling()
+        
+        // Watch addresses
+        activeWallet = wallet
+        activeAccount = account
+        await watchAddresses(account: account)
+        
+        // Fetch initial balance
+        try await fetchInitialBalance(account: account)
         
         logger.info("🎯 === CONNECTION COMPLETE ===")
-        logger.info("   Total connection time: \(Date().timeIntervalSince(Date()))s")
         logger.info("   Ready for sync!")
     }
     
@@ -1249,146 +1270,174 @@ class WalletService: ObservableObject {
         logger.info("🎯 Received SPV event")
         switch event {
         case .connectionStatusChanged(let connected):
-            if connected {
-                logger.info("✅ Connected to network")
-                logger.info("   Is syncing: \(self.isSyncing)")
-                logger.info("   Is connected: \(self.isConnected)")
-            } else {
-                logger.warning("❌ Disconnected from network")
-                Task {
-                    await handlePeerConnectivityIssue()
-                }
-            }
+            handleConnectionStatusChanged(connected)
             
         case .balanceUpdated(let balance):
-            Task {
-                if let account = activeAccount {
-                    logger.info("💰 Balance updated - Confirmed: \(balance.confirmed), Pending: \(balance.pending), InstantLocked: \(balance.instantLocked), Total: \(balance.total)")
-                    try? await updateAccountBalance(account)
-                    
-                    // Trigger a notification to other parts of the app
-                    // Convert SDK balance to local Balance type
-                    let localBalance = LocalBalance.from(balance)
-                    await notifyBalanceUpdate(localBalance)
-                }
-            }
+            handleBalanceUpdated(balance)
             
         case .transactionReceived(let txid, let confirmed, let amount, let addresses, let blockHeight):
-            logger.info("🚨 SPVEvent.transactionReceived triggered!")
-            Task { @MainActor in
-                if let account = activeAccount {
-                    logger.info("📱 Transaction received: \(txid)")
-                    logger.info("   Amount: \(amount) satoshis (\(Double(amount) / 100_000_000) DASH)")
-                    logger.info("   Addresses: \(addresses.joined(separator: ", "))")
-                    logger.info("   Confirmed: \(confirmed)")
-                    if let height = blockHeight {
-                        logger.info("   Block Height: \(height)")
-                    }
-                    
-                    // Check if this transaction involves our addresses
-                    let isOurTransaction = addresses.contains { address in
-                        account.addresses.contains { watchedAddress in
-                            watchedAddress.address == address
-                        }
-                    }
-                    
-                    if isOurTransaction {
-                        // Determine transaction direction
-                        let direction = amount > 0 ? "received" : "sent"
-                        logger.info("   Direction: \(direction == "received" ? "Received" : "Sent")")
-                        
-                        // Show notification for received funds
-                        if direction == "received" {
-                            await showFundsReceivedNotification(
-                                amount: amount,
-                                txid: txid,
-                                confirmed: confirmed
-                            )
-                        }
-                        
-                        // Create and save the transaction
-                        await saveTransaction(
-                            txid: txid,
-                            amount: amount,
-                            addresses: addresses,
-                            confirmed: confirmed,
-                            blockHeight: blockHeight,
-                            account: account
-                        )
-                        
-                        // Update activity indicators
-                        await updateAddressActivity(addresses: addresses, txid: txid)
-                    } else {
-                        logger.info("   Transaction does not involve our addresses")
-                    }
-                }
-            }
+            handleTransactionReceived(txid: txid, confirmed: confirmed, amount: amount, addresses: addresses, blockHeight: blockHeight)
             
         case .mempoolTransactionAdded(let txid, let amount, let addresses):
-            Task {
-                if let account = activeAccount {
-                    print("🔄 Mempool transaction added: \(txid)")
-                    print("   Amount: \(amount) satoshis")
-                    print("   Addresses: \(addresses)")
-                    
-                    // Save as unconfirmed transaction
-                    await saveTransaction(
-                        txid: txid,
-                        amount: amount,
-                        addresses: addresses,
-                        confirmed: false,
-                        blockHeight: nil,
-                        account: account
-                    )
-                    
-                    // Update mempool count
-                    await updateMempoolTransactionCount()
-                }
-            }
+            handleMempoolTransactionAdded(txid: txid, amount: amount, addresses: addresses)
             
         case .mempoolTransactionConfirmed(let txid, let blockHeight, let confirmations):
-            Task {
-                if activeAccount != nil {
-                    print("✅ Mempool transaction confirmed: \(txid) at height \(blockHeight) with \(confirmations) confirmations")
-                    
-                    // Update transaction confirmation status
-                    do {
-                        try await confirmTransaction(txid: txid, blockHeight: blockHeight)
-                    } catch {
-                        logger.error("❌ Failed to confirm transaction \(txid): \(error)")
-                        // Continue processing but log the error - mempool tracking will handle eventual consistency
-                    }
-                    
-                    // Update mempool count
-                    await updateMempoolTransactionCount()
-                }
-            }
+            handleMempoolTransactionConfirmed(txid: txid, blockHeight: blockHeight, confirmations: confirmations)
             
         case .mempoolTransactionRemoved(let txid, let reason):
-            Task {
-                if activeAccount != nil {
-                    print("❌ Mempool transaction removed: \(txid), reason: \(reason)")
-                    
-                    // Remove or mark transaction as dropped
-                    do {
-                        try await removeTransaction(txid: txid)
-                    } catch {
-                        logger.error("❌ Failed to remove transaction \(txid): \(error)")
-                        // Continue processing but log the error - mempool tracking will handle eventual consistency
-                    }
-                    
-                    // Update mempool count
-                    await updateMempoolTransactionCount()
-                }
-            }
+            handleMempoolTransactionRemoved(txid: txid, reason: reason)
             
         case .syncProgressUpdated(let progress):
-            self.syncProgress = progress
-            logger.info("📊 Sync progress: \(progress.percentageComplete)% - \(progress.status.description)")
+            handleSyncProgressUpdated(progress)
             
         default:
             break
         }
+    }
+    
+    private func handleConnectionStatusChanged(_ connected: Bool) {
+        if connected {
+            logger.info("✅ Connected to network")
+            logger.info("   Is syncing: \(self.isSyncing)")
+            logger.info("   Is connected: \(self.isConnected)")
+        } else {
+            logger.warning("❌ Disconnected from network")
+            Task {
+                await handlePeerConnectivityIssue()
+            }
+        }
+    }
+    
+    private func handleBalanceUpdated(_ balance: LocalBalance) {
+        Task {
+            if let account = activeAccount {
+                logger.info("💰 Balance updated - Confirmed: \(balance.confirmed), Pending: \(balance.pending), InstantLocked: \(balance.instantLocked), Total: \(balance.total)")
+                try? await updateAccountBalance(account)
+                
+                // Trigger a notification to other parts of the app
+                // Convert SDK balance to local Balance type
+                let localBalance = LocalBalance.from(balance)
+                await notifyBalanceUpdate(localBalance)
+            }
+        }
+    }
+    
+    private func handleTransactionReceived(txid: String, confirmed: Bool, amount: Int64, addresses: [String], blockHeight: UInt32?) {
+        logger.info("🚨 SPVEvent.transactionReceived triggered!")
+        Task { @MainActor in
+            if let account = activeAccount {
+                logger.info("📱 Transaction received: \(txid)")
+                logger.info("   Amount: \(amount) satoshis (\(Double(amount) / 100_000_000) DASH)")
+                logger.info("   Addresses: \(addresses.joined(separator: ", "))")
+                logger.info("   Confirmed: \(confirmed)")
+                if let height = blockHeight {
+                    logger.info("   Block Height: \(height)")
+                }
+                
+                // Check if this transaction involves our addresses
+                let isOurTransaction = addresses.contains { address in
+                    account.addresses.contains { watchedAddress in
+                        watchedAddress.address == address
+                    }
+                }
+                
+                if isOurTransaction {
+                    // Determine transaction direction
+                    let direction = amount > 0 ? "received" : "sent"
+                    logger.info("   Direction: \(direction == "received" ? "Received" : "Sent")")
+                    
+                    // Show notification for received funds
+                    if direction == "received" {
+                        await showFundsReceivedNotification(
+                            amount: amount,
+                            txid: txid,
+                            confirmed: confirmed
+                        )
+                    }
+                    
+                    // Create and save the transaction
+                    await saveTransaction(
+                        txid: txid,
+                        amount: amount,
+                        addresses: addresses,
+                        confirmed: confirmed,
+                        blockHeight: blockHeight,
+                        account: account
+                    )
+                    
+                    // Update activity indicators
+                    await updateAddressActivity(addresses: addresses, txid: txid)
+                } else {
+                    logger.info("   Transaction does not involve our addresses")
+                }
+            }
+        }
+    }
+    
+    private func handleMempoolTransactionAdded(txid: String, amount: Int64, addresses: [String]) {
+        Task {
+            if let account = activeAccount {
+                print("🔄 Mempool transaction added: \(txid)")
+                print("   Amount: \(amount) satoshis")
+                print("   Addresses: \(addresses)")
+                
+                // Save as unconfirmed transaction
+                await saveTransaction(
+                    txid: txid,
+                    amount: amount,
+                    addresses: addresses,
+                    confirmed: false,
+                    blockHeight: nil,
+                    account: account
+                )
+                
+                // Update mempool count
+                await updateMempoolTransactionCount()
+            }
+        }
+    }
+    
+    private func handleMempoolTransactionConfirmed(txid: String, blockHeight: UInt32, confirmations: UInt32) {
+        Task {
+            if activeAccount != nil {
+                print("✅ Mempool transaction confirmed: \(txid) at height \(blockHeight) with \(confirmations) confirmations")
+                
+                // Update transaction confirmation status
+                do {
+                    try await confirmTransaction(txid: txid, blockHeight: blockHeight)
+                } catch {
+                    logger.error("❌ Failed to confirm transaction \(txid): \(error)")
+                    // Continue processing but log the error - mempool tracking will handle eventual consistency
+                }
+                
+                // Update mempool count
+                await updateMempoolTransactionCount()
+            }
+        }
+    }
+    
+    private func handleMempoolTransactionRemoved(txid: String, reason: String) {
+        Task {
+            if activeAccount != nil {
+                print("❌ Mempool transaction removed: \(txid), reason: \(reason)")
+                
+                // Remove or mark transaction as dropped
+                do {
+                    try await removeTransaction(txid: txid)
+                } catch {
+                    logger.error("❌ Failed to remove transaction \(txid): \(error)")
+                    // Continue processing but log the error - mempool tracking will handle eventual consistency
+                }
+                
+                // Update mempool count
+                await updateMempoolTransactionCount()
+            }
+        }
+    }
+    
+    private func handleSyncProgressUpdated(_ progress: SyncProgress) {
+        self.syncProgress = progress
+        logger.info("📊 Sync progress: \(progress.percentageComplete)% - \(progress.status.description)")
     }
     
     private func watchAccountAddresses(_ account: HDAccount) async {
