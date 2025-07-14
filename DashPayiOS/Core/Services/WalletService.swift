@@ -148,7 +148,7 @@ class WalletService: ObservableObject {
                 index: UInt32(i)
             )
             
-            let path = BIP44.derivationPath(
+            let path = HDWalletService.BIP44.derivationPath(
                 network: network,
                 account: accountIndex,
                 change: false,
@@ -173,7 +173,7 @@ class WalletService: ObservableObject {
                 index: UInt32(i)
             )
             
-            let path = BIP44.derivationPath(
+            let path = HDWalletService.BIP44.derivationPath(
                 network: network,
                 account: accountIndex,
                 change: true,
@@ -862,7 +862,7 @@ class WalletService: ObservableObject {
             }
             
             // Create watched address
-            let path = BIP44.derivationPath(
+            let path = HDWalletService.BIP44.derivationPath(
                 network: wallet.network,
                 account: account.accountIndex,
                 change: false,
@@ -910,7 +910,7 @@ class WalletService: ObservableObject {
             }
             
             // Create watched address
-            let path = BIP44.derivationPath(
+            let path = HDWalletService.BIP44.derivationPath(
                 network: wallet.network,
                 account: account.accountIndex,
                 change: true,
@@ -952,7 +952,7 @@ class WalletService: ObservableObject {
             index: index
         )
         
-        let path = BIP44.derivationPath(
+        let path = HDWalletService.BIP44.derivationPath(
             network: network,
             account: accountIndex,
             change: change,
@@ -1487,7 +1487,7 @@ class WalletService: ObservableObject {
         
         // Save external addresses
         for (index, address) in external.enumerated() {
-            let path = BIP44.derivationPath(
+            let path = HDWalletService.BIP44.derivationPath(
                 network: wallet.network,
                 account: account.accountIndex,
                 change: false,
@@ -1508,7 +1508,7 @@ class WalletService: ObservableObject {
         
         // Save internal addresses
         for (index, address) in internalAddresses.enumerated() {
-            let path = BIP44.derivationPath(
+            let path = HDWalletService.BIP44.derivationPath(
                 network: wallet.network,
                 account: account.accountIndex,
                 change: true,

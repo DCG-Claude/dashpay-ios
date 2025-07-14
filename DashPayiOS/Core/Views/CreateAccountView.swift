@@ -89,7 +89,7 @@ struct CreateAccountView: View {
     }
     
     private var derivationPath: String {
-        let coinType = BIP44.coinType(for: wallet.network)
+        let coinType = HDWalletService.BIP44.coinType(for: wallet.network)
         return "m/44'/\(coinType)'/\(accountIndex)'"
     }
     

@@ -238,7 +238,7 @@ actor AssetLockBridge {
             index: index
         )
         
-        let path = BIP44.derivationPath(
+        let path = HDWalletService.BIP44.derivationPath(
             network: wallet.network,
             account: account.accountIndex,
             change: isChange,

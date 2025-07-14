@@ -193,14 +193,39 @@ class HDWalletService {
     
     // MARK: - BIP44 Helpers
     
+    public enum BIP44 {
+        public static let dashMainnetCoinType: UInt32 = 5
+        public static let dashTestnetCoinType: UInt32 = 1
+        public static let purpose: UInt32 = 44
+        public static let defaultGapLimit: UInt32 = 20
+        
+        public static func coinType(for network: DashNetwork) -> UInt32 {
+            switch network {
+            case .mainnet:
+                return dashMainnetCoinType
+            case .testnet, .devnet, .regtest:
+                return dashTestnetCoinType
+            }
+        }
+        
+        public static func derivationPath(
+            network: DashNetwork,
+            account: UInt32,
+            change: Bool,
+            index: UInt32
+        ) -> String {
+            let coinType = coinType(for: network)
+            let changeValue: UInt32 = change ? 1 : 0
+            return "m/44'/\(coinType)'/\(account)'/\(changeValue)/\(index)"
+        }
+    }
+    
     static func derivationPath(network: DashNetwork, account: UInt32, change: Bool, index: UInt32) -> String {
-        let coinType: UInt32 = network == .mainnet ? 5 : 1  // 5 for Dash mainnet, 1 for testnet
-        let changeValue: UInt32 = change ? 1 : 0
-        return "m/44'/\(coinType)'/\(account)'/\(changeValue)/\(index)"
+        return BIP44.derivationPath(network: network, account: account, change: change, index: index)
     }
     
     static func accountDerivationPath(network: DashNetwork, account: UInt32) -> String {
-        let coinType: UInt32 = network == .mainnet ? 5 : 1
+        let coinType = BIP44.coinType(for: network)
         return "m/44'/\(coinType)'/\(account)'"
     }
     
