@@ -367,9 +367,9 @@ class WalletService: ObservableObject {
         autoSyncTimer?.invalidate()
         
         // Setup new timer for every 30 minutes
-        autoSyncTimer = Timer.scheduledTimer(withTimeInterval: 1800, repeats: true) { _ in
+        autoSyncTimer = Timer.scheduledTimer(withTimeInterval: 1800, repeats: true) { [weak self] _ in
             Task {
-                await self.startAutoSync()
+                await self?.startAutoSync()
             }
         }
     }
@@ -587,7 +587,8 @@ class WalletService: ObservableObject {
             logger.info("✅ Mempool tracking enabled with FetchAll strategy")
         } catch {
             logger.warning("⚠️ Failed to enable mempool tracking: \(error)")
-            // Non-critical error, continue
+            // Log the error but continue since this is not critical to basic wallet functionality
+            logger.info("ℹ️ Wallet will continue without mempool tracking")
         }
         
         activeWallet = wallet
@@ -611,7 +612,8 @@ class WalletService: ObservableObject {
             logger.info("   Initial balance fetched successfully")
         } catch {
             logger.warning("⚠️ Failed to fetch initial balance: \(error)")
-            // Non-critical error, continue
+            // Log the error but continue since connection is still valid
+            logger.info("ℹ️ Balance will be updated later during sync")
         }
         
         logger.info("🎯 === CONNECTION COMPLETE ===")
@@ -1581,7 +1583,7 @@ class WalletService: ObservableObject {
     
     // MARK: - Mempool Transaction Helpers
     
-    private func confirmTransaction(txid: String, blockHeight: UInt32) async {
+    private func confirmTransaction(txid: String, blockHeight: UInt32) async throws {
         guard let context = modelContext else { return }
         
         let descriptor = FetchDescriptor<Transaction>()
@@ -1596,15 +1598,23 @@ class WalletService: ObservableObject {
                 try context.save()
                 // Update balance after confirmation
                 if let account = activeAccount {
-                    try? await updateAccountBalance(account)
+                    do {
+                        try await updateAccountBalance(account)
+                    } catch {
+                        logger.error("❌ Error updating balance after transaction confirmation: \(error)")
+                        // Balance update failure is critical - throw to maintain consistency
+                        throw error
+                    }
                 }
             } catch {
-                print("❌ Error updating confirmed transaction: \(error)")
+                logger.error("❌ Error updating confirmed transaction: \(error)")
+                // Database save failure is critical - throw to maintain data integrity
+                throw error
             }
         }
     }
     
-    private func removeTransaction(txid: String) async {
+    private func removeTransaction(txid: String) async throws {
         guard let context = modelContext else { return }
         
         let descriptor = FetchDescriptor<Transaction>()
@@ -1628,10 +1638,18 @@ class WalletService: ObservableObject {
                 try context.save()
                 // Update balance after removal
                 if let account = activeAccount {
-                    try? await updateAccountBalance(account)
+                    do {
+                        try await updateAccountBalance(account)
+                    } catch {
+                        logger.error("❌ Error updating balance after transaction removal: \(error)")
+                        // Balance update failure is critical - throw to maintain consistency
+                        throw error
+                    }
                 }
             } catch {
-                print("❌ Error removing transaction: \(error)")
+                logger.error("❌ Error removing transaction: \(error)")
+                // Database save failure is critical - throw to maintain data integrity
+                throw error
             }
         }
     }
@@ -1691,9 +1709,9 @@ class WalletService: ObservableObject {
     // MARK: - Watch Address Verification
     
     private func startWatchVerification() {
-        watchVerificationTimer = Timer.scheduledTimer(withTimeInterval: 60.0, repeats: true) { _ in
+        watchVerificationTimer = Timer.scheduledTimer(withTimeInterval: 60.0, repeats: true) { [weak self] _ in
             Task {
-                await self.verifyAllWatchedAddresses()
+                await self?.verifyAllWatchedAddresses()
             }
         }
     }
@@ -2190,6 +2208,26 @@ class WalletService: ObservableObject {
         
         logger.info("📊 Connection status check complete")
         return status
+    }
+    
+    // MARK: - Cleanup
+    
+    /// Cleanup method that invalidates all timers and cancels any ongoing tasks
+    private func cleanup() {
+        // Invalidate all timers
+        autoSyncTimer?.invalidate()
+        autoSyncTimer = nil
+        
+        watchVerificationTimer?.invalidate()
+        watchVerificationTimer = nil
+        
+        // Cancel any ongoing tasks
+        // Note: Individual Task cancellation would require storing Task references
+        // For now, the weak self references will prevent retain cycles
+    }
+    
+    deinit {
+        cleanup()
     }
 }
 
