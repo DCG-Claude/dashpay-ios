@@ -85,6 +85,7 @@
 		9247DDD2B2166556D6C2BCC7 /* SimpleIntegrationTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FB17F7F465BE19CCC027252 /* SimpleIntegrationTest.swift */; };
 		93F5ED5981119C366E74E5D5 /* EnhancedContractDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2E60B55324CEB4E5EB921DE /* EnhancedContractDetailView.swift */; };
 		94F269CEB16DD08A1EE844B5 /* BalanceUpdateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB84F47E52AE96839B5DC7A2 /* BalanceUpdateTests.swift */; };
+		96AAF14076B9E1EBDC55737D /* SPVConfigurationManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD741E1B69A6216063B10C87 /* SPVConfigurationManagerTests.swift */; };
 		976F6645D190D5DA5DAE5DE0 /* ReceiveTransactionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 173E32288F41FD5C78176B59 /* ReceiveTransactionTests.swift */; };
 		98F58F7B6ED8045341AB283C /* IdentityService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87180F3C9DCB555D20E636C0 /* IdentityService.swift */; };
 		9A480C91A9F3F4FA3EAF66DA /* UnifiedDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 398D0335A25356F8F22A3220 /* UnifiedDashboardView.swift */; };
@@ -302,6 +303,7 @@
 		DABA42490D5A8E59A07E4F5D /* SyncDebugLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncDebugLogger.swift; sourceTree = "<group>"; };
 		DB2D5273F59EB26C0C6A1D31 /* EnhancedReceiveAddressView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnhancedReceiveAddressView.swift; sourceTree = "<group>"; };
 		DBC251FA50CB180B3F278F31 /* TransactionTestBase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransactionTestBase.swift; sourceTree = "<group>"; };
+		DD741E1B69A6216063B10C87 /* SPVConfigurationManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SPVConfigurationManagerTests.swift; sourceTree = "<group>"; };
 		DF70592C6127F66FFE14CE63 /* BalanceManagementView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BalanceManagementView.swift; sourceTree = "<group>"; };
 		E041FD735871574B8653AB17 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		E2B38072D678C97BC20EB06B /* FFIConfigTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FFIConfigTests.swift; sourceTree = "<group>"; };
@@ -540,6 +542,7 @@
 				FF97B95E545ECB925F021DD6 /* SettingsConfigurationTests.swift */,
 				5FAEFA1C8E8BE900A4A0F477 /* SettingsUITests.swift */,
 				7FB17F7F465BE19CCC027252 /* SimpleIntegrationTest.swift */,
+				DD741E1B69A6216063B10C87 /* SPVConfigurationManagerTests.swift */,
 				B21F973487B186EF5F494C3C /* TransactionBuilderTests.swift */,
 				1D4D01E9580F087FCD3F012F /* TransactionModelTests.swift */,
 				DBC251FA50CB180B3F278F31 /* TransactionTestBase.swift */,
@@ -1041,6 +1044,7 @@
 				1D0010D804DA2F0D71268A1E /* IntegrationTests.swift in Sources */,
 				5AC55EB91D31A0D865356F87 /* MockDashSDK.swift in Sources */,
 				976F6645D190D5DA5DAE5DE0 /* ReceiveTransactionTests.swift in Sources */,
+				96AAF14076B9E1EBDC55737D /* SPVConfigurationManagerTests.swift in Sources */,
 				A9D369BA80F71CA03AA5C646 /* SendTransactionTests.swift in Sources */,
 				D5528CF81943A7BF2EC0E236 /* SettingsAuditTests.swift in Sources */,
 				6C940F9B37E3F2A6C23B3987 /* SettingsConfigurationTests.swift in Sources */,
