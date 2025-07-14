@@ -231,7 +231,7 @@ class WalletService: ObservableObject {
         }
         
         // Get all wallets that need sync
-        let walletsNeedingSync = getWalletsNeedingSync()
+        let walletsNeedingSync = autoSyncService.getWalletsNeedingSync()
         logger.info("📊 Found \(walletsNeedingSync.count) wallets needing sync")
         
         if walletsNeedingSync.isEmpty {
@@ -256,7 +256,7 @@ class WalletService: ObservableObject {
         logger.info("🔍 performAutoSync() for wallet: \(wallet.name)")
         
         // Check if sync is needed
-        guard shouldSync(wallet) else {
+        guard autoSyncService.shouldSync(wallet, isCurrentlySyncing: isSyncing, networkMonitor: networkMonitor) else {
             logger.info("⏭️ Skipping sync for wallet (not needed)")
             return
         }
@@ -301,80 +301,21 @@ class WalletService: ObservableObject {
         
         // Update last sync date
         wallet.lastSynced = Date()
-        lastAutoSyncDate = Date()
+        autoSyncService.updateLastAutoSyncDate(Date())
         try? modelContext?.save()
         logger.info("📅 Updated last sync date for wallet")
     }
     
-    private func shouldSync(_ wallet: HDWallet) -> Bool {
-        // FIX: Check if already syncing
-        if isSyncing {
-            return false
-        }
-        
-        // Always sync if never synced before
-        if wallet.lastSynced == nil {
-            logger.info("🆕 Wallet never synced before - MUST SYNC")
-            
-            // Check network connectivity
-            let isNetworkConnected = networkMonitor?.isConnected ?? true
-            if !isNetworkConnected {
-                logger.warning("📵 No network connectivity - cannot sync")
-                return false
-            }
-            
-            return true
-        }
-        
-        // Don't sync if synced recently
-        let timeSinceLastSync = Date().timeIntervalSince(wallet.lastSynced!)
-        if timeSinceLastSync < 300 { // 5 minutes
-            logger.info("⏰ Wallet synced recently (\(Int(timeSinceLastSync))s ago) - skipping")
-            return false
-        }
-        
-        // Check network connectivity
-        let isNetworkConnected = networkMonitor?.isConnected ?? true
-        if !isNetworkConnected {
-            logger.warning("📵 No network connectivity - cannot sync")
-            return false
-        }
-        
-        logger.info("✅ Sync is needed for wallet (last sync: \(Int(timeSinceLastSync))s ago)")
-        return true
-    }
-    
-    private func getWalletsNeedingSync() -> [HDWallet] {
-        guard let context = modelContext else { return [] }
-        
-        let descriptor = FetchDescriptor<HDWallet>()
-        let allWallets = (try? context.fetch(descriptor)) ?? []
-        
-        return allWallets.filter { wallet in
-            // Check if wallet has been synced recently
-            if let lastSync = wallet.lastSynced,
-               Date().timeIntervalSince(lastSync) < 300 { // 5 minutes
-                return false
-            }
-            return true
-        }
-    }
+    // shouldSync and getWalletsNeedingSync methods are now handled by AutoSyncService
     
     func setupPeriodicSync() {
-        // Cancel existing timer
-        autoSyncTimer?.invalidate()
-        
-        // Setup new timer for every 30 minutes
-        autoSyncTimer = Timer.scheduledTimer(withTimeInterval: 1800, repeats: true) { [weak self] _ in
-            Task {
-                await self?.startAutoSync()
-            }
+        autoSyncService.startPeriodicSync { [weak self] in
+            await self?.startAutoSync()
         }
     }
     
     func stopPeriodicSync() {
-        autoSyncTimer?.invalidate()
-        autoSyncTimer = nil
+        autoSyncService.stopPeriodicSync()
     }
     
     // MARK: - Connection & Sync
@@ -496,7 +437,8 @@ class WalletService: ObservableObject {
             
             // Verify connection was successful
             if sdk.isConnected {
-                isConnected = true
+                connectionService.setConnected(true)
+                connectionService.setSDK(sdk)
                 logger.info("✅ Connected successfully!")
                 logger.info("   Connection state: \(self.isConnected)")
                 logger.info("   SDK connected: \(sdk.isConnected)")
@@ -645,22 +587,20 @@ class WalletService: ObservableObject {
     }
     
     func disconnect() async {
-        // FIX: Cancel active sync properly
-        cancelActiveSync()
+        // Cancel active sync properly
+        syncService.cancelSync()
         
         // Stop watch verification
-        stopWatchVerification()
+        watchAddressService.stopWatchVerification()
         
         if let sdk = sdk {
             try? await sdk.disconnect()
         }
         
-        isConnected = false
-        isSyncing = false
-        syncProgress = nil
-        detailedSyncProgress = nil
-        sdk = nil
-        watchVerificationStatus = .unknown
+        // Reset all services
+        connectionService.reset()
+        syncService.reset()
+        watchAddressService.reset()
     }
     
     func startSync() async throws {
@@ -668,21 +608,17 @@ class WalletService: ObservableObject {
             throw WalletError.notConnected
         }
         
-        // FIX: Prevent multiple concurrent syncs using @MainActor serialization
         // Check if sync is already in progress
-        if let existingTask = activeSyncTask, !existingTask.isCancelled {
+        if syncService.hasActiveSync() {
             logger.warning("⚠️ Sync already in progress, skipping duplicate request")
             return
         }
         
         // Generate new sync request ID
         let requestId = UUID()
-        syncRequestId = requestId
+        syncService.startSync(requestId: requestId)
         
-        logger.info("🔄 Starting sync (ID: \(requestId.uuidString.prefix(8)))")
-        isSyncing = true
-        
-        activeSyncTask = Task { [weak self, requestId] in
+        let syncTask = Task { [weak self, requestId] in
             do {
                 logger.info("📡 Starting enhanced sync with detailed progress...")
                 var lastLogTime = Date()
@@ -690,7 +626,7 @@ class WalletService: ObservableObject {
                 // Use the new sync progress stream from SDK
                 for await progress in sdk.syncProgressStream() {
                     // Check if this sync was cancelled by a newer sync
-                    guard self?.syncRequestId == requestId else {
+                    guard self?.syncService.getCurrentSyncRequestId() == requestId else {
                         logger.info("🛑 Sync cancelled (newer sync started)")
                         break
                     }
@@ -698,7 +634,7 @@ class WalletService: ObservableObject {
                     if Task.isCancelled { break }
                     
                     await MainActor.run {
-                        self?.detailedSyncProgress = progress
+                        self?.syncService.updateProgress(progress)
                         
                         // Convert to legacy SyncProgress for compatibility
                         self?.syncProgress = SyncProgress(
@@ -733,8 +669,7 @@ class WalletService: ObservableObject {
                 // Sync completed
                 await MainActor.run {
                     logger.info("✅ Sync completed (ID: \(requestId.uuidString.prefix(8)))")
-                    self?.isSyncing = false
-                    self?.activeSyncTask = nil
+                    self?.syncService.completeSync()
                     
                     if let wallet = self?.activeWallet {
                         wallet.lastSynced = Date()
@@ -750,13 +685,13 @@ class WalletService: ObservableObject {
                 
             } catch {
                 await MainActor.run {
-                    self?.isSyncing = false
-                    self?.activeSyncTask = nil
-                    self?.detailedSyncProgress = nil
+                    self?.syncService.reset()
                     logger.error("❌ Sync error: \(error)")
                 }
             }
         }
+        
+        syncService.setActiveSyncTask(syncTask)
     }
     
     // Helper to map sync stage to legacy status
@@ -776,19 +711,7 @@ class WalletService: ObservableObject {
     }
     
     func stopSync() {
-        cancelActiveSync()
-    }
-    
-    // FIX: Proper sync cancellation with @MainActor thread safety
-    private func cancelActiveSync() {
-        if let task = activeSyncTask {
-            logger.info("🛑 Cancelling active sync")
-            task.cancel()
-            activeSyncTask = nil
-        }
-        
-        isSyncing = false
-        syncRequestId = nil
+        syncService.cancelSync()
     }
     
     // Alternative sync method using callbacks for real-time updates
@@ -1468,20 +1391,8 @@ class WalletService: ObservableObject {
     }
     
     private func handleFailedWatchAddresses(_ failures: [(address: String, error: Error)], account: HDAccount) async {
-        // Store failed addresses for retry
-        pendingWatchAddresses[account.id.uuidString] = failures
-        
-        // Update pending watch count
-        pendingWatchCount = pendingWatchAddresses.values.reduce(0) { $0 + $1.count }
-        
-        // Notify UI of partial failure
-        watchAddressErrors = failures.map { _, error in
-            if let watchError = error as? WatchAddressError {
-                return watchError
-            } else {
-                return WatchAddressError.unknownError(error.localizedDescription)
-            }
-        }
+        // Delegate to watch address service
+        watchAddressService.handleFailedWatchAddresses(failures, accountId: account.id.uuidString)
         
         // Schedule retry for recoverable errors
         let recoverableFailures = failures.filter { _, error in
@@ -1764,22 +1675,19 @@ class WalletService: ObservableObject {
     // MARK: - Watch Address Verification
     
     private func startWatchVerification() {
-        watchVerificationTimer = Timer.scheduledTimer(withTimeInterval: 60.0, repeats: true) { [weak self] _ in
-            Task {
-                await self?.verifyAllWatchedAddresses()
-            }
+        watchAddressService.startWatchVerification { [weak self] in
+            await self?.verifyAllWatchedAddresses()
         }
     }
     
     private func stopWatchVerification() {
-        watchVerificationTimer?.invalidate()
-        watchVerificationTimer = nil
+        watchAddressService.stopWatchVerification()
     }
     
     private func verifyAllWatchedAddresses() async {
         guard let _ = sdk, let account = activeAccount else { return }
         
-        watchVerificationStatus = .verifying
+        watchAddressService.updateVerificationStatus(.verifying)
         
         let addresses = account.addresses.map { $0.address }
         let totalAddresses = addresses.count
@@ -1806,10 +1714,10 @@ class WalletService: ObservableObject {
                 watchedAddresses += 1
             }
             
-            watchVerificationStatus = .verified(total: totalAddresses, watching: watchedAddresses)
+            watchAddressService.updateVerificationStatus(.verified(total: totalAddresses, watching: watchedAddresses))
         } catch {
             logger.error("Failed to verify watched addresses for account \(account.label): \(error)")
-            watchVerificationStatus = .failed(error: error.localizedDescription)
+            watchAddressService.updateVerificationStatus(.failed(error: error.localizedDescription))
         }
     }
     
