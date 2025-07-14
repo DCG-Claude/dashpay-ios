@@ -13,6 +13,8 @@ struct AccountDetailView: View {
     @State private var isConnecting = false
     @State private var connectionError: String?
     @State private var showConnectionError = false
+    @State private var addressGenerationError: String?
+    @State private var showAddressGenerationError = false
 #if DEBUG
     @State private var showForceConnect = false
 #endif
@@ -80,6 +82,13 @@ struct AccountDetailView: View {
             }
         } message: {
             Text(connectionError ?? "Unknown error")
+        }
+        .alert("Address Generation Error", isPresented: $showAddressGenerationError) {
+            Button("OK") {
+                showAddressGenerationError = false
+            }
+        } message: {
+            Text(addressGenerationError ?? "Unknown error")
         }
     }
     
@@ -394,6 +403,8 @@ struct AddressesTabView: View {
                 )
             } catch {
                 print("Error generating address: \(error)")
+                addressGenerationError = "Address Generation Failed\n\nError: \(error.localizedDescription)\n\nType: \(type(of: error))"
+                showAddressGenerationError = true
             }
         }
     }

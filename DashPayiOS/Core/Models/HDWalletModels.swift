@@ -263,9 +263,7 @@ extension HDAccount {
                 total: sdkBalance.total,
                 lastUpdated: sdkBalance.lastUpdated
             )
-            // Insert the balance into the context first
-            context.insert(newBalance)
-            // Then assign to relationship
+            // SwiftData automatically handles inserting related objects when the relationship is set
             self.balance = newBalance
         }
         // Save after relationship is established
