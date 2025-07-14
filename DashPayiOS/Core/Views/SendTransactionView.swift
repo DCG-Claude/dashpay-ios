@@ -224,8 +224,15 @@ struct SendTransactionView: View {
     private func setMaxAmount() {
         // Calculate max amount (balance - estimated fee)
         let maxAmount = availableBalance > estimatedFee ? availableBalance - estimatedFee : 0
-        let dash = Double(maxAmount) / 100_000_000.0
-        amountString = String(format: "%.8f", dash)
+        
+        // Use Decimal arithmetic to preserve precision when converting from satoshis to DASH
+        let satoshisDecimal = Decimal(maxAmount)
+        let satoshisPerDashDecimal = Decimal(100_000_000)
+        let dashDecimal = satoshisDecimal / satoshisPerDashDecimal
+        
+        // Format with 8 decimal places
+        let dashNumber = NSDecimalNumber(decimal: dashDecimal)
+        amountString = String(format: "%.8f", dashNumber.doubleValue)
     }
     
     private func sendTransaction() {
