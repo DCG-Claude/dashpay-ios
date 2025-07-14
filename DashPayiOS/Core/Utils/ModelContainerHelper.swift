@@ -395,9 +395,81 @@ struct ModelContainerHelper {
     
     /// Check if the current store needs migration
     static func needsMigration(for container: ModelContainer) -> Bool {
-        // This would check the model version or schema changes
-        // For now, return false as we handle migration errors automatically
-        return false
+        // Check if migration is needed by comparing stored schema version
+        // with current WalletSchemaV1 version
+        let currentVersion = WalletSchemaV1.versionIdentifier
+        
+        // In SwiftData, migration detection is primarily handled by the migration plan itself.
+        // However, we can check if there's a stored version indicator in UserDefaults
+        // or attempt to detect schema mismatches through model access.
+        
+        // Check if we have a stored schema version
+        let storedVersionKey = "WalletSchemaVersion"
+        if let storedVersionString = UserDefaults.standard.string(forKey: storedVersionKey),
+           let storedVersion = parseVersionString(storedVersionString) {
+            
+            // Compare versions - migration needed if stored version is different
+            let migrationNeeded = !areVersionsEqual(storedVersion, currentVersion)
+            
+            if migrationNeeded {
+                print("Migration needed: stored version \(storedVersion) != current version \(currentVersion)")
+            } else {
+                print("No migration needed: versions match (\(currentVersion))")
+            }
+            
+            return migrationNeeded
+        }
+        
+        // If no stored version exists, this is likely a new installation
+        // Store the current version for future comparison
+        let currentVersionString = "\(currentVersion.major).\(currentVersion.minor).\(currentVersion.patch)"
+        UserDefaults.standard.set(currentVersionString, forKey: storedVersionKey)
+        
+        // Try to detect if the existing database schema matches our current models
+        // by attempting to access the model context
+        do {
+            let context = container.mainContext
+            // Attempt a simple fetch to verify the schema is compatible
+            _ = try context.fetchCount(FetchDescriptor<HDWallet>())
+            
+            // If we can access the models successfully, no migration needed
+            print("No migration needed: database schema is compatible with current models")
+            return false
+        } catch {
+            // If we can't access the models, a migration might be needed
+            // This could indicate a schema mismatch
+            print("Potential migration needed: schema validation failed with error: \(error)")
+            
+            // Check if this is a specific migration-related error
+            if error.localizedDescription.contains("migration") ||
+               error.localizedDescription.contains("schema") ||
+               error.localizedDescription.contains("model") {
+                return true
+            }
+            
+            // For other errors, assume no migration needed as the error might be unrelated
+            return false
+        }
+    }
+    
+    /// Parse a version string into a Schema.Version
+    private static func parseVersionString(_ versionString: String) -> Schema.Version? {
+        let components = versionString.components(separatedBy: ".")
+        guard components.count >= 3,
+              let major = Int(components[0]),
+              let minor = Int(components[1]),
+              let patch = Int(components[2]) else {
+            return nil
+        }
+        
+        return Schema.Version(major, minor, patch)
+    }
+    
+    /// Compare two Schema.Version instances for equality
+    private static func areVersionsEqual(_ version1: Schema.Version, _ version2: Schema.Version) -> Bool {
+        return version1.major == version2.major &&
+               version1.minor == version2.minor &&
+               version1.patch == version2.patch
     }
     
     /// Validate container tables - should be called on first use
