@@ -1,6 +1,7 @@
 import Foundation
 import os.log
 import SwiftDashCoreSDK
+import Compression
 
 /// Debug logger for sync connection issues
 public class SyncDebugLogger {
@@ -212,6 +213,11 @@ public class SyncDebugLogger {
 // MARK: - Log File Support
 
 extension SyncDebugLogger {
+    // Log rotation configuration
+    private static let maxLogFileSize: UInt64 = 10 * 1024 * 1024 // 10MB
+    private static let maxLogAge: TimeInterval = 7 * 24 * 60 * 60 // 7 days
+    private static let maxArchivedLogs: Int = 5
+    
     private static let logFileURL: URL? = {
         guard let documentsDir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
             return nil
@@ -219,7 +225,14 @@ extension SyncDebugLogger {
         return documentsDir.appendingPathComponent("dashpay_sync_debug.log")
     }()
     
-    /// Write debug log to file for later analysis
+    private static let logDirectoryURL: URL? = {
+        guard let documentsDir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
+            return nil
+        }
+        return documentsDir.appendingPathComponent("DashPayLogs")
+    }()
+    
+    /// Write debug log to file for later analysis with rotation
     public static func writeToFile(_ message: String) {
         guard let url = logFileURL else { return }
         
@@ -228,6 +241,17 @@ extension SyncDebugLogger {
         
         DispatchQueue.global(qos: .background).async {
             do {
+                // Ensure log directory exists
+                if let logDir = logDirectoryURL {
+                    try FileManager.default.createDirectory(at: logDir, withIntermediateDirectories: true)
+                }
+                
+                // Check if rotation is needed before writing
+                if shouldRotateLog(url: url) {
+                    rotateLogFile(url: url)
+                }
+                
+                // Write log entry
                 if FileManager.default.fileExists(atPath: url.path) {
                     let handle = try FileHandle(forWritingTo: url)
                     handle.seekToEndOfFile()
@@ -241,9 +265,121 @@ extension SyncDebugLogger {
                 } else {
                     try logEntry.write(to: url, atomically: true, encoding: .utf8)
                 }
+                
+                // Clean up old log files
+                cleanupOldLogs()
+                
             } catch {
                 print("Failed to write log: \(error)")
             }
+        }
+    }
+    
+    /// Check if log rotation is needed based on file size or age
+    private static func shouldRotateLog(url: URL) -> Bool {
+        guard FileManager.default.fileExists(atPath: url.path) else { return false }
+        
+        do {
+            let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
+            
+            // Check file size
+            if let fileSize = attributes[.size] as? UInt64, fileSize >= maxLogFileSize {
+                return true
+            }
+            
+            // Check file age
+            if let creationDate = attributes[.creationDate] as? Date {
+                let fileAge = Date().timeIntervalSince(creationDate)
+                if fileAge >= maxLogAge {
+                    return true
+                }
+            }
+            
+        } catch {
+            print("Failed to check log file attributes: \(error)")
+        }
+        
+        return false
+    }
+    
+    /// Rotate the current log file
+    private static func rotateLogFile(url: URL) {
+        guard let logDir = logDirectoryURL else { return }
+        
+        do {
+            let dateFormatter = DateFormatter()
+            dateFormatter.dateFormat = "yyyy-MM-dd_HH-mm-ss"
+            let timestamp = dateFormatter.string(from: Date())
+            
+            let archivedLogURL = logDir.appendingPathComponent("dashpay_sync_debug_\(timestamp).log")
+            
+            // Move current log to archived location
+            try FileManager.default.moveItem(at: url, to: archivedLogURL)
+            
+            // Compress archived log file to save space
+            if let compressedURL = compressLogFile(archivedLogURL) {
+                try FileManager.default.removeItem(at: archivedLogURL)
+                print("📦 Log file archived and compressed: \(compressedURL.lastPathComponent)")
+            }
+            
+        } catch {
+            print("Failed to rotate log file: \(error)")
+        }
+    }
+    
+    /// Compress a log file using Apple's Compression framework
+    private static func compressLogFile(_ url: URL) -> URL? {
+        let compressedURL = url.appendingPathExtension("gz")
+        
+        do {
+            let data = try Data(contentsOf: url)
+            let compressedData = try data.compressed(using: .lzfse)
+            try compressedData.write(to: compressedURL)
+            return compressedURL
+        } catch {
+            print("Failed to compress log file: \(error)")
+            return nil
+        }
+    }
+    
+    /// Clean up old log files beyond the retention limit
+    private static func cleanupOldLogs() {
+        guard let logDir = logDirectoryURL else { return }
+        
+        do {
+            let files = try FileManager.default.contentsOfDirectory(at: logDir, includingPropertiesForKeys: [.creationDateKey], options: [])
+            
+            let logFiles = files.filter { url in
+                url.lastPathComponent.hasPrefix("dashpay_sync_debug_") &&
+                (url.pathExtension == "log" || url.pathExtension == "gz" || url.lastPathComponent.hasSuffix(".log.gz"))
+            }
+            
+            // Sort by creation date (newest first)
+            let sortedFiles = logFiles.sorted { file1, file2 in
+                let date1 = try? file1.resourceValues(forKeys: [.creationDateKey]).creationDate ?? Date.distantPast
+                let date2 = try? file2.resourceValues(forKeys: [.creationDateKey]).creationDate ?? Date.distantPast
+                return (date1 ?? Date.distantPast) > (date2 ?? Date.distantPast)
+            }
+            
+            // Remove files beyond the limit
+            let filesToDelete = sortedFiles.dropFirst(maxArchivedLogs)
+            for file in filesToDelete {
+                try FileManager.default.removeItem(at: file)
+                print("🗑️ Deleted old log file: \(file.lastPathComponent)")
+            }
+            
+            // Also remove files older than maxLogAge
+            let cutoffDate = Date().addingTimeInterval(-maxLogAge)
+            for file in sortedFiles {
+                if let creationDate = try? file.resourceValues(forKeys: [.creationDateKey]).creationDate,
+                   creationDate < cutoffDate {
+                    try FileManager.default.removeItem(at: file)
+                    print("🗑️ Deleted expired log file: \(file.lastPathComponent)")
+                }
+            }
+            
+        } catch {
+            print("Failed to clean up old log files: \(error)")
         }
     }
     
