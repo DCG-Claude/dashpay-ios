@@ -1,8 +1,11 @@
 import SwiftUI
 import SwiftData
 import SwiftDashCoreSDK
+import os.log
 
 struct CoreContentView: View {
+    private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "DashPay", category: "CoreContentView")
+    
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject private var walletService: WalletService
     @Query private var wallets: [HDWallet]
@@ -20,11 +23,11 @@ struct CoreContentView: View {
                 onImportWallet: { showImportWallet = true }
             )
             .onAppear {
-                print("ContentView appeared with \(wallets.count) wallets")
+                logger.info("ContentView appeared with \(wallets.count) wallets")
                 // Trigger auto-sync when view appears and wallets are loaded
                 if !wallets.isEmpty {
                     Task {
-                        print("🔄 Triggering auto-sync for loaded wallets...")
+                        logger.info("🔄 Triggering auto-sync for loaded wallets...")
                         await walletService.startAutoSync()
                     }
                 }
