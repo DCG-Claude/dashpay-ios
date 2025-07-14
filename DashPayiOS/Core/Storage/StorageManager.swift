@@ -152,14 +152,14 @@ final class StorageManager {
     
     // MARK: - Balance
     
-    func saveBalance(_ balance: Balance, for address: String) throws {
+    func saveBalance(_ balance: LocalBalance, for address: String) throws {
         if let watchedAddress = try fetchWatchedAddress(by: address) {
             watchedAddress.balance = balance
             try modelContext.save()
         }
     }
     
-    func fetchBalance(for address: String) throws -> Balance? {
+    func fetchBalance(for address: String) throws -> LocalBalance? {
         let watchedAddress = try fetchWatchedAddress(by: address)
         return watchedAddress?.balance
     }

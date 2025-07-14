@@ -118,28 +118,27 @@ final class SettingsConfigurationTests: XCTestCase {
     
     func testSPVConfigurationCreation() throws {
         // Test testnet configuration
-        let testnetConfig = SPVClientConfiguration.testnet()
+        let testnetConfig = SPVConfigurationManager.shared.configuration(for: .testnet)
         XCTAssertEqual(testnetConfig.network, .testnet, "Should create testnet configuration")
         // Note: Peers are now configured in WalletService, not in the base configuration
         // XCTAssertGreaterThan(testnetConfig.additionalPeers.count, 0, "Should have testnet peers configured")
         // XCTAssertEqual(testnetConfig.maxPeers, 8, "Should have correct max peers for testnet")
         
         // Test mainnet configuration
-        let mainnetConfig = SPVClientConfiguration.mainnet()
+        let mainnetConfig = SPVConfigurationManager.shared.configuration(for: .mainnet)
         XCTAssertEqual(mainnetConfig.network, .mainnet, "Should create mainnet configuration")
         // Note: Peers are now configured in WalletService, not in the base configuration
         // XCTAssertGreaterThan(mainnetConfig.additionalPeers.count, 0, "Should have mainnet peers configured")
         
         // Test devnet configuration (regtest is not in our enum)
-        var devnetConfig = SPVClientConfiguration()
-        devnetConfig.network = .devnet
+        let devnetConfig = SPVConfigurationManager.shared.configuration(for: .devnet)
         XCTAssertEqual(devnetConfig.network, .devnet, "Should create devnet configuration")
     }
     
     func testSPVConfigurationValidation() throws {
         // Our mock SPVClientConfiguration doesn't have validation
         // This test would work with the real SDK
-        let config = SPVClientConfiguration()
+        let config = SPVConfigurationManager.shared.configuration(for: .testnet)
         
         // Test that configuration can be created
         XCTAssertNotNil(config, "Should be able to create configuration")
@@ -147,7 +146,7 @@ final class SettingsConfigurationTests: XCTestCase {
     }
     
     func testSPVPeerConfiguration() throws {
-        let config = SPVClientConfiguration.testnet()
+        let config = SPVConfigurationManager.shared.configuration(for: .testnet)
         
         // Note: We no longer expect DNS seeds since we use hardcoded IP addresses
         // This change aligns with the working rust-dashcore example
@@ -230,7 +229,7 @@ final class SettingsConfigurationTests: XCTestCase {
     }
     
     func testSPVValidationModes() throws {
-        let config = SPVClientConfiguration()
+        let config = SPVConfigurationManager.shared.configuration(for: .testnet)
         
         // Test different validation modes
         let validationModes: [SPVClientConfiguration.ValidationMode] = [.none, .basic, .full]
@@ -283,7 +282,7 @@ final class SettingsConfigurationTests: XCTestCase {
     func testInvalidConfigurationHandling() throws {
         // Our mock SPVClientConfiguration doesn't have dataDirectory or validate()
         // Test basic configuration error handling
-        let config = SPVClientConfiguration()
+        let config = SPVConfigurationManager.shared.configuration(for: .testnet)
         
         // Test that configuration can handle invalid values
         var invalidConfig = config
@@ -381,12 +380,11 @@ final class SettingsIntegrationTests: XCTestCase {
             
             switch network {
             case .mainnet:
-                config = SPVClientConfiguration.mainnet()
+                config = SPVConfigurationManager.shared.configuration(for: .mainnet)
             case .testnet:
-                config = SPVClientConfiguration.testnet()
+                config = SPVConfigurationManager.shared.configuration(for: .testnet)
             case .devnet:
-                config = SPVClientConfiguration()
-                config.network = .devnet
+                config = SPVConfigurationManager.shared.configuration(for: .devnet)
             }
             
             // Our mock doesn't have validate(), just check it's created

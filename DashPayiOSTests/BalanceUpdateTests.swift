@@ -38,14 +38,14 @@ final class BalanceUpdateTests: XCTestCase {
             extendedPublicKey: "xpub123"
         )
         
-        let initialBalance = Balance(confirmed: 1000, pending: 500, total: 1500)
+        let initialBalance = LocalBalance(confirmed: 1000, pending: 500, total: 1500)
         modelContext.insert(initialBalance)
         account.balance = initialBalance
         modelContext.insert(account)
         try modelContext.save()
         
         // When: We update the balance safely
-        let newBalance = Balance(confirmed: 2000, pending: 1000, total: 3000)
+        let newBalance = LocalBalance(confirmed: 2000, pending: 1000, total: 3000)
         try account.updateBalanceSafely(to: newBalance, in: modelContext)
         
         // Then: The balance should be updated without creating new managed objects
@@ -60,7 +60,7 @@ final class BalanceUpdateTests: XCTestCase {
     func testBalanceUpdateWithNullAccount() throws {
         // Given: A null account
         let account: HDAccount? = nil
-        let newBalance = Balance(confirmed: 1000, pending: 500, total: 1500)
+        let newBalance = LocalBalance(confirmed: 1000, pending: 500, total: 1500)
         
         // When/Then: Attempting to update should not crash
         XCTAssertNoThrow {
@@ -68,7 +68,7 @@ final class BalanceUpdateTests: XCTestCase {
         }
     }
     
-    func testBalanceUpdateFromFFIBalance() throws {
+    func testBalanceUpdateFromFFILocalBalance() throws {
         // Given: An account with existing balance
         let account = HDAccount(
             accountIndex: 0,
@@ -76,14 +76,14 @@ final class BalanceUpdateTests: XCTestCase {
             extendedPublicKey: "xpub123"
         )
         
-        let initialBalance = Balance()
+        let initialBalance = LocalBalance()
         modelContext.insert(initialBalance)
         account.balance = initialBalance
         modelContext.insert(account)
         try modelContext.save()
         
         // When: We update from FFI balance data
-        let ffiBalance = MockFFIBalance(
+        let ffiBalance = MockFFILocalBalance(
             confirmed: 5000,
             pending: 2000,
             instantlocked: 1000,
@@ -113,8 +113,8 @@ final class BalanceUpdateTests: XCTestCase {
         modelContext.insert(account)
         
         // When: We create or update balance
-        let balanceData = Balance(confirmed: 1000, pending: 500, total: 1500)
-        try account.createOrUpdateBalance(from: balanceData, in: modelContext)
+        let balanceData = LocalBalance(confirmed: 1000, pending: 500, total: 1500)
+        try account.createOrUpdateLocalBalance(from: balanceData, in: modelContext)
         
         // Then: A new balance should be created and assigned
         XCTAssertNotNil(account.balance)
@@ -123,8 +123,8 @@ final class BalanceUpdateTests: XCTestCase {
         XCTAssertEqual(account.balance?.total, 1500)
         
         // When: We update again with different values
-        let updatedBalanceData = Balance(confirmed: 2000, pending: 1000, total: 3000)
-        try account.createOrUpdateBalance(from: updatedBalanceData, in: modelContext)
+        let updatedBalanceData = LocalBalance(confirmed: 2000, pending: 1000, total: 3000)
+        try account.createOrUpdateLocalBalance(from: updatedBalanceData, in: modelContext)
         
         // Then: The same balance object should be updated
         XCTAssertEqual(account.balance?.confirmed, 2000)
@@ -140,7 +140,7 @@ final class BalanceUpdateTests: XCTestCase {
             extendedPublicKey: "xpub123"
         )
         
-        let initialBalance = Balance(confirmed: 1000, total: 1000)
+        let initialBalance = LocalBalance(confirmed: 1000, total: 1000)
         modelContext.insert(initialBalance)
         account.balance = initialBalance
         modelContext.insert(account)
@@ -165,7 +165,7 @@ final class BalanceUpdateTests: XCTestCase {
             extendedPublicKey: "xpub123"
         )
         
-        let initialBalance = Balance(confirmed: 1000, pending: 500, total: 1500)
+        let initialBalance = LocalBalance(confirmed: 1000, pending: 500, total: 1500)
         modelContext.insert(initialBalance)
         account.balance = initialBalance
         modelContext.insert(account)
@@ -176,19 +176,19 @@ final class BalanceUpdateTests: XCTestCase {
         expectation.expectedFulfillmentCount = 3
         
         DispatchQueue.global().async {
-            let balance1 = Balance(confirmed: 2000, pending: 1000, total: 3000)
+            let balance1 = LocalBalance(confirmed: 2000, pending: 1000, total: 3000)
             try? account.updateBalanceSafely(to: balance1, in: self.modelContext)
             expectation.fulfill()
         }
         
         DispatchQueue.global().async {
-            let balance2 = Balance(confirmed: 3000, pending: 1500, total: 4500)
+            let balance2 = LocalBalance(confirmed: 3000, pending: 1500, total: 4500)
             try? account.updateBalanceSafely(to: balance2, in: self.modelContext)
             expectation.fulfill()
         }
         
         DispatchQueue.global().async {
-            let balance3 = Balance(confirmed: 4000, pending: 2000, total: 6000)
+            let balance3 = LocalBalance(confirmed: 4000, pending: 2000, total: 6000)
             try? account.updateBalanceSafely(to: balance3, in: self.modelContext)
             expectation.fulfill()
         }
@@ -211,14 +211,14 @@ final class BalanceUpdateTests: XCTestCase {
             label: "Test Address"
         )
         
-        let initialBalance = Balance(confirmed: 500, pending: 200, total: 700)
+        let initialBalance = LocalBalance(confirmed: 500, pending: 200, total: 700)
         modelContext.insert(initialBalance)
         address.balance = initialBalance
         modelContext.insert(address)
         try modelContext.save()
         
         // When: We update the watched address balance
-        let newBalance = Balance(confirmed: 1000, pending: 300, total: 1300)
+        let newBalance = LocalBalance(confirmed: 1000, pending: 300, total: 1300)
         try address.updateBalanceSafely(to: newBalance, in: modelContext)
         
         // Then: The balance should be updated correctly
@@ -251,7 +251,7 @@ extension HDAccount {
             existingBalance.update(from: newBalance)
         } else {
             // Create new balance and insert it
-            let balance = Balance(
+            let balance = LocalBalance(
                 confirmed: newBalance.confirmed,
                 pending: newBalance.pending,
                 instantLocked: newBalance.instantLocked,
@@ -269,7 +269,7 @@ extension HDAccount {
     func updateBalanceFromFFI(_ ffiBalance: MockFFIBalance?, in context: ModelContext) throws {
         guard let ffiBalance = ffiBalance else { return }
         
-        let balanceData = Balance(
+        let balanceData = LocalBalance(
             confirmed: ffiBalance.confirmed,
             pending: ffiBalance.pending,
             instantLocked: ffiBalance.instantlocked,
@@ -282,11 +282,11 @@ extension HDAccount {
     }
     
     /// Test helper method for create or update
-    func createOrUpdateBalance(from balanceData: Balance, in context: ModelContext) throws {
+    func createOrUpdateLocalBalance(from balanceData: Balance, in context: ModelContext) throws {
         if let existingBalance = self.balance {
             existingBalance.update(from: balanceData)
         } else {
-            let newBalance = Balance(
+            let newBalance = LocalBalance(
                 confirmed: balanceData.confirmed,
                 pending: balanceData.pending,
                 instantLocked: balanceData.instantLocked,
@@ -310,7 +310,7 @@ extension HDWatchedAddress {
             existingBalance.update(from: newBalance)
         } else {
             // Create new balance and insert it
-            let balance = Balance(
+            let balance = LocalBalance(
                 confirmed: newBalance.confirmed,
                 pending: newBalance.pending,
                 instantLocked: newBalance.instantLocked,

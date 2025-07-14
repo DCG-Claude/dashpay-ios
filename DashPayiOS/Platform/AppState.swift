@@ -3,6 +3,17 @@ import SwiftData
 import SwiftDashCoreSDK
 import Combine
 
+// Extension for PlatformNetwork conversion
+extension PlatformNetwork {
+    func toDashNetwork() -> DashNetwork {
+        switch self {
+        case .mainnet: return .mainnet
+        case .testnet: return .testnet
+        case .devnet: return .devnet
+        }
+    }
+}
+
 // SDK type placeholders
 // Simple SDK wrapper for TokenService
 public struct SimpleSDK {
@@ -165,11 +176,13 @@ class AppState: ObservableObject {
                     print("✅ Core SDK reused from UnifiedAppState")
                 } else {
                     print("🔧 Initializing Core SDK...")
-                    let coreConfig = createEnhancedSPVConfig(for: currentNetwork)
-                    print("📍 SPV config created")
+                    let dashNetwork = currentNetwork.toDashNetwork()
+                    // Use centralized configuration manager
+                    let coreConfig = SPVConfigurationManager.shared.configuration(for: dashNetwork)
+                    print("📍 SPV config obtained from manager")
                     
-                    // Initialize Core SDK with real FFI
-                    print("🔧 Creating real Core SDK instance...")
+                    // Initialize Core SDK with configuration
+                    print("🔧 Creating Core SDK instance...")
                     do {
                         let coreSdk = try DashSDK(configuration: coreConfig)
                         print("📍 DashSDK instance created")
@@ -190,18 +203,7 @@ class AppState: ObservableObject {
                         print("   - Platform SDK Network: \(currentNetwork.sdkNetwork)")
                         print("   - Raw Value: \(currentNetwork.rawValue)")
                         
-                        // Attempt fallback with minimal configuration
-                        print("🔄 Attempting fallback initialization with minimal config...")
-                        let fallbackConfig = createMinimalSPVConfig(for: currentNetwork)
-                        
-                        do {
-                            let coreSdk = try DashSDK(configuration: fallbackConfig)
-                            coreSDK = coreSdk
-                            print("✅ Core SDK initialized with fallback configuration")
-                        } catch {
-                            print("🔴 Fallback initialization also failed: \(error)")
-                            throw error
-                        }
+                        throw error
                     }
                 }
                 
@@ -302,89 +304,6 @@ class AppState: ObservableObject {
         }
     }
     
-    private func createEnhancedSPVConfig(for network: PlatformNetwork) -> SPVClientConfiguration {
-        let config: SPVClientConfiguration
-        
-        // Convert PlatformNetwork to DashNetwork
-        let dashNetwork: DashNetwork
-        switch network {
-        case .mainnet:
-            dashNetwork = .mainnet
-        case .testnet:
-            dashNetwork = .testnet
-        case .devnet:
-            dashNetwork = .devnet
-        }
-        
-        // Create configuration for the network
-        switch dashNetwork {
-        case .testnet:
-            config = SPVClientConfiguration.testnet()
-        case .mainnet:
-            config = SPVClientConfiguration.mainnet()
-        case .devnet:
-            // Use testnet config for devnet but update the network
-            config = SPVClientConfiguration.testnet()
-            config.network = .devnet
-        case .regtest:
-            config = SPVClientConfiguration.regtest()
-        }
-        
-        // Enhanced configuration for better sync performance
-        config.validationMode = .full   // Use full validation to match rust-dashcore example
-        config.mempoolConfig = .fetchAll(maxTransactions: 5000)  // Enable mempool tracking
-        config.logLevel = "info"  // Enable info logging for sync progress
-        config.maxPeers = 1  // Allow up to 12 peer connections
-        
-        // Add testnet node configuration
-        if network == .testnet {
-            config.additionalPeers = ["54.191.28.44:19999"]  // Local testnet node
-//            print("🔧 Added local testnet node: 192.168.1.163:19999")
-        }
-        
-        print("📡 SPV Config: Network=\(config.network.name), Peers=\(config.additionalPeers.count), Validation=\(config.validationMode)")
-        
-        return config
-    }
-    
-    private func createMinimalSPVConfig(for network: PlatformNetwork) -> SPVClientConfiguration {
-        let config: SPVClientConfiguration
-        
-        // Convert PlatformNetwork to DashNetwork
-        let dashNetwork: DashNetwork
-        switch network {
-        case .mainnet:
-            dashNetwork = .mainnet
-        case .testnet:
-            dashNetwork = .testnet
-        case .devnet:
-            dashNetwork = .devnet
-        }
-        
-        // Create configuration for the network
-        switch dashNetwork {
-        case .testnet:
-            config = SPVClientConfiguration.testnet()
-        case .mainnet:
-            config = SPVClientConfiguration.mainnet()
-        case .devnet:
-            config = SPVClientConfiguration.testnet() // Use testnet for devnet
-            config.network = .devnet
-        case .regtest:
-            config = SPVClientConfiguration.regtest()
-        }
-        
-        // Minimal configuration for fallback
-        config.validationMode = .basic  // Use basic validation as minimum
-        config.mempoolConfig = .disabled  // Disable mempool
-        config.logLevel = "debug"  // Enable debug logging to diagnose issues
-        config.maxPeers = 1  // Minimal peer connections
-        config.enableFilterLoad = true   // Enable filter loading for validation
-        
-        print("🔧 Minimal SPV Config: Network=\(config.network.name), Validation=\(config.validationMode)")
-        
-        return config
-    }
     
     private func startBlockchainSync(sdk: DashSDK) async throws {
         // Connect to the network and start sync
@@ -745,9 +664,10 @@ class AppState: ObservableObject {
         do {
             isLoading = true
             
-            // Reinitialize Core SDK with new network
+            // Create configuration for new network
             print("🔄 Switching Core SDK to network: \(network)")
-            let coreConfig = network == .testnet ? SPVClientConfiguration.testnet() : SPVClientConfiguration.mainnet()
+            let dashNetwork = network.toDashNetwork()
+            let coreConfig = SPVConfigurationManager.shared.configuration(for: dashNetwork)
             let newCoreSDK = try DashSDK(configuration: coreConfig)
             coreSDK = newCoreSDK
             

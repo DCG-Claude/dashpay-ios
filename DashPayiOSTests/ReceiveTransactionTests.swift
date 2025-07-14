@@ -251,7 +251,7 @@ final class ReceiveTransactionTests: TransactionTestBase {
     
     func testBalanceUpdateOnReceive() async {
         // Given: Account with initial balance
-        let initialBalance = createMockBalance(confirmed: 100_000_000) // 1.0 DASH
+        let initialBalance = createMockLocalBalance(confirmed: 100_000_000) // 1.0 DASH
         testAccount.balance = initialBalance
         
         let testAddress = createTestAddress()
@@ -267,7 +267,7 @@ final class ReceiveTransactionTests: TransactionTestBase {
         )
         
         // Update balance
-        await receiveTransactionService.updateAccountBalance(testAccount)
+        await receiveTransactionService.updateAccountLocalBalance(testAccount)
         
         // Then: Balance should increase
         let expectedTotal = initialBalance.total + UInt64(receiveAmount)
@@ -276,7 +276,7 @@ final class ReceiveTransactionTests: TransactionTestBase {
     
     func testPendingBalanceTracking() async {
         // Given: Account with confirmed balance
-        let confirmedBalance = createMockBalance(confirmed: 100_000_000)
+        let confirmedBalance = createMockLocalBalance(confirmed: 100_000_000)
         testAccount.balance = confirmedBalance
         
         let testAddress = createTestAddress()
@@ -292,7 +292,7 @@ final class ReceiveTransactionTests: TransactionTestBase {
         )
         
         // Update balance
-        await receiveTransactionService.updateAccountBalance(testAccount)
+        await receiveTransactionService.updateAccountLocalBalance(testAccount)
         
         // Then: Should track pending balance separately
         XCTAssertEqual(testAccount.balance?.confirmed, 100_000_000)
@@ -302,7 +302,7 @@ final class ReceiveTransactionTests: TransactionTestBase {
     
     func testInstantSendBalanceImmediate() async {
         // Given: Account with balance
-        let initialBalance = createMockBalance(confirmed: 200_000_000)
+        let initialBalance = createMockLocalBalance(confirmed: 200_000_000)
         testAccount.balance = initialBalance
         
         let testAddress = createTestAddress()
@@ -316,7 +316,7 @@ final class ReceiveTransactionTests: TransactionTestBase {
         )
         
         // Update balance
-        await receiveTransactionService.updateAccountBalance(testAccount)
+        await receiveTransactionService.updateAccountLocalBalance(testAccount)
         
         // Then: Should be immediately available
         XCTAssertEqual(testAccount.balance?.instantLocked, UInt64(instantAmount))
@@ -689,7 +689,7 @@ final class ReceiveTransactionTests: TransactionTestBase {
         
         // Then: Should not affect account balance
         let originalBalance = testAccount.balance?.total ?? 0
-        await receiveTransactionService.updateAccountBalance(testAccount)
+        await receiveTransactionService.updateAccountLocalBalance(testAccount)
         XCTAssertEqual(testAccount.balance?.total, originalBalance)
     }
     
@@ -949,7 +949,7 @@ class ReceiveTransactionService {
     
     // MARK: - Balance Updates
     
-    func updateAccountBalance(_ account: HDAccount) async {
+    func updateAccountLocalBalance(_ account: HDAccount) async {
         var confirmedTotal: UInt64 = 0
         var pendingTotal: UInt64 = 0
         var instantLockedTotal: UInt64 = 0
@@ -967,7 +967,7 @@ class ReceiveTransactionService {
             }
         }
         
-        let newBalance = Balance(
+        let newBalance = LocalBalance(
             confirmed: confirmedTotal,
             pending: pendingTotal,
             instantLocked: instantLockedTotal,

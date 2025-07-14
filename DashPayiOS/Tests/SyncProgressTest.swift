@@ -8,7 +8,7 @@ class SyncProgressTest: XCTestCase {
         try await super.setUp()
         
         // Create testnet configuration with fallback peers
-        let config = SPVClientConfiguration.testnet()
+        let config = SPVConfigurationManager.shared.configuration(for: .testnet)
         sdk = try DashSDK(configuration: config)
     }
     

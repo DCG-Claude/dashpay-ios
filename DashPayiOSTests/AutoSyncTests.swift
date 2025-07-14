@@ -7,7 +7,7 @@ final class AutoSyncTests: XCTestCase {
     
     var modelContainer: ModelContainer!
     var walletService: WalletService!
-    var testWallet: HDWallet!
+    var testWallet: DashPay.HDWallet!
     
     override func setUp() async throws {
         // Create in-memory model container for testing

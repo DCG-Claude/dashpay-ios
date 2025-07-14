@@ -135,7 +135,7 @@ final class TransactionModelTests: TransactionTestBase {
     func testStatusDescriptions() {
         // Test all status description strings
         XCTAssertEqual(TransactionStatus.pending.description, "Pending")
-        XCTAssertEqual(TransactionStatus.confirming(3).description, "3/6 confirmations")
+        XCTAssertEqual(TransactionStatus.confirming(confirmations: 3).description, "3/6 confirmations")
         XCTAssertEqual(TransactionStatus.confirmed.description, "Confirmed")
         XCTAssertEqual(TransactionStatus.instantLocked.description, "InstantSend")
     }
@@ -143,7 +143,7 @@ final class TransactionModelTests: TransactionTestBase {
     func testStatusSettledStates() {
         // Test which statuses are considered "settled"
         XCTAssertFalse(TransactionStatus.pending.isSettled)
-        XCTAssertFalse(TransactionStatus.confirming(3).isSettled)
+        XCTAssertFalse(TransactionStatus.confirming(confirmations: 3).isSettled)
         XCTAssertTrue(TransactionStatus.confirmed.isSettled)
         XCTAssertTrue(TransactionStatus.instantLocked.isSettled)
     }
@@ -169,7 +169,7 @@ final class TransactionModelTests: TransactionTestBase {
     func testStatusTransitionConfirmingToConfirmed() {
         // Given: Partially confirmed transaction
         let transaction = createTestTransaction(confirmations: 5, isInstantLocked: false)
-        XCTAssertEqual(transaction.status, .confirming(5))
+        XCTAssertEqual(transaction.status, .confirming(confirmations: 5))
         
         // When: Transaction reaches full confirmation
         transaction.confirmations = 6
@@ -527,11 +527,11 @@ extension TransactionModelTests {
         XCTAssertEqual(TransactionStatus.pending, TransactionStatus.pending)
         XCTAssertEqual(TransactionStatus.confirmed, TransactionStatus.confirmed)
         XCTAssertEqual(TransactionStatus.instantLocked, TransactionStatus.instantLocked)
-        XCTAssertEqual(TransactionStatus.confirming(3), TransactionStatus.confirming(3))
+        XCTAssertEqual(TransactionStatus.confirming(confirmations: 3), TransactionStatus.confirming(confirmations: 3))
         
         // Test inequality
         XCTAssertNotEqual(TransactionStatus.pending, TransactionStatus.confirmed)
-        XCTAssertNotEqual(TransactionStatus.confirming(2), TransactionStatus.confirming(3))
+        XCTAssertNotEqual(TransactionStatus.confirming(confirmations: 2), TransactionStatus.confirming(confirmations: 3))
         XCTAssertNotEqual(TransactionStatus.instantLocked, TransactionStatus.pending)
     }
 }

@@ -196,7 +196,7 @@ struct AccountHeaderView: View {
 // MARK: - Balance View
 
 struct BalanceView: View {
-    let balance: Balance
+    let balance: LocalBalance
     
     var body: some View {
         VStack(spacing: 8) {

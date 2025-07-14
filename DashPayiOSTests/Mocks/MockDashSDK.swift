@@ -26,7 +26,7 @@ class MockDashSDK: DashSDKProtocol {
         // Mock stop
     }
     
-    func getBalance(for address: String) async throws -> SwiftDashCoreSDK.Balance {
+    func getLocalBalance(for address: String) async throws -> SwiftDashCoreSDK.Balance {
         return balance
     }
     

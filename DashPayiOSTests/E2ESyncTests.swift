@@ -157,7 +157,7 @@ final class E2ESyncTests: XCTestCase {
             do {
                 // Send 20 rapid balance updates
                 for i in 1...20 {
-                    let balance = MockE2EFFIBalance(
+                    let balance = MockE2EFFILocalBalance(
                         confirmed: UInt64(i * 1000),
                         pending: UInt64(i * 500),
                         total: UInt64(i * 1500)
@@ -197,7 +197,7 @@ final class E2ESyncTests: XCTestCase {
                 await withTaskGroup(of: Void.self) { group in
                     for (index, account) in accounts.enumerated() {
                         group.addTask {
-                            let balance = MockE2EFFIBalance(
+                            let balance = MockE2EFFILocalBalance(
                                 confirmed: UInt64((index + 1) * 2000),
                                 pending: UInt64((index + 1) * 1000),
                                 total: UInt64((index + 1) * 3000)
@@ -278,7 +278,7 @@ final class E2ESyncTests: XCTestCase {
     private func performFullWalletSync(wallet: HDWallet, accounts: [HDAccount]) async throws {
         // Simulate the actual sync process that was causing crashes
         for (index, account) in accounts.enumerated() {
-            let ffiBalance = MockE2EFFIBalance(
+            let ffiBalance = MockE2EFFILocalBalance(
                 confirmed: UInt64((index + 1) * 5000),
                 pending: UInt64((index + 1) * 2000),
                 instantlocked: UInt64((index + 1) * 1000),
@@ -299,7 +299,7 @@ final class E2ESyncTests: XCTestCase {
     private func performPartialWalletSync(wallet: HDWallet, accounts: [HDAccount]) async throws {
         // Simulate partial sync (as might happen during wallet switching)
         for account in accounts {
-            let ffiBalance = MockE2EFFIBalance(
+            let ffiBalance = MockE2EFFILocalBalance(
                 confirmed: 3000,
                 pending: 1500,
                 total: 4500
@@ -371,7 +371,7 @@ extension WalletService {
                     existingBalance.lastUpdated = Date()
                 } else {
                     // Safe creation pattern - properly insert through context
-                    let newBalance = Balance(
+                    let newBalance = LocalBalance(
                         confirmed: ffiBalance.confirmed,
                         pending: ffiBalance.pending,
                         instantLocked: ffiBalance.instantlocked,

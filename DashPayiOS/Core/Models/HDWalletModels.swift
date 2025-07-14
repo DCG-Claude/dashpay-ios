@@ -39,7 +39,7 @@ final class HDWallet {
         }
     }
     
-    var totalBalance: Balance {
+    var totalBalance: SwiftDashCoreSDK.Balance {
         var confirmed: UInt64 = 0
         var pending: UInt64 = 0
         var instantLocked: UInt64 = 0
@@ -59,7 +59,7 @@ final class HDWallet {
         }
         
         // Create a non-persisted balance object for display purposes
-        return Balance(
+        return SwiftDashCoreSDK.Balance(
             confirmed: confirmed,
             pending: pending,
             instantLocked: instantLocked,
@@ -85,7 +85,7 @@ final class HDAccount {
     var gapLimit: UInt32
     
     @Relationship var wallet: HDWallet?
-    @Relationship(deleteRule: .cascade) var balance: Balance?
+    @Relationship(deleteRule: .cascade) var balance: LocalBalance?
     @Relationship(deleteRule: .cascade) var addresses: [HDWatchedAddress]
     // Transaction IDs associated with this account (stored as comma-separated string)
     private var transactionIdsString: String = ""
@@ -149,7 +149,7 @@ public final class HDWatchedAddress {
     var createdAt: Date
     var lastActive: Date?
     var lastActivityTimestamp: Date? // For tracking recent transaction activity
-    var balance: Balance?
+    var balance: LocalBalance?
     // Transaction IDs associated with this address (stored as comma-separated string)
     private var transactionIdsString: String = ""
     // UTXO outpoints associated with this address (stored as comma-separated string)
@@ -187,7 +187,7 @@ public final class HDWatchedAddress {
         self.label = label
         self.createdAt = Date()
         // Initialize with a default balance to avoid nil issues
-        self.balance = Balance(
+        self.balance = LocalBalance(
             confirmed: 0,
             pending: 0,
             instantLocked: 0,
@@ -256,7 +256,7 @@ extension HDAccount {
             existingBalance.update(from: sdkBalance)
         } else {
             // Create new balance from SDK balance with safe defaults
-            let newBalance = Balance(
+            let newBalance = LocalBalance(
                 confirmed: sdkBalance.confirmed,
                 pending: sdkBalance.pending,
                 instantLocked: sdkBalance.instantLocked,
@@ -276,11 +276,11 @@ extension HDAccount {
     
     /// Create or update balance safely for test scenarios
     @MainActor
-    func createOrUpdateBalance(from balanceData: Balance, in context: ModelContext) throws {
+    func createOrUpdateBalance(from balanceData: LocalBalance, in context: ModelContext) throws {
         if let existingBalance = self.balance {
             existingBalance.update(from: balanceData)
         } else {
-            let newBalance = Balance(
+            let newBalance = LocalBalance(
                 confirmed: balanceData.confirmed,
                 pending: balanceData.pending,
                 instantLocked: balanceData.instantLocked,
@@ -309,7 +309,7 @@ extension HDWatchedAddress {
             existingBalance.update(from: sdkBalance)
         } else {
             // Create new balance from SDK balance with safe defaults
-            let newBalance = Balance(
+            let newBalance = LocalBalance(
                 confirmed: sdkBalance.confirmed,
                 pending: sdkBalance.pending,
                 instantLocked: sdkBalance.instantLocked,
@@ -329,13 +329,13 @@ extension HDWatchedAddress {
     
     /// Create or update balance safely for test scenarios
     @MainActor
-    func updateBalanceSafely(to newBalance: Balance, in context: ModelContext) throws {
+    func updateBalanceSafely(to newBalance: LocalBalance, in context: ModelContext) throws {
         if let existingBalance = self.balance {
             // Update existing balance in place
             existingBalance.update(from: newBalance)
         } else {
             // Create new balance
-            let balance = Balance(
+            let balance = LocalBalance(
                 confirmed: newBalance.confirmed,
                 pending: newBalance.pending,
                 instantLocked: newBalance.instantLocked,

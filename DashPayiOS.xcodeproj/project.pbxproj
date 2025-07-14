@@ -61,6 +61,7 @@
 		63ACA517B43486DC47FD63CD /* FFIHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEB71F943B21FCA8F6A816CB /* FFIHelpers.swift */; };
 		6444B2BB99CF8542B4942875 /* libkey_wallet_ffi_ios.a in Resources */ = {isa = PBXBuildFile; fileRef = 6E583D42F8A321D5879756A4 /* libkey_wallet_ffi_ios.a */; };
 		65BD3B6A9EFBE5A71BEF6C39 /* PlatformNetwork.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8248732FB8268EE061CAB061 /* PlatformNetwork.swift */; };
+		68258C8A9F30ED4B720A237D /* MockSPVClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DC0CF12FEAE6B2EA658E94D /* MockSPVClient.swift */; };
 		69A6B3BB1F0E18E61D0071E3 /* DashPayApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE2BB73A3D9548916F87EE11 /* DashPayApp.swift */; };
 		6AC4E8E49D31A1688B7FC4D5 /* ModelContainerHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99CF1AEC156C26D1FB85BEAA /* ModelContainerHelper.swift */; };
 		6C940F9B37E3F2A6C23B3987 /* SettingsConfigurationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF97B95E545ECB925F021DD6 /* SettingsConfigurationTests.swift */; };
@@ -112,6 +113,7 @@
 		BE6A792C9705579372621841 /* ContractService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CE93C500F721AAEB79AA6D5 /* ContractService.swift */; };
 		BF683F51A747C77013B9B5DF /* HDWatchedAddressTableTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7931730E9AC5568D7D37A0A7 /* HDWatchedAddressTableTests.swift */; };
 		C21FA551DFCBB02099FEDFFC /* EnhancedEditDocumentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35718E94D4BAA8017E6180E7 /* EnhancedEditDocumentView.swift */; };
+		C7E76A4D88F5425EF7C55863 /* DashSDK.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF494A717BDF9A22155145F1 /* DashSDK.swift */; };
 		C9F7CC062396A9404D1A7C63 /* HDWalletService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD2DCE024D0551D1BABE3284 /* HDWalletService.swift */; };
 		CA54956BE004A7F5F6A3A542 /* TransactionModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D4D01E9580F087FCD3F012F /* TransactionModelTests.swift */; };
 		CA6DBCD40DA1FF053AE07FF0 /* DocumentHistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E395008C5A5B536A1340E36 /* DocumentHistoryView.swift */; };
@@ -122,10 +124,11 @@
 		D5528CF81943A7BF2EC0E236 /* SettingsAuditTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF8BD1DE80760F2746519094 /* SettingsAuditTests.swift */; };
 		D88DB98DA2DB156011D9BC7E /* FFIConfigTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2B38072D678C97BC20EB06B /* FFIConfigTests.swift */; };
 		D8F3E8043AF98989B9A9E9E2 /* HDWalletModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F0E3B2D0569154A9CC38874 /* HDWalletModels.swift */; };
-		DDAF33ADDAAEF41B7ABB03C2 /* SPVClientFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42A6C1CB8AACFCD1DC19865E /* SPVClientFactory.swift */; };
 		DF9788E5D63FD6EBC3355E1E /* PersistentDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2294B9107FED69B442539568 /* PersistentDocument.swift */; };
 		DFC4492144C089CD95BD8BB2 /* AccountDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAB37F1DB1274E00A91BDC64 /* AccountDetailView.swift */; };
 		DFFB1E5A643641D8553FB665 /* UnifiedStateManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 175986375A97441F5318B12A /* UnifiedStateManagerTests.swift */; };
+		E538BBFBC929DF1E4356BB03 /* FFIInitializer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21230D97A58E96BA2CEC5DCD /* FFIInitializer.swift */; };
+		E808B7627FFD9E240E583E32 /* SPVClientFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28862712356467AC867B0A4E /* SPVClientFactory.swift */; };
 		E9785956015C53737DD34986 /* EnhancedSyncProgressView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5ED71164CB5D860C76A0B69E /* EnhancedSyncProgressView.swift */; };
 		E9B5B536BA37EBEAA9DEE9A9 /* LocalNotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 428004FE894507CE4C4384E5 /* LocalNotificationService.swift */; };
 		EC3B8420D571ABDA2E9725D0 /* ContractsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F40F93CF476CFB7B82402CE /* ContractsView.swift */; };
@@ -136,7 +139,7 @@
 		F2ABA58F5A07F61461E81746 /* TestnetNodes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 575FCD252F2C9344820943EA /* TestnetNodes.swift */; };
 		F34978267A09D314C890BAB7 /* TransactionBuilderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B21F973487B186EF5F494C3C /* TransactionBuilderTests.swift */; };
 		F60DD38F65184F12CBF680DA /* FFIIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A17EB5B6C1F3B9101635C8F /* FFIIntegrationTests.swift */; };
-		F70733A9D516AE89EA898CA1 /* MockSPVClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0EE7155CF22C5162CCBFEA1 /* MockSPVClient.swift */; };
+		F86D02503A866511311C2BEF /* SPVConfigurationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66DBA3138B86BF5545BB0D4B /* SPVConfigurationManager.swift */; };
 		F8AD848933FCEB90D4A512DD /* IdentityDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 795451A0CF5B7CBF1B04F23E /* IdentityDetailView.swift */; };
 		FB7EAFA18115B19FC6ABD677 /* DPPCoreTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 274A03725C8D5A353FF930FE /* DPPCoreTypes.swift */; };
 		FE086EBF2B93268453115DB2 /* Security.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F52BF93A1ADB878587E299E2 /* Security.framework */; };
@@ -189,12 +192,14 @@
 		1B7DA3021E7DD1C512E17690 /* DashUnified.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = DashUnified.xcframework; path = DashPayiOS/Libraries/DashUnified.xcframework; sourceTree = "<group>"; };
 		1D4D01E9580F087FCD3F012F /* TransactionModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransactionModelTests.swift; sourceTree = "<group>"; };
 		1D99E56AC63B36A3714FCDAC /* DashPayiOSUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashPayiOSUITests.swift; sourceTree = "<group>"; };
+		21230D97A58E96BA2CEC5DCD /* FFIInitializer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FFIInitializer.swift; sourceTree = "<group>"; };
 		2294B9107FED69B442539568 /* PersistentDocument.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistentDocument.swift; sourceTree = "<group>"; };
 		2431403449E2F470DBAEF422 /* IdentityBalanceExample.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IdentityBalanceExample.swift; sourceTree = "<group>"; };
 		25EA50B0BC01C65D14CDC970 /* PersistentWalletManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistentWalletManager.swift; sourceTree = "<group>"; };
 		26E1E9F2DC6AC6F4B09D5F49 /* DataContract.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataContract.swift; sourceTree = "<group>"; };
 		274A03725C8D5A353FF930FE /* DPPCoreTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DPPCoreTypes.swift; sourceTree = "<group>"; };
 		27D1270674AD1F7B4F6D9731 /* WalletServiceIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalletServiceIntegrationTests.swift; sourceTree = "<group>"; };
+		28862712356467AC867B0A4E /* SPVClientFactory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SPVClientFactory.swift; sourceTree = "<group>"; };
 		296AC455CE9B36466E105120 /* StorageManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageManager.swift; sourceTree = "<group>"; };
 		2AAFAE17F1305582AFF2834A /* key_wallet_ffiFFI.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = key_wallet_ffiFFI.h; sourceTree = "<group>"; };
 		2CAA6BCB73E3BAF1B6EBE84E /* DashPayiOSUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = DashPayiOSUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -212,7 +217,6 @@
 		3BD3192DD622685430707375 /* LoadIdentityView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoadIdentityView.swift; sourceTree = "<group>"; };
 		4077740FF4B38FC194D6F260 /* MockDashSDK.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockDashSDK.swift; sourceTree = "<group>"; };
 		428004FE894507CE4C4384E5 /* LocalNotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalNotificationService.swift; sourceTree = "<group>"; };
-		42A6C1CB8AACFCD1DC19865E /* SPVClientFactory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SPVClientFactory.swift; sourceTree = "<group>"; };
 		4324D2BB8CFA45D17E6C8D37 /* EnhancedDocumentDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnhancedDocumentDetailView.swift; sourceTree = "<group>"; };
 		45107DD05390DA8131FEC908 /* TokensView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokensView.swift; sourceTree = "<group>"; };
 		4F0E3B2D0569154A9CC38874 /* HDWalletModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HDWalletModels.swift; sourceTree = "<group>"; };
@@ -226,6 +230,7 @@
 		5FAEFA1C8E8BE900A4A0F477 /* SettingsUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsUITests.swift; sourceTree = "<group>"; };
 		652643D4FDBB3A1E45B49CFE /* DocumentService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentService.swift; sourceTree = "<group>"; };
 		6531DC0548A8674E08BB4BC0 /* DashSDK+AssetLock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DashSDK+AssetLock.swift"; sourceTree = "<group>"; };
+		66DBA3138B86BF5545BB0D4B /* SPVConfigurationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SPVConfigurationManager.swift; sourceTree = "<group>"; };
 		6725F6C9FF38B01395866E36 /* IntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntegrationTests.swift; sourceTree = "<group>"; };
 		6A17EB5B6C1F3B9101635C8F /* FFIIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FFIIntegrationTests.swift; sourceTree = "<group>"; };
 		6AD8DC0F12F21BF939B07627 /* DashPayiOSTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = DashPayiOSTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -257,6 +262,7 @@
 		99CF1AEC156C26D1FB85BEAA /* ModelContainerHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelContainerHelper.swift; sourceTree = "<group>"; };
 		9A557C792C2C66682A6A5119 /* ContractModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContractModel.swift; sourceTree = "<group>"; };
 		9B821903B80595DFCF865032 /* SendTransactionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SendTransactionTests.swift; sourceTree = "<group>"; };
+		9DC0CF12FEAE6B2EA658E94D /* MockSPVClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockSPVClient.swift; sourceTree = "<group>"; };
 		9F40F93CF476CFB7B82402CE /* ContractsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContractsView.swift; sourceTree = "<group>"; };
 		9F729EF600A075FD165258B1 /* TokenModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenModel.swift; sourceTree = "<group>"; };
 		9FB60B56F52D5FFADDEFBABF /* SDKExtensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKExtensions.swift; sourceTree = "<group>"; };
@@ -268,6 +274,7 @@
 		AD5047C93161130024E88C05 /* Clipboard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Clipboard.swift; sourceTree = "<group>"; };
 		AE880914055A07EBF8ED00D3 /* DashPayiOS-Bridging-Header.h.backup */ = {isa = PBXFileReference; path = "DashPayiOS-Bridging-Header.h.backup"; sourceTree = "<group>"; };
 		AEA98383216475B572905E71 /* WalletService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalletService.swift; sourceTree = "<group>"; };
+		AF494A717BDF9A22155145F1 /* DashSDK.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashSDK.swift; sourceTree = "<group>"; };
 		B21F973487B186EF5F494C3C /* TransactionBuilderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransactionBuilderTests.swift; sourceTree = "<group>"; };
 		B5B20D2C470BD0CADE0105F2 /* libc++.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = "libc++.tbd"; path = "usr/lib/libc++.tbd"; sourceTree = SDKROOT; };
 		B87981DBF54EFC3A88243275 /* EnhancedDocumentsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnhancedDocumentsView.swift; sourceTree = "<group>"; };
@@ -306,7 +313,6 @@
 		EE6CA5405BAF0A62ADE91E6F /* DashPayiOS-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "DashPayiOS-Bridging-Header.h"; sourceTree = "<group>"; };
 		EEDDE145F789DEE9BBBFF372 /* swift-dash-core-sdk */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "swift-dash-core-sdk"; path = "../rust-dashcore/swift-dash-core-sdk"; sourceTree = SOURCE_ROOT; };
 		EF8BD1DE80760F2746519094 /* SettingsAuditTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsAuditTests.swift; sourceTree = "<group>"; };
-		F0EE7155CF22C5162CCBFEA1 /* MockSPVClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockSPVClient.swift; sourceTree = "<group>"; };
 		F155DB47F35ABB7E02AD9BDA /* TransactionNotificationBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransactionNotificationBanner.swift; sourceTree = "<group>"; };
 		F197D6FDA8AC508DCF4D8FB7 /* UnifiedFFIInitializer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnifiedFFIInitializer.swift; sourceTree = "<group>"; };
 		F1BA90B5595D9DC4A6C08C95 /* PersistentTokenBalance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistentTokenBalance.swift; sourceTree = "<group>"; };
@@ -339,6 +345,15 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		0EC0ED771058B83ABC2A088E /* Core */ = {
+			isa = PBXGroup;
+			children = (
+				9DC0CF12FEAE6B2EA658E94D /* MockSPVClient.swift */,
+				28862712356467AC867B0A4E /* SPVClientFactory.swift */,
+			);
+			path = Core;
+			sourceTree = "<group>";
+		};
 		21A987E3C533FAFF95BA2F26 /* DPP */ = {
 			isa = PBXGroup;
 			children = (
@@ -438,6 +453,14 @@
 				1D99E56AC63B36A3714FCDAC /* DashPayiOSUITests.swift */,
 			);
 			path = DashPayiOSUITests;
+			sourceTree = "<group>";
+		};
+		4DB74AF098079427DD493021 /* FFI */ = {
+			isa = PBXGroup;
+			children = (
+				21230D97A58E96BA2CEC5DCD /* FFIInitializer.swift */,
+			);
+			path = FFI;
 			sourceTree = "<group>";
 		};
 		4F8B1F08298D585B645E0B50 = {
@@ -642,6 +665,16 @@
 			name = Packages;
 			sourceTree = "<group>";
 		};
+		A9B91E82A04C1B7C755A85BF /* SwiftDashCoreSDK */ = {
+			isa = PBXGroup;
+			children = (
+				AF494A717BDF9A22155145F1 /* DashSDK.swift */,
+				0EC0ED771058B83ABC2A088E /* Core */,
+				4DB74AF098079427DD493021 /* FFI */,
+			);
+			path = SwiftDashCoreSDK;
+			sourceTree = "<group>";
+		};
 		AD87A99477BB2CDFDED6D92E /* DashPayiOS */ = {
 			isa = PBXGroup;
 			children = (
@@ -654,6 +687,7 @@
 				3571CE0904AE8A051E34677D /* Libraries */,
 				9879A39CA3431D66E485D2F5 /* Platform */,
 				87C901DCC78D07E905950ADC /* Shared */,
+				A9B91E82A04C1B7C755A85BF /* SwiftDashCoreSDK */,
 				55D76EFBA1E2A21E14BE2737 /* Utils */,
 			);
 			path = DashPayiOS;
@@ -680,8 +714,6 @@
 			isa = PBXGroup;
 			children = (
 				6531DC0548A8674E08BB4BC0 /* DashSDK+AssetLock.swift */,
-				F0EE7155CF22C5162CCBFEA1 /* MockSPVClient.swift */,
-				42A6C1CB8AACFCD1DC19865E /* SPVClientFactory.swift */,
 			);
 			path = SDK;
 			sourceTree = "<group>";
@@ -727,6 +759,14 @@
 			path = SDK;
 			sourceTree = "<group>";
 		};
+		EB38805F5F52D556BF569404 /* Configuration */ = {
+			isa = PBXGroup;
+			children = (
+				66DBA3138B86BF5545BB0D4B /* SPVConfigurationManager.swift */,
+			);
+			path = Configuration;
+			sourceTree = "<group>";
+		};
 		F886F5A679CA976627B002E2 /* Bridges */ = {
 			isa = PBXGroup;
 			children = (
@@ -740,6 +780,7 @@
 		FC5F261D6B13D4C7B85EB807 /* Core */ = {
 			isa = PBXGroup;
 			children = (
+				EB38805F5F52D556BF569404 /* Configuration */,
 				CAE5671CCE1549E2389311F0 /* Debug */,
 				4056281B9A3FF460AEA78B7E /* Models */,
 				C9BC7727C228AE0FCFBD2660 /* SDK */,
@@ -900,6 +941,7 @@
 				FB7EAFA18115B19FC6ABD677 /* DPPCoreTypes.swift in Sources */,
 				69A6B3BB1F0E18E61D0071E3 /* DashPayApp.swift in Sources */,
 				9B5811D3C949B85E31CDB057 /* DashSDK+AssetLock.swift in Sources */,
+				C7E76A4D88F5425EF7C55863 /* DashSDK.swift in Sources */,
 				250500F57C5203A348136765 /* DataContract.swift in Sources */,
 				AF48FE773C13B236AB8EEE43 /* DataManager.swift in Sources */,
 				4ACDB97DDE7F4A30EF19A726 /* DebugLogger.swift in Sources */,
@@ -918,6 +960,7 @@
 				5CE889CC26CC5EC55C1B31F0 /* EnhancedReceiveAddressView.swift in Sources */,
 				E9785956015C53737DD34986 /* EnhancedSyncProgressView.swift in Sources */,
 				63ACA517B43486DC47FD63CD /* FFIHelpers.swift in Sources */,
+				E538BBFBC929DF1E4356BB03 /* FFIInitializer.swift in Sources */,
 				D8F3E8043AF98989B9A9E9E2 /* HDWalletModels.swift in Sources */,
 				C9F7CC062396A9404D1A7C63 /* HDWalletService.swift in Sources */,
 				9100049B6111126975BF5B1E /* IdentitiesView.swift in Sources */,
@@ -929,7 +972,7 @@
 				0B412E66728FDAFB35BC25CD /* KeychainSigner.swift in Sources */,
 				361048865CC064F0C4357CBC /* LoadIdentityView.swift in Sources */,
 				E9B5B536BA37EBEAA9DEE9A9 /* LocalNotificationService.swift in Sources */,
-				F70733A9D516AE89EA898CA1 /* MockSPVClient.swift in Sources */,
+				68258C8A9F30ED4B720A237D /* MockSPVClient.swift in Sources */,
 				32037F68E40DF2AD683D6E04 /* ModelContainer+App.swift in Sources */,
 				6AC4E8E49D31A1688B7FC4D5 /* ModelContainerHelper.swift in Sources */,
 				8A97F0EF71EA495F057A39A1 /* NetworkMonitor.swift in Sources */,
@@ -946,7 +989,8 @@
 				36208B396CB0466B751FEAF5 /* PlatformSigner.swift in Sources */,
 				8DAD5CBD20BB91FD7B7A4E81 /* ReceiveAddressView.swift in Sources */,
 				CC9A4EE0AC14DF6EB66DC55B /* SDKExtensions.swift in Sources */,
-				DDAF33ADDAAEF41B7ABB03C2 /* SPVClientFactory.swift in Sources */,
+				E808B7627FFD9E240E583E32 /* SPVClientFactory.swift in Sources */,
+				F86D02503A866511311C2BEF /* SPVConfigurationManager.swift in Sources */,
 				7B022AD34CDEAFF53600BFC6 /* SendTransactionView.swift in Sources */,
 				10B7044B4CC320F9E5376DBA /* SettingsView.swift in Sources */,
 				0B807F66C5511C0C89B3A935 /* StandaloneModels.swift in Sources */,

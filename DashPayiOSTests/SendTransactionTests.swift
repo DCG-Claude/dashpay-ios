@@ -145,14 +145,14 @@ final class SendTransactionTests: TransactionTestBase {
     
     func testSufficientBalanceValidation() {
         // Given: Account with sufficient balance
-        let balance = createMockBalance(confirmed: 200_000_000) // 2.0 DASH
+        let balance = createMockLocalBalance(confirmed: 200_000_000) // 2.0 DASH
         testAccount.balance = balance
         
         let sendAmount: UInt64 = 100_000_000 // 1.0 DASH
         let estimatedFee: UInt64 = 1000
         
         // When: Checking if balance is sufficient
-        let isSufficient = sendTransactionService.hasSufficientBalance(
+        let isSufficient = sendTransactionService.hasSufficientLocalBalance(
             account: testAccount,
             amount: sendAmount,
             fee: estimatedFee
@@ -164,14 +164,14 @@ final class SendTransactionTests: TransactionTestBase {
     
     func testInsufficientBalanceValidation() {
         // Given: Account with insufficient balance
-        let balance = createMockBalance(confirmed: 50_000_000) // 0.5 DASH
+        let balance = createMockLocalBalance(confirmed: 50_000_000) // 0.5 DASH
         testAccount.balance = balance
         
         let sendAmount: UInt64 = 100_000_000 // 1.0 DASH
         let estimatedFee: UInt64 = 1000
         
         // When: Checking if balance is sufficient
-        let isSufficient = sendTransactionService.hasSufficientBalance(
+        let isSufficient = sendTransactionService.hasSufficientLocalBalance(
             account: testAccount,
             amount: sendAmount,
             fee: estimatedFee
@@ -187,11 +187,11 @@ final class SendTransactionTests: TransactionTestBase {
         let estimatedFee: UInt64 = 1000
         let totalNeeded = sendAmount + estimatedFee
         
-        let balance = createMockBalance(confirmed: totalNeeded)
+        let balance = createMockLocalBalance(confirmed: totalNeeded)
         testAccount.balance = balance
         
         // When: Checking if balance is sufficient for exact amount
-        let isSufficient = sendTransactionService.hasSufficientBalance(
+        let isSufficient = sendTransactionService.hasSufficientLocalBalance(
             account: testAccount,
             amount: sendAmount,
             fee: estimatedFee
@@ -283,7 +283,7 @@ final class SendTransactionTests: TransactionTestBase {
     func testMaximumSendableAmount() {
         // Given: Account with known balance
         let totalBalance: UInt64 = 500_000_000 // 5.0 DASH
-        let balance = createMockBalance(confirmed: totalBalance)
+        let balance = createMockLocalBalance(confirmed: totalBalance)
         testAccount.balance = balance
         
         let estimatedFee: UInt64 = 2000
@@ -299,10 +299,10 @@ final class SendTransactionTests: TransactionTestBase {
         XCTAssertEqual(maxAmount, expectedMax, "Max amount should be balance minus fee")
     }
     
-    func testMaximumAmountWithInsufficientBalance() {
+    func testMaximumAmountWithInsufficientLocalBalance() {
         // Given: Account with balance less than fee
         let smallBalance: UInt64 = 500 // Very small balance
-        let balance = createMockBalance(confirmed: smallBalance)
+        let balance = createMockLocalBalance(confirmed: smallBalance)
         testAccount.balance = balance
         
         let largeFee: UInt64 = 2000 // Fee larger than balance
@@ -317,9 +317,9 @@ final class SendTransactionTests: TransactionTestBase {
         XCTAssertEqual(maxAmount, 0, "Max amount should be 0 when balance < fee")
     }
     
-    func testMaximumAmountWithZeroBalance() {
+    func testMaximumAmountWithZeroLocalBalance() {
         // Given: Account with zero balance
-        let balance = createMockBalance(confirmed: 0)
+        let balance = createMockLocalBalance(confirmed: 0)
         testAccount.balance = balance
         
         // When: Calculating maximum sendable amount
@@ -369,7 +369,7 @@ final class SendTransactionTests: TransactionTestBase {
         let feeRate = FeeRate.normal
         
         // Account has limited balance
-        let balance = createMockBalance(confirmed: 100_000_000) // 1.0 DASH
+        let balance = createMockLocalBalance(confirmed: 100_000_000) // 1.0 DASH
         testAccount.balance = balance
         
         do {
@@ -472,7 +472,7 @@ final class SendTransactionTests: TransactionTestBase {
         let feeRate = FeeRate.normal
         
         // Setup account with sufficient balance
-        let balance = createMockBalance(confirmed: 200_000_000) // 2.0 DASH
+        let balance = createMockLocalBalance(confirmed: 200_000_000) // 2.0 DASH
         testAccount.balance = balance
         
         // Add UTXO to account
@@ -735,7 +735,7 @@ class SendTransactionService {
     
     // MARK: - Balance Validation
     
-    func hasSufficientBalance(account: HDAccount, amount: UInt64, fee: UInt64) -> Bool {
+    func hasSufficientLocalBalance(account: HDAccount, amount: UInt64, fee: UInt64) -> Bool {
         guard let balance = account.balance else { return false }
         return balance.total >= (amount + fee)
     }
@@ -783,7 +783,7 @@ class SendTransactionService {
         
         let estimatedFee = try await estimateFee(amount: amount, recipientAddress: recipientAddress, feeRate: feeRate)
         
-        guard hasSufficientBalance(account: account, amount: amount, fee: estimatedFee) else {
+        guard hasSufficientLocalBalance(account: account, amount: amount, fee: estimatedFee) else {
             throw TransactionError.insufficientFunds(required: amount + estimatedFee, available: account.balance?.total ?? 0)
         }
         

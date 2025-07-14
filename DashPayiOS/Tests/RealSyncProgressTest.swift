@@ -9,7 +9,7 @@ class RealSyncProgressTest: XCTestCase {
         try await super.setUp()
         
         // Create testnet configuration with proper peers
-        let config = SPVClientConfiguration.testnet()
+        let config = SPVConfigurationManager.shared.configuration(for: .testnet)
         config.logLevel = "debug"  // Enable debug logging
         
         print("🧪 Test setup - Creating SDK with config: \(config.network.name)")

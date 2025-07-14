@@ -163,7 +163,7 @@ final class DatabaseValidationTests: XCTestCase {
         
         // Update address balances (simulating sync results)
         for address in account.addresses {
-            let balance = Balance(
+            let balance = LocalBalance(
                 confirmed: 100_000_000, // 1 DASH
                 pending: 0,
                 instantLocked: 0,

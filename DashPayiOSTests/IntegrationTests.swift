@@ -6,16 +6,16 @@ final class IntegrationTests: XCTestCase {
     
     func test_bothSDKsInitialize() async throws {
         // Test Core SDK
-        let config = SPVClientConfiguration.testnet()
+        let config = await SPVConfigurationManager.shared.configuration(for: .testnet)
         let coreSDK = try await Task { @MainActor in
-            try DashSDK(configuration: config)
+            try DashPay.DashSDK(configuration: config)
         }.value
         XCTAssertNotNil(coreSDK)
         
         // Test Platform SDK wrapper
-        let coreConfig = SPVClientConfiguration.testnet()
+        let coreConfig = await SPVConfigurationManager.shared.configuration(for: .testnet)
         let coreSDK2 = try await Task { @MainActor in
-            try DashSDK(configuration: coreConfig)
+            try DashPay.DashSDK(configuration: coreConfig)
         }.value
         let platformWrapper = try await Task { @MainActor in
             try PlatformSDKWrapper(network: .testnet, coreSDK: coreSDK2)

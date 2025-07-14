@@ -8,12 +8,12 @@ import SwiftDashCoreSDK
 public class MockSPVClient {
     private let configuration: SPVClientConfiguration
     private var mockSyncProgress: SyncProgress?
-    private var mockBalance = SwiftDashCoreSDK.Balance(confirmed: 0, pending: 0, instantLocked: 0, total: 0)
+    private var mockBalance = Balance(confirmed: 0, pending: 0, instantLocked: 0, total: 0)
     
     public private(set) var isConnected = false
-    public private(set) var isSyncing = false
-    public private(set) var currentHeight: UInt32 = 0
-    public private(set) var peers: Int = 0
+    private var isSyncing = false
+    private var currentHeight: UInt32 = 0
+    private var peers: Int = 0
     public private(set) var syncProgress: SyncProgress?
     public private(set) var stats: SPVStats?
     
@@ -78,7 +78,7 @@ public class MockSPVClient {
     
     public func syncToTip() async throws -> AsyncThrowingStream<SyncProgress, Error> {
         guard isConnected else {
-            throw DashSDKError.notConnected
+            throw SwiftDashCoreSDK.DashSDKError.notConnected
         }
         
         return AsyncThrowingStream { continuation in
@@ -115,14 +115,20 @@ public class MockSPVClient {
     
     public func startSync() async throws {
         guard isConnected else {
-            throw DashSDKError.notConnected
+            throw SwiftDashCoreSDK.DashSDKError.notConnected
         }
         
         guard !isSyncing else { return }
         
         isSyncing = true
-        // Sync started event not available in SDK - use progress update
-        let progress = SyncProgress(currentHeight: currentHeight, totalHeight: 2_000_000, progress: 0.0, status: .downloadingHeaders)
+        // SPVEvent doesn't have syncStarted - send sync progress instead
+        let progress = SyncProgress(
+            currentHeight: currentHeight,
+            totalHeight: 2_000_000,
+            progress: 0.0,
+            status: .downloadingHeaders,
+            message: "Sync started"
+        )
         eventSubject.send(.syncProgressUpdated(progress))
         
         do {
@@ -131,11 +137,23 @@ public class MockSPVClient {
                 // Progress updates are handled by the stream
             }
             isSyncing = false
-            let progress = SyncProgress(currentHeight: currentHeight, totalHeight: currentHeight, progress: 1.0, status: .synced)
-            eventSubject.send(.syncProgressUpdated(progress))
+            let completedProgress = SyncProgress(
+                currentHeight: currentHeight,
+                totalHeight: currentHeight,
+                progress: 1.0,
+                status: .synced,
+                message: "Sync completed"
+            )
+            eventSubject.send(.syncProgressUpdated(completedProgress))
         } catch {
             isSyncing = false
-            eventSubject.send(.error(DashSDKError.syncError(error.localizedDescription)))
+            // Convert error to DashSDKError if possible, otherwise use generic
+            if let sdkError = error as? SwiftDashCoreSDK.DashSDKError {
+                eventSubject.send(.error(sdkError))
+            } else {
+                // Can't send non-SDK errors through event system
+                print("🎭 MockSPVClient: Sync failed with error: \(error)")
+            }
             throw error
         }
     }
@@ -163,11 +181,11 @@ public class MockSPVClient {
     
     // MARK: - Balance Queries
     
-    public func getAddressBalance(_ address: String) async throws -> SwiftDashCoreSDK.Balance {
+    public func getAddressBalance(_ address: String) async throws -> Balance {
         print("🎭 MockSPVClient: Getting balance for address: \(address)")
         
         // Return mock balance
-        return SwiftDashCoreSDK.Balance(
+        return Balance(
             confirmed: 100_000_000, // 1 DASH
             pending: 0,
             instantLocked: 0,
@@ -175,11 +193,11 @@ public class MockSPVClient {
         )
     }
     
-    public func getTotalBalance() async throws -> SwiftDashCoreSDK.Balance {
+    public func getTotalBalance() async throws -> Balance {
         return mockBalance
     }
     
-    public func getBalanceWithMempool() async throws -> SwiftDashCoreSDK.Balance {
+    public func getBalanceWithMempool() async throws -> Balance {
         return mockBalance
     }
     
@@ -196,15 +214,14 @@ public class MockSPVClient {
         return mockTxId
     }
     
-    public func broadcastTransaction(_ txHex: String) async throws -> String {
+    public func broadcastTransaction(_ txHex: String) async throws {
         print("🎭 MockSPVClient: Broadcasting transaction (hex: \(txHex.prefix(20))...)")
         
         // Simulate broadcast delay
         try await Task.sleep(nanoseconds: 1_000_000_000) // 1 second
         
-        // Return mock txid
-        let mockTxId = UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased()
-        return mockTxId
+        // Mock success - in real implementation, the txid would be obtained from the response
+        print("🎭 MockSPVClient: Transaction broadcast successfully")
     }
     
     // MARK: - Mempool Operations
@@ -215,9 +232,13 @@ public class MockSPVClient {
     }
     
     public func getMempoolBalance(for address: String) async throws -> MempoolBalance {
-        // Mock implementation - In real SPVClient this would query the actual mempool
-        // Since MempoolBalance doesn't have public init, we'll throw an error for now
-        throw DashSDKError.invalidArgument("Mempool balance not available in mock")
+        // MempoolBalance doesn't have a public initializer in the SDK
+        // For mock purposes, throw a not implemented error
+        // Use a generic error since we can't create MempoolBalance in mock
+        struct MockError: Error {
+            let message: String
+        }
+        throw MockError(message: "Mock mempool balance not available")
     }
     
     public func getMempoolTransactionCount() async throws -> Int {
@@ -282,7 +303,7 @@ extension MockSPVClient {
         
         // Update balance
         if confirmed {
-            mockBalance = SwiftDashCoreSDK.Balance(
+            mockBalance = Balance(
                 confirmed: mockBalance.confirmed + UInt64(abs(amount)),
                 pending: mockBalance.pending,
                 instantLocked: mockBalance.instantLocked,
@@ -293,7 +314,7 @@ extension MockSPVClient {
     }
     
     /// Set mock balance
-    public func setMockBalance(_ balance: SwiftDashCoreSDK.Balance) {
+    public func setMockBalance(_ balance: Balance) {
         mockBalance = balance
         eventSubject.send(.balanceUpdated(balance))
     }
@@ -329,8 +350,18 @@ extension MockSPVClient {
                 // Simulate progress update
                 isComplete = true
                 
-                // DetailedSyncProgress can't be created directly - return nil to end iteration
-                return nil
+                return DetailedSyncProgress(
+                    currentHeight: client.currentHeight,
+                    totalHeight: 2_000_000,
+                    percentage: 95.0,
+                    headersPerSecond: 1000.0,
+                    estimatedSecondsRemaining: 30,
+                    stage: .downloading,
+                    stageMessage: "Mock sync in progress...",
+                    connectedPeers: UInt32(client.peers),
+                    totalHeadersProcessed: UInt64(client.currentHeight),
+                    syncStartTimestamp: Date()
+                )
             }
         }
     }

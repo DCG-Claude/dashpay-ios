@@ -587,7 +587,7 @@ class TransactionTestBase: XCTestCase {
     
     // MARK: - Mock Balance Creation
     
-    func createMockBalance(
+    func createMockLocalBalance(
         confirmed: UInt64 = 0,
         pending: UInt64 = 0,
         instantLocked: UInt64 = 0,
@@ -595,7 +595,7 @@ class TransactionTestBase: XCTestCase {
         mempoolInstant: UInt64 = 0
     ) -> Balance {
         let total = confirmed + pending + mempool
-        return Balance(
+        return LocalBalance(
             confirmed: confirmed,
             pending: pending,
             instantLocked: instantLocked,

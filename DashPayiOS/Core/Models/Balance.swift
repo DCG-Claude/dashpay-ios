@@ -5,7 +5,7 @@ import SwiftDashCoreSDK
 // Local Balance model for DashPayiOS
 // This is separate from SwiftDashCoreSDK.Balance to avoid SwiftData conflicts
 @Model
-final class Balance {
+final class LocalBalance {
     var confirmed: UInt64
     var pending: UInt64
     var instantLocked: UInt64
@@ -33,8 +33,8 @@ final class Balance {
     }
     
     // Create from SDK Balance - static factory method
-    static func from(_ sdkBalance: SwiftDashCoreSDK.Balance) -> Balance {
-        return Balance(
+    static func from(_ sdkBalance: SwiftDashCoreSDK.Balance) -> LocalBalance {
+        return LocalBalance(
             confirmed: sdkBalance.confirmed,
             pending: sdkBalance.pending,
             instantLocked: sdkBalance.instantLocked,
@@ -56,8 +56,8 @@ final class Balance {
         self.lastUpdated = sdkBalance.lastUpdated
     }
     
-    // Update from another Balance
-    func update(from other: Balance) {
+    // Update from another LocalBalance
+    func update(from other: LocalBalance) {
         self.confirmed = other.confirmed
         self.pending = other.pending
         self.instantLocked = other.instantLocked
@@ -78,7 +78,7 @@ final class Balance {
 }
 
 // MARK: - Formatting Extensions
-extension Balance {
+extension LocalBalance {
     var formattedConfirmed: String {
         return formatDash(confirmed)
     }

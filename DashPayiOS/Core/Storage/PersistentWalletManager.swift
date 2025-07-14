@@ -6,13 +6,13 @@ import os.log
 
 @Observable
 final class PersistentWalletManager {
-    private let client: SPVClient
+    private let client: SwiftDashCoreSDK.SPVClient
     private let storage: StorageManager
     private var syncTask: Task<Void, Never>?
     private let logger = Logger(subsystem: "com.dash.wallet", category: "PersistentWalletManager")
     
     var watchedAddresses: Set<String> = []
-    var totalBalance: Balance = Balance(
+    var totalBalance: SwiftDashCoreSDK.Balance = SwiftDashCoreSDK.Balance(
         confirmed: 0,
         pending: 0,
         instantLocked: 0,
@@ -21,7 +21,7 @@ final class PersistentWalletManager {
         total: 0
     )
     
-    init(client: SPVClient, storage: StorageManager) {
+    init(client: SwiftDashCoreSDK.SPVClient, storage: StorageManager) {
         self.client = client
         self.storage = storage
         
@@ -103,7 +103,7 @@ final class PersistentWalletManager {
         )
         
         // Save to storage
-        let balanceModel = Balance(
+        let balanceModel = LocalBalance(
             confirmed: balance.confirmed,
             pending: balance.pending,
             instantLocked: balance.instantLocked,
@@ -393,7 +393,7 @@ final class PersistentWalletManager {
             
             // Create balance if present
             if let exportedBalance = exportedAddress.balance {
-                let balance = Balance(
+                let balance = LocalBalance(
                     confirmed: exportedBalance.confirmed,
                     pending: exportedBalance.pending,
                     instantLocked: exportedBalance.instantLocked,

@@ -196,7 +196,7 @@ final class HDWatchedAddressTableTests: XCTestCase {
     // MARK: - Balance Tests
     
     @MainActor
-    func testHDWatchedAddressBalance() throws {
+    func testHDWatchedAddressLocalBalance() throws {
         // Given: An address
         container = try ModelContainerHelper.createContainer()
         let context = container.mainContext
@@ -212,7 +212,7 @@ final class HDWatchedAddressTableTests: XCTestCase {
         try context.save()
         
         // When: Updating balance using safe method
-        let sdkBalance = SwiftDashCoreSDK.Balance(
+        let sdkBalance = SwiftDashCoreSDK.LocalBalance(
             confirmed: 500_000_000, // 5 DASH
             pending: 100_000_000,   // 1 DASH
             instantLocked: 200_000_000, // 2 DASH

@@ -445,36 +445,12 @@ class WalletService: ObservableObject {
         }
         
         // Create SDK configuration
-        logger.info("🔧 Creating SPV configuration...")
-        let config = SPVClientConfiguration()
-        config.network = wallet.network
-        config.validationMode = ValidationMode.full
+        logger.info("🔧 Getting SPV configuration from manager...")
+        let config = SPVConfigurationManager.shared.configuration(for: wallet.network)
+        logger.info("📁 SPV data directory: \(config.dataDirectory?.path ?? "nil")")
         
-        // IMPORTANT: Set up data directory for persistence (fixing sync issue)
-        if let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
-            config.dataDirectory = documentsPath.appendingPathComponent("DashSPV").appendingPathComponent(wallet.network.rawValue)
-            logger.info("📁 SPV data directory set to: \(config.dataDirectory?.path ?? "nil")")
-            
-            // Create directory if it doesn't exist
-            if let dataDir = config.dataDirectory {
-                try? FileManager.default.createDirectory(at: dataDir, withIntermediateDirectories: true)
-            }
-        }
-        
-        // Enable trace logging for debugging
+        // Override log level for debugging if needed (temporary)
         config.logLevel = "trace"
-        
-        logger.info("📝 Configuration settings:")
-        logger.info("   Network: \(config.network.rawValue)")
-        logger.info("   Validation Mode: \(config.validationMode.rawValue)")
-        logger.info("   Max Peers: \(config.maxPeers)")
-        logger.info("   Data Directory: \(config.dataDirectory?.path ?? "None")")
-        logger.info("   Log Level: \(config.logLevel)")
-        
-        // Enable mempool tracking with FetchAll strategy for testing
-        // This allows the wallet to see all network transactions
-        config.mempoolConfig = .fetchAll(maxTransactions: 5000)
-        logger.info("   Mempool Config: FetchAll (max: 5000)")
         
         // Configure peers based on user preference
         let useLocalPeers = UserDefaults.standard.bool(forKey: "useLocalPeers")
@@ -482,7 +458,7 @@ class WalletService: ObservableObject {
         logger.info("   Use Local Peers: \(useLocalPeers)")
         
         if useLocalPeers {
-            // Use local network for development/testing
+            // Override with local peers for development/testing
             logger.info("🔧 Configuring LOCAL peers for \(wallet.network.rawValue)")
             
             // Get custom local peer from UserDefaults or use localhost as fallback
@@ -499,26 +475,33 @@ class WalletService: ObservableObject {
                 logger.info("   Local testnet peer configured: \(localTestnetPeer)")
             }
         } else {
-            // Use public peers with known-good hardcoded addresses
-            logger.info("🌐 Configuring PUBLIC peers for \(wallet.network.rawValue)")
-            if wallet.network == .mainnet {
-                // Use hardcoded mainnet peers from working example
+            // Use public peers - check if we need to override with known-good peers
+            logger.info("🌐 Using PUBLIC peers for \(wallet.network.rawValue)")
+            if wallet.network == .mainnet && config.additionalPeers.isEmpty {
+                // Use our known-good mainnet peers if config doesn't have any
                 config.additionalPeers = Self.knownMainnetPeers
-                logger.info("   Mainnet peers configured: \(config.additionalPeers.count) peers")
-                for peer in config.additionalPeers {
-                    logger.info("     • \(peer)")
-                }
-            } else if wallet.network == .testnet {
-                // Use hardcoded testnet peers from working example
+                logger.info("   Applied known mainnet peers: \(config.additionalPeers.count) peers")
+            } else if wallet.network == .testnet && config.additionalPeers.count < 2 {
+                // Supplement testnet peers with our known-good ones
                 config.additionalPeers = Self.knownTestnetPeers
                 config.maxPeers = 1
-                logger.info("   Testnet peers configured: \(config.additionalPeers.count) peers")
-                for peer in config.additionalPeers {
-                    logger.info("     • \(peer)")
-                }
-                logger.info("   Max peers: \(config.maxPeers)")
+                logger.info("   Applied known testnet peers: \(config.additionalPeers.count) peers")
+            }
+            
+            // Log configured peers
+            logger.info("   Configured peers:")
+            for peer in config.additionalPeers {
+                logger.info("     • \(peer)")
             }
         }
+        
+        logger.info("📝 Configuration settings:")
+        logger.info("   Network: \(config.network.rawValue)")
+        logger.info("   Validation Mode: \(config.validationMode.rawValue)")
+        logger.info("   Max Peers: \(config.maxPeers)")
+        logger.info("   Data Directory: \(config.dataDirectory?.path ?? "None")")
+        logger.info("   Log Level: \(config.logLevel)")
+        logger.info("   Mempool Config: \(String(describing: config.mempoolConfig))")
         
         logger.info("📡 Initializing SDK components...")
         logger.info("   Thread before MainActor: \(Thread.isMainThread ? "Main" : "Background")")
@@ -1298,7 +1281,7 @@ class WalletService: ObservableObject {
                     
                     // Trigger a notification to other parts of the app
                     // Convert SDK balance to local Balance type
-                    let localBalance = Balance.from(balance)
+                    let localBalance = LocalBalance.from(balance)
                     await notifyBalanceUpdate(localBalance)
                 }
             }
@@ -1796,7 +1779,7 @@ class WalletService: ObservableObject {
     }
     
     /// Notify other parts of the app about balance updates
-    private func notifyBalanceUpdate(_ balance: Balance) async {
+    private func notifyBalanceUpdate(_ balance: LocalBalance) async {
         await MainActor.run {
             NotificationCenter.default.post(
                 name: NSNotification.Name("BalanceUpdated"),
@@ -2063,7 +2046,7 @@ class WalletService: ObservableObject {
         if sdk != nil {
             // Log current peer configuration
             if wallet.network == .testnet {
-                let testnetConfig = SPVClientConfiguration.testnet()
+                let testnetConfig = SPVConfigurationManager.shared.configuration(for: .testnet)
                 logger.info("   - Available testnet peers:")
                 for peer in testnetConfig.additionalPeers {
                     logger.info("     • \(peer)")
