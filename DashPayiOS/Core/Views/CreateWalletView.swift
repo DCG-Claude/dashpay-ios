@@ -238,11 +238,10 @@ struct CreateWalletView: View {
             onComplete(wallet)
             dismiss()
             
-            // Trigger auto-sync after a delay to ensure wallet is properly saved
+            // Trigger auto-sync after wallet is persisted
+            // The createWallet method is synchronous and already saves to SwiftData,
+            // so we can immediately trigger auto-sync without arbitrary delays
             Task {
-                // Wait for SwiftData to fully persist the wallet
-                try? await Task.sleep(nanoseconds: 2_000_000_000) // 2 second delay
-                
                 // Only sync if the wallet service is properly configured
                 if walletService.modelContext != nil {
                     await walletService.performAutoSync(for: wallet)
