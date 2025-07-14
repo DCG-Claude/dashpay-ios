@@ -39,10 +39,38 @@
     </array>
     <key>NSAppTransportSecurity</key>
     <dict>
-        <key>NSAllowsArbitraryLoads</key>
-        <true/>
         <key>NSAllowsLocalNetworking</key>
         <true/>
+        <key>NSExceptionDomains</key>
+        <dict>
+            <key>dash.org</key>
+            <dict>
+                <key>NSIncludesSubdomains</key>
+                <true/>
+                <key>NSExceptionAllowsInsecureHTTPLoads</key>
+                <false/>
+                <key>NSExceptionMinimumTLSVersion</key>
+                <string>TLSv1.2</string>
+            </dict>
+            <key>networks.dash.org</key>
+            <dict>
+                <key>NSIncludesSubdomains</key>
+                <true/>
+                <key>NSExceptionAllowsInsecureHTTPLoads</key>
+                <false/>
+                <key>NSExceptionMinimumTLSVersion</key>
+                <string>TLSv1.2</string>
+            </dict>
+            <key>dashevo.org</key>
+            <dict>
+                <key>NSIncludesSubdomains</key>
+                <true/>
+                <key>NSExceptionAllowsInsecureHTTPLoads</key>
+                <false/>
+                <key>NSExceptionMinimumTLSVersion</key>
+                <string>TLSv1.2</string>
+            </dict>
+        </dict>
     </dict>
     <key>NSLocalNetworkUsageDescription</key>
     <string>DashPay needs to connect to local Dash nodes for blockchain synchronization and transaction processing.</string>

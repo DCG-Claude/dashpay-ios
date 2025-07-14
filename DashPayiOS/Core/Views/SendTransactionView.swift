@@ -188,15 +188,20 @@ struct SendTransactionView: View {
     private func validateAddress() {
         if recipientAddress.isEmpty {
             isValidAddress = true
+            errorMessage = ""
         } else {
-            // Use comprehensive validation that includes length and character checks
-            if let network = walletService.activeWallet?.network {
-                isValidAddress = HDWalletService.isValidAddress(recipientAddress, network: network)
-            } else {
+            // Safely unwrap activeWallet and network
+            guard let activeWallet = walletService.activeWallet,
+                  let network = activeWallet.network else {
                 isValidAddress = false
+                errorMessage = "Wallet not available for address validation"
+                return
             }
+            
+            // Use comprehensive validation that includes length and character checks
+            isValidAddress = HDWalletService.isValidAddress(recipientAddress, network: network)
+            errorMessage = ""
         }
-        errorMessage = ""
     }
     
     private func updateEstimatedFee() {
