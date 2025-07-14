@@ -526,9 +526,6 @@ class TransactionTestBase: XCTestCase {
         }
     }
     
-    func formatDash(_ satoshis: UInt64) -> String {
-        return DashFormatting.formatDash(satoshis)
-    }
     
     func parseDashAmount(_ dashString: String) -> UInt64? {
         guard let dash = Double(dashString) else { return nil }

@@ -406,12 +406,11 @@ struct BalanceInfoView: View {
     }
     
     private func formatDashBalance(_ balance: UInt64) -> String {
-        let dash = Double(balance) / 100_000_000
-        return String(format: "%.8g DASH", dash)
+        return DashFormatting.formatDash(balance)
     }
     
     private func formatUSDBalance(_ balance: UInt64) -> String {
-        let dash = Double(balance) / 100_000_000
+        let dash = Double(balance) / 100_000_000.0
         let usd = dash * unifiedState.unifiedBalance.priceData.dashPriceUSD
         return String(format: "$%.2f", usd)
     }
