@@ -36,8 +36,21 @@ typedef struct ContextProviderHandle ContextProviderHandle;
 /**
  * Initialize the unified FFI system
  *
- * This function initializes the unified FFI system and should be called
- * before using any other unified FFI functions.
+ * This function initializes the unified FFI system and must be called
+ * before using any other unified FFI functions. It sets up internal
+ * state, logging, and prepares the system for SDK operations.
+ *
+ * Thread Safety: NOT thread-safe. Must be called from a single thread
+ * during application initialization before any other FFI calls.
+ *
+ * Error Codes:
+ *   0: Success - system initialized successfully
+ *  -1: Initialization failure - system already initialized or internal error
+ *  -2: Memory allocation failure during initialization
+ *  -3: Logger initialization failure
+ *
+ * Usage: Call once during app startup before any other dash_unified_* functions.
+ * Multiple calls will return -1 (already initialized).
  *
  * @return 0 on success, negative error code on failure
  */
@@ -126,7 +139,6 @@ typedef enum FFIWatchItemType {
   Script = 1,
   Outpoint = 2,
 } FFIWatchItemType;
-typedef struct FFIClientConfig FFIClientConfig;
 /**
  * FFIDashSpvClient structure
  */
