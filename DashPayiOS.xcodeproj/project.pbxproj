@@ -107,6 +107,7 @@
 		B07DE312CA59EF5D6D4374A2 /* StateTransition.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB2C3D6825DE54FBE1AABCE8 /* StateTransition.swift */; };
 		B0E3CC9CB09D957C537C50CC /* KeyWalletFFISwift in Frameworks */ = {isa = PBXBuildFile; productRef = 7C9C2C8BD18BD527265E4DC5 /* KeyWalletFFISwift */; };
 		B1176BB16CE9DDF4A44B8A0E /* SwiftDashCoreSDK in Frameworks */ = {isa = PBXBuildFile; productRef = 6063140896A01075684772DD /* SwiftDashCoreSDK */; };
+		B1194E7879330535881849C0 /* SPVClient+Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 363F49321EAAB35F1869C7E0 /* SPVClient+Extensions.swift */; };
 		B2F131B92F4F66AE607F8527 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E041FD735871574B8653AB17 /* ContentView.swift */; };
 		B69770E30500022468CE3753 /* SettingsUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5FAEFA1C8E8BE900A4A0F477 /* SettingsUITests.swift */; };
 		B7E4DABCDDA1F0129235980D /* PlatformColor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E5CB0B10BEDC770546C6513 /* PlatformColor.swift */; };
@@ -145,7 +146,6 @@
 		EE134B70EAB5DE5287DFB3D6 /* PersistentTokenBalance.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1BA90B5595D9DC4A6C08C95 /* PersistentTokenBalance.swift */; };
 		EE50797CC041F2664A1F5200 /* ConnectionStateService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFE1E454DCB9E6897548023D /* ConnectionStateService.swift */; };
 		EF9D48C9AC436472D8E9B27E /* DocumentsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DEB076C1832BC43E6FBBE44 /* DocumentsView.swift */; };
-		EFBD0AD5DB8553F9CF1C0BBF /* DashPayiOS-Bridging-Header.h.backup in Resources */ = {isa = PBXBuildFile; fileRef = AE880914055A07EBF8ED00D3 /* DashPayiOS-Bridging-Header.h.backup */; };
 		F2ABA58F5A07F61461E81746 /* TestnetNodes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 575FCD252F2C9344820943EA /* TestnetNodes.swift */; };
 		F34978267A09D314C890BAB7 /* TransactionBuilderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B21F973487B186EF5F494C3C /* TransactionBuilderTests.swift */; };
 		F60DD38F65184F12CBF680DA /* FFIIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A17EB5B6C1F3B9101635C8F /* FFIIntegrationTests.swift */; };
@@ -158,9 +158,6 @@
 		FE10CBBF0C46EE9D2E5B9110 /* tokens.json in Resources */ = {isa = PBXBuildFile; fileRef = F6D090A608BE339258C2590F /* tokens.json */; };
 		FE73690264A618D7EBC8E010 /* EnhancedDocumentsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B87981DBF54EFC3A88243275 /* EnhancedDocumentsView.swift */; };
 		FF259917D23F6B286E17D3DC /* WalletService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEA98383216475B572905E71 /* WalletService.swift */; };
-		B192BA5545104E5FAD982B81 /* libkey_wallet_ffi.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 78B2FBFF99A0DB8B920D6C77 /* libkey_wallet_ffi.a */; };
-		4BCFAE9988B64F0E93D5F114 /* libkey_wallet_ffi_ios.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 6E583D42F8A321D5879756A4 /* libkey_wallet_ffi_ios.a */; };
-		A7442493D69743028DBBDDAF /* libkey_wallet_ffi_sim.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 398C007F617F0A749125984E /* libkey_wallet_ffi_sim.a */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -227,8 +224,8 @@
 		34601A872F5A1D8E51583CC8 /* Balance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Balance.swift; sourceTree = "<group>"; };
 		3493939A38A7015FDECAE549 /* DocumentModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentModel.swift; sourceTree = "<group>"; };
 		35718E94D4BAA8017E6180E7 /* EnhancedEditDocumentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnhancedEditDocumentView.swift; sourceTree = "<group>"; };
+		363F49321EAAB35F1869C7E0 /* SPVClient+Extensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SPVClient+Extensions.swift"; sourceTree = "<group>"; };
 		37B31624F42C885197B3736A /* ReceiveAddressView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReceiveAddressView.swift; sourceTree = "<group>"; };
-		398C007F617F0A749125984E /* libkey_wallet_ffi_sim.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; path = libkey_wallet_ffi_sim.a; sourceTree = "<group>"; };
 		398D0335A25356F8F22A3220 /* UnifiedDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnifiedDashboardView.swift; sourceTree = "<group>"; };
 		3AF29B22CE935E37C35C3680 /* libz.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libz.tbd; path = usr/lib/libz.tbd; sourceTree = SDKROOT; };
 		3B797783FCB4607C8F165888 /* IdentityModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IdentityModel.swift; sourceTree = "<group>"; };
@@ -256,12 +253,10 @@
 		6A3CC19A88B85F4F0C0F8FE3 /* NetworkConstants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkConstants.swift; sourceTree = "<group>"; };
 		6AD8DC0F12F21BF939B07627 /* DashPayiOSTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = DashPayiOSTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		6C430D6D1959CF46836D67C5 /* Transaction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Transaction.swift; sourceTree = "<group>"; };
-		6E583D42F8A321D5879756A4 /* libkey_wallet_ffi_ios.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; path = libkey_wallet_ffi_ios.a; sourceTree = "<group>"; };
 		6F4AE39F5429DF13E57439A4 /* NetworkMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkMonitor.swift; sourceTree = "<group>"; };
 		707EE672DA4913CE64431D2D /* E2ESyncTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = E2ESyncTests.swift; sourceTree = "<group>"; };
 		7318EAA85E6C761925229DA9 /* DashFormatting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashFormatting.swift; sourceTree = "<group>"; };
 		771E402915F07EC179061014 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
-		78B2FBFF99A0DB8B920D6C77 /* libkey_wallet_ffi.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; path = libkey_wallet_ffi.a; sourceTree = "<group>"; };
 		7931730E9AC5568D7D37A0A7 /* HDWatchedAddressTableTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HDWatchedAddressTableTests.swift; sourceTree = "<group>"; };
 		795451A0CF5B7CBF1B04F23E /* IdentityDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IdentityDetailView.swift; sourceTree = "<group>"; };
 		7A55BA004FB0E09DBDDBF180 /* WalletMigrationPlanTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalletMigrationPlanTests.swift; sourceTree = "<group>"; };
@@ -295,7 +290,6 @@
 		AB2C3D6825DE54FBE1AABCE8 /* StateTransition.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StateTransition.swift; sourceTree = "<group>"; };
 		AD4A87488445AD85FB027C00 /* DocumentCreationWizardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentCreationWizardView.swift; sourceTree = "<group>"; };
 		AD5047C93161130024E88C05 /* Clipboard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Clipboard.swift; sourceTree = "<group>"; };
-		AE880914055A07EBF8ED00D3 /* DashPayiOS-Bridging-Header.h.backup */ = {isa = PBXFileReference; path = "DashPayiOS-Bridging-Header.h.backup"; sourceTree = "<group>"; };
 		AEA98383216475B572905E71 /* WalletService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalletService.swift; sourceTree = "<group>"; };
 		AF494A717BDF9A22155145F1 /* DashSDK.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashSDK.swift; sourceTree = "<group>"; };
 		B21F973487B186EF5F494C3C /* TransactionBuilderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransactionBuilderTests.swift; sourceTree = "<group>"; };
@@ -366,9 +360,6 @@
 				B0E3CC9CB09D957C537C50CC /* KeyWalletFFISwift in Frameworks */,
 				0812D1EF68B7933D35C3337D /* P256K in Frameworks */,
 				3687CB5D793D82C0B3927EF0 /* DashUnified.xcframework in Frameworks */,
-				B192BA5545104E5FAD982B81 /* libkey_wallet_ffi.a in Frameworks */,
-				4BCFAE9988B64F0E93D5F114 /* libkey_wallet_ffi_ios.a in Frameworks */,
-				A7442493D69743028DBBDDAF /* libkey_wallet_ffi_sim.a in Frameworks */,
 				1DD3416389421A1882557B6B /* libc++.tbd in Frameworks */,
 				34A3F7DFE31C9EAAD2EAED84 /* libz.tbd in Frameworks */,
 				300DE08EAB7C0919A592872C /* Foundation.framework in Frameworks */,
@@ -441,9 +432,6 @@
 				026A8DF8438C873C02292645 /* dash_unified_ffi.h */,
 				CE756C326A7C84EE2C106DC8 /* DashUnified.xcframework */,
 				2AAFAE17F1305582AFF2834A /* key_wallet_ffiFFI.h */,
-				6E583D42F8A321D5879756A4 /* libkey_wallet_ffi_ios.a */,
-				398C007F617F0A749125984E /* libkey_wallet_ffi_sim.a */,
-				78B2FBFF99A0DB8B920D6C77 /* libkey_wallet_ffi.a */,
 				2C16BC3A3BAF6B32731B77A4 /* include */,
 			);
 			path = Libraries;
@@ -725,6 +713,7 @@
 			isa = PBXGroup;
 			children = (
 				AF494A717BDF9A22155145F1 /* DashSDK.swift */,
+				363F49321EAAB35F1869C7E0 /* SPVClient+Extensions.swift */,
 				0EC0ED771058B83ABC2A088E /* Core */,
 				4DB74AF098079427DD493021 /* FFI */,
 			);
@@ -735,7 +724,6 @@
 			isa = PBXGroup;
 			children = (
 				EE6CA5405BAF0A62ADE91E6F /* DashPayiOS-Bridging-Header.h */,
-				AE880914055A07EBF8ED00D3 /* DashPayiOS-Bridging-Header.h.backup */,
 				E86027947986F08C3373DE24 /* DashPayiOS.entitlements */,
 				771E402915F07EC179061014 /* Info.plist */,
 				B55AF6974857A481B6BEBB8B /* App */,
@@ -969,7 +957,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				F730936121CA9491C3BA5F27 /* DAPIEndpoints.plist in Resources */,
-				EFBD0AD5DB8553F9CF1C0BBF /* DashPayiOS-Bridging-Header.h.backup in Resources */,
 				03224BB28259F6FCE84D2E22 /* DashUnified.xcframework in Resources */,
 				FE10CBBF0C46EE9D2E5B9110 /* tokens.json in Resources */,
 			);
@@ -1064,6 +1051,7 @@
 				36208B396CB0466B751FEAF5 /* PlatformSigner.swift in Sources */,
 				8DAD5CBD20BB91FD7B7A4E81 /* ReceiveAddressView.swift in Sources */,
 				CC9A4EE0AC14DF6EB66DC55B /* SDKExtensions.swift in Sources */,
+				B1194E7879330535881849C0 /* SPVClient+Extensions.swift in Sources */,
 				E808B7627FFD9E240E583E32 /* SPVClientFactory.swift in Sources */,
 				F86D02503A866511311C2BEF /* SPVConfigurationManager.swift in Sources */,
 				7B022AD34CDEAFF53600BFC6 /* SendTransactionView.swift in Sources */,
