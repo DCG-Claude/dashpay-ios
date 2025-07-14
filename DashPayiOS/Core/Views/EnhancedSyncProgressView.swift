@@ -154,16 +154,18 @@ struct EnhancedSyncProgressView: View {
         
         Task {
             // Add a timeout check with proper cancellation handling
-            let timeoutTask = Task {
+            let timeoutTask = Task { [weak self] in
                 try await Task.sleep(nanoseconds: 10_000_000_000) // 10 seconds
+                
+                guard let self = self else { return }
                 
                 // Use task cancellation to prevent timeout from overwriting errors
                 if !Task.isCancelled && hasStarted && walletService.syncProgress == nil && walletService.detailedSyncProgress == nil {
                     await MainActor.run {
                         // Double-check that no error has been set by main sync operation
-                        if syncError == nil {
-                            syncError = "Sync timed out - no progress received after 10 seconds"
-                            hasStarted = false
+                        if self.syncError == nil {
+                            self.syncError = "Sync timed out - no progress received after 10 seconds"
+                            self.hasStarted = false
                         }
                     }
                 }
