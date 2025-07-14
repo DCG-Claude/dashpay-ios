@@ -267,37 +267,29 @@ struct ModelContainerHelper {
             in: .userDomainMask
         ).first
         
-        // Clean up specific SQLite and SwiftData related files
+        // Clean up specific SQLite and SwiftData related files with exact filename matching
         let exactFilenames = [
             "default.store",
-            "default.store-shm",
+            "default.store-shm", 
             "default.store-wal",
             "DashPayWallet.sqlite",
             "DashPayWallet.sqlite-shm",
-            "DashPayWallet.sqlite-wal"
+            "DashPayWallet.sqlite-wal",
+            "default.sqlite",
+            "default.sqlite-shm",
+            "default.sqlite-wal",
+            "DashPayWallet.store",
+            "DashPayWallet.store-shm", 
+            "DashPayWallet.store-wal"
         ]
         
-        let prefixesToRemove = [
-            "default",
-            "DashPayWallet"
-        ]
-        
-        let containsPatterns = [
-            "SwiftData",
-            "ModelContainer"
-        ]
-        
-        // Clean up all files in Application Support that could be related to the store
+        // Clean up all files in Application Support that match exact filenames
         if let contents = try? FileManager.default.contentsOfDirectory(at: appSupportURL, includingPropertiesForKeys: nil) {
             for fileURL in contents {
                 let filename = fileURL.lastPathComponent
                 
-                // Check if file matches any of our specific criteria
-                let shouldRemove = exactFilenames.contains(filename) ||
-                                 prefixesToRemove.contains { filename.hasPrefix($0) } ||
-                                 containsPatterns.contains { filename.contains($0) }
-                
-                if shouldRemove {
+                // Check if file matches exact filename list only
+                if exactFilenames.contains(filename) {
                     do {
                         try FileManager.default.removeItem(at: fileURL)
                         print("Removed: \(filename)")
@@ -314,12 +306,8 @@ struct ModelContainerHelper {
             for fileURL in contents {
                 let filename = fileURL.lastPathComponent
                 
-                // Check if file matches any of our specific criteria
-                let shouldRemove = exactFilenames.contains(filename) ||
-                                 prefixesToRemove.contains { filename.hasPrefix($0) } ||
-                                 containsPatterns.contains { filename.contains($0) }
-                
-                if shouldRemove {
+                // Check if file matches exact filename list only
+                if exactFilenames.contains(filename) {
                     do {
                         try FileManager.default.removeItem(at: fileURL)
                         print("Removed from Documents: \(filename)")
@@ -330,16 +318,24 @@ struct ModelContainerHelper {
             }
         }
         
-        // Clear any cached SwiftData files
+        // Clear specific cached SwiftData files for DashPay
         let cacheURL = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
         if let cacheURL = cacheURL {
             let swiftDataCache = cacheURL.appendingPathComponent("SwiftData")
-            if FileManager.default.fileExists(atPath: swiftDataCache.path) {
-                do {
-                    try FileManager.default.removeItem(at: swiftDataCache)
-                    print("Removed SwiftData cache")
-                } catch {
-                    print("Failed to remove SwiftData cache: \(error)")
+            if FileManager.default.fileExists(atPath: swiftDataCache.path),
+               let cacheContents = try? FileManager.default.contentsOfDirectory(at: swiftDataCache, includingPropertiesForKeys: nil) {
+                for cacheFileURL in cacheContents {
+                    let filename = cacheFileURL.lastPathComponent
+                    
+                    // Only remove DashPay-related cache files
+                    if exactFilenames.contains(filename) {
+                        do {
+                            try FileManager.default.removeItem(at: cacheFileURL)
+                            print("Removed from SwiftData cache: \(filename)")
+                        } catch {
+                            print("Failed to remove from SwiftData cache \(filename): \(error)")
+                        }
+                    }
                 }
             }
         }
