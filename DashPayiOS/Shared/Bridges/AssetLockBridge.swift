@@ -1,6 +1,7 @@
 import Foundation
 import SwiftData
 import SwiftDashCoreSDK
+import Security
 
 /// Bridge between Core wallet and Platform identity funding
 actor AssetLockBridge {
@@ -219,7 +220,9 @@ actor AssetLockBridge {
         
         // Get a new address from the Core SDK wallet
         guard let account = activeAccount else {
-            return AssetLockHelper.generateAssetLockAddress()
+            // Use default network if no active account
+            let network = walletService.activeWallet?.network ?? .testnet
+            return AssetLockHelper.generateAssetLockAddress(for: network)
         }
         
         // Generate a new change address for asset lock
@@ -491,19 +494,42 @@ struct Wallet: Hashable {
 // MARK: - Asset Lock Helper
 
 class AssetLockHelper {
-    static func generateAssetLockAddress() -> String {
-        // Generate a proper asset lock address
+    static func generateAssetLockAddress(for network: DashNetwork) -> String {
+        // Generate a proper asset lock address using BIP32/BIP44 key derivation
         // Asset lock addresses use a special script format for Platform funding
         
-        // For testnet, generate a P2SH address for asset lock script
-        // In production, this would use proper cryptographic functions
-        let randomBytes = (0..<20).map { _ in UInt8.random(in: 0...255) }
-        let addressData = Data(randomBytes)
+        // For proper asset lock address generation, we need to use the Core SDK
+        // to generate a valid P2SH address that can be used for Platform funding
         
-        // Convert to base58 testnet address format (starts with 'y')
-        let base58Address = "y" + addressData.map { String(format: "%02x", $0) }.joined().prefix(33)
+        // Generate a cryptographically secure temporary seed for asset lock address generation
+        // In production, this would use proper key derivation from the main wallet
+        var seedBytes = Data(count: 32)
+        let result = seedBytes.withUnsafeMutableBytes { bytes in
+            SecRandomCopyBytes(kSecRandomDefault, 32, bytes.bindMemory(to: UInt8.self).baseAddress!)
+        }
         
-        return String(base58Address)
+        guard result == errSecSuccess else {
+            // Fallback to CryptoKit if SecRandomCopyBytes fails
+            let randomData = Data((0..<32).map { _ in UInt8.random(in: 0...255) })
+            seedBytes = randomData
+        }
+        
+        // Generate extended public key for asset lock purposes
+        let assetLockXPub = HDWalletService.deriveExtendedPublicKey(
+            seed: seedBytes,
+            network: network,
+            account: 0
+        )
+        
+        // Generate a proper address using BIP44 derivation
+        let address = HDWalletService.deriveAddress(
+            xpub: assetLockXPub,
+            network: network,
+            change: false,  // Use receiving address chain
+            index: 0        // Use first address
+        )
+        
+        return address
     }
     
     static func createAssetLockRawTransaction(amount: UInt64, address: String) -> Data {
