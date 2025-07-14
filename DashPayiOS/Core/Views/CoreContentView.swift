@@ -216,7 +216,7 @@ struct WalletRowView: View {
                         .font(.caption2)
                         .foregroundColor(.blue)
                 } else {
-                    Text(DashFormatting.formatDash(wallet.totalBalance?.total ?? 0))
+                    Text(wallet.totalBalance?.formattedTotal ?? "0.00000000 DASH")
                         .font(.caption)
                         .monospacedDigit()
                         .foregroundColor(.secondary)

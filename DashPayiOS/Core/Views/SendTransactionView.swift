@@ -189,8 +189,12 @@ struct SendTransactionView: View {
         if recipientAddress.isEmpty {
             isValidAddress = true
         } else {
-            // Use comprehensive address validation from SDK
-            isValidAddress = walletService.sdk?.validateAddress(recipientAddress) ?? false
+            // Use comprehensive validation that includes length and character checks
+            if let network = walletService.activeWallet?.network {
+                isValidAddress = HDWalletService.isValidAddress(recipientAddress, network: network)
+            } else {
+                isValidAddress = false
+            }
         }
         errorMessage = ""
     }
