@@ -116,12 +116,6 @@ class UnifiedAppState: ObservableObject {
             print("🚀 Starting UnifiedAppState initialization...")
             // Thread debugging removed - not available in async context
             
-            // TEMPORARY: Skip complex initialization for debugging
-            if false {
-                print("⚠️ SKIPPING SDK initialization for debugging - focusing on Core wallet functionality!")
-                isInitialized = true
-                return
-            }
             
             // Remove SDK creation from here - let WalletService handle it
             // This matches the example app pattern where SDK is created on demand
@@ -161,15 +155,26 @@ class UnifiedAppState: ObservableObject {
                 print("⏳ Waiting for SwiftData to load wallets...")
                 try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 second delay
                 
-                // Start auto-sync
-                // Disabled auto-sync to allow manual sync control
+                // INTENTIONALLY DISABLED: Auto-sync and periodic sync features
+                // 
+                // Auto-sync and periodic sync are disabled to provide manual sync control.
+                // This allows developers and users to explicitly control when synchronization
+                // occurs, which is useful for:
+                // - Testing specific sync scenarios
+                // - Debugging sync-related issues
+                // - Avoiding background sync interference during development
+                // - Giving users explicit control over network usage
+                //
+                // To re-enable automatic sync, uncomment the code blocks below:
+                
+                // Auto-sync (starts sync automatically after initialization)
                 // print("🔄 Calling startAutoSync()...")
                 // await walletService.startAutoSync()
                 // print("✅ startAutoSync() completed")
                 
-                // Disabled periodic sync to allow manual sync control
+                // Periodic sync (sets up recurring background sync)
                 // walletService.setupPeriodicSync()
-                // print("✅ Periodic sync disabled for manual control")
+                // print("✅ Periodic sync setup completed")
                 
                 // Monitor app lifecycle
                 setupLifecycleObservers()
