@@ -269,6 +269,41 @@ public class MockSPVClient {
         completionCallback: (@Sendable (Bool, String?) -> Void)? = nil
     ) async throws {
         do {
+            // Simulate realistic sync progress through multiple stages
+            let syncStartTime = Date()
+            let stages: [SyncStage] = [.connecting, .queryingHeight, .downloading, .validating, .storing, .complete]
+            let percentages: [Double] = [5.0, 15.0, 60.0, 85.0, 95.0, 100.0]
+            let heights: [UInt32] = [0, 100_000, 1_200_000, 1_700_000, 1_900_000, 2_000_000]
+            let speeds: [Double] = [0.0, 500.0, 1500.0, 800.0, 200.0, 0.0]
+            let remainingTimes: [UInt32] = [120, 100, 45, 20, 5, 0]
+            
+            for (index, stage) in stages.enumerated() {
+                let progress = DetailedSyncProgress(
+                    currentHeight: heights[index],
+                    totalHeight: 2_000_000,
+                    percentage: percentages[index],
+                    headersPerSecond: speeds[index],
+                    estimatedSecondsRemaining: remainingTimes[index],
+                    stage: stage,
+                    stageMessage: "Mock \(stage.description.lowercased())...",
+                    connectedPeers: UInt32(peers),
+                    totalHeadersProcessed: UInt64(heights[index]),
+                    syncStartTimestamp: syncStartTime
+                )
+                
+                // Call progress callback
+                progressCallback?(progress)
+                
+                // Add small delay to simulate real sync timing
+                try await Task.sleep(nanoseconds: 200_000_000) // 0.2 seconds
+                
+                // Update internal state
+                currentHeight = heights[index]
+                if stage == .complete {
+                    break
+                }
+            }
+            
             try await startSync()
             completionCallback?(true, nil)
         } catch {
@@ -338,7 +373,9 @@ extension MockSPVClient {
         
         public struct AsyncIterator: AsyncIteratorProtocol {
             private let client: MockSPVClient
+            private var progressStage: Int = 0
             private var isComplete = false
+            private let syncStartTime = Date()
             
             init(client: MockSPVClient) {
                 self.client = client
@@ -347,20 +384,63 @@ extension MockSPVClient {
             public mutating func next() async -> DetailedSyncProgress? {
                 guard !isComplete else { return nil }
                 
-                // Simulate progress update
-                isComplete = true
+                // Simulate realistic sync progress through multiple stages
+                let progressData = getMockProgressData()
+                
+                // Add a small delay to simulate real sync timing
+                try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
+                
+                // Move to next stage or complete
+                if progressStage >= 5 {
+                    isComplete = true
+                    return getMockProgressData(finalStage: true)
+                } else {
+                    progressStage += 1
+                    return progressData
+                }
+            }
+            
+            private func getMockProgressData(finalStage: Bool = false) -> DetailedSyncProgress {
+                if finalStage {
+                    return DetailedSyncProgress(
+                        currentHeight: 2_000_000,
+                        totalHeight: 2_000_000,
+                        percentage: 100.0,
+                        headersPerSecond: 0.0,
+                        estimatedSecondsRemaining: 0,
+                        stage: .complete,
+                        stageMessage: "Mock sync complete",
+                        connectedPeers: UInt32(client.peers),
+                        totalHeadersProcessed: 2_000_000,
+                        syncStartTimestamp: syncStartTime
+                    )
+                }
+                
+                // Simulate progressive sync stages
+                let stages: [SyncStage] = [.connecting, .queryingHeight, .downloading, .validating, .storing]
+                let percentages: [Double] = [5.0, 15.0, 60.0, 85.0, 95.0]
+                let heights: [UInt32] = [0, 100_000, 1_200_000, 1_700_000, 1_900_000]
+                let speeds: [Double] = [0.0, 500.0, 1500.0, 800.0, 200.0]
+                let remainingTimes: [UInt32] = [120, 100, 45, 20, 5]
+                
+                let stageIndex = min(progressStage, stages.count - 1)
+                let currentStage = stages[stageIndex]
+                let currentPercentage = percentages[stageIndex]
+                let currentHeight = heights[stageIndex]
+                let currentSpeed = speeds[stageIndex]
+                let remainingTime = remainingTimes[stageIndex]
                 
                 return DetailedSyncProgress(
-                    currentHeight: client.currentHeight,
+                    currentHeight: currentHeight,
                     totalHeight: 2_000_000,
-                    percentage: 95.0,
-                    headersPerSecond: 1000.0,
-                    estimatedSecondsRemaining: 30,
-                    stage: .downloading,
-                    stageMessage: "Mock sync in progress...",
+                    percentage: currentPercentage,
+                    headersPerSecond: currentSpeed,
+                    estimatedSecondsRemaining: remainingTime,
+                    stage: currentStage,
+                    stageMessage: "Mock \(currentStage.description.lowercased())...",
                     connectedPeers: UInt32(client.peers),
-                    totalHeadersProcessed: UInt64(client.currentHeight),
-                    syncStartTimestamp: Date()
+                    totalHeadersProcessed: UInt64(currentHeight),
+                    syncStartTimestamp: syncStartTime
                 )
             }
         }
