@@ -101,7 +101,7 @@ class HDWalletService {
         seed: Data,
         network: DashNetwork,
         account: UInt32
-    ) -> String {
+    ) throws -> String {
         do {
             // Convert DashNetwork to KeyWalletFFI Network
             // Create HD wallet from seed using the correct network type
@@ -115,7 +115,7 @@ class HDWalletService {
             print("🔴 Failed to derive extended public key: \(error)")
             // Instead of generating mock xpub, throw an error
             // This prevents the chain of errors that leads to invalid addresses
-            fatalError("Extended public key derivation failed. Cannot proceed with invalid xpub. Error: \(error)")
+            throw WalletError.derivationFailed
         }
     }
     
@@ -124,7 +124,7 @@ class HDWalletService {
         network: DashNetwork,
         change: Bool,
         index: UInt32
-    ) -> String {
+    ) throws -> String {
         do {
             // Create address generator with the correct network type
             let addressGenerator = AddressGenerator(network: network.keyWalletNetwork)
@@ -149,7 +149,7 @@ class HDWalletService {
             print("🔴 Failed to derive address: \(error)")
             // Instead of generating mock addresses, throw an error
             // This prevents invalid addresses from being created and watched
-            fatalError("Address generation failed. Cannot proceed with invalid address. Error: \(error)")
+            throw WalletError.derivationFailed
         }
     }
     
@@ -159,7 +159,7 @@ class HDWalletService {
         change: Bool,
         startIndex: UInt32,
         count: UInt32
-    ) -> [String] {
+    ) throws -> [String] {
         do {
             // Create address generator with the correct network type
             let addressGenerator = AddressGenerator(network: network.keyWalletNetwork)
@@ -183,8 +183,8 @@ class HDWalletService {
         } catch {
             print("Failed to derive addresses: \(error)")
             // Fallback to generating individual addresses
-            return (startIndex..<(startIndex + count)).map { index in
-                deriveAddress(xpub: xpub, network: network, change: change, index: index)
+            return try (startIndex..<(startIndex + count)).map { index in
+                try deriveAddress(xpub: xpub, network: network, change: change, index: index)
             }
         }
     }
@@ -210,11 +210,11 @@ class HDWalletService {
         seed: Data,
         network: DashNetwork,
         maxAccounts: UInt32 = 10
-    ) -> [(accountIndex: UInt32, xpub: String)] {
+    ) throws -> [(accountIndex: UInt32, xpub: String)] {
         var accounts: [(UInt32, String)] = []
         
         for accountIndex in 0..<maxAccounts {
-            let xpub = deriveExtendedPublicKey(
+            let xpub = try deriveExtendedPublicKey(
                 seed: seed,
                 network: network,
                 account: accountIndex
