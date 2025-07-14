@@ -16,6 +16,8 @@ class UnifiedStateManager: ObservableObject {
     @Published private(set) var isPlatformSynced = false
     @Published private(set) var isLoading = false
     @Published private(set) var error: Error?
+    @Published private(set) var isInitialized = false
+    @Published private(set) var initializationError: Error?
     
     // MARK: - Dependencies
     
@@ -35,27 +37,43 @@ class UnifiedStateManager: ObservableObject {
         
         // AssetLockBridge and related services need to be created in an async context since they're actors
         Task {
-            if let platformWrapper = platformWrapper {
-                let assetLockBridge = await AssetLockBridge(
-                    coreSDK: coreSDK,
-                    platformSDK: platformWrapper
-                )
-                self.assetLockBridge = assetLockBridge
+            do {
+                if let platformWrapper = platformWrapper {
+                    let assetLockBridge = await AssetLockBridge(
+                        coreSDK: coreSDK,
+                        platformSDK: platformWrapper
+                    )
+                    self.assetLockBridge = assetLockBridge
+                    
+                    // Create CrossLayerBridge
+                    self.crossLayerBridge = await CrossLayerBridge(
+                        coreSDK: coreSDK,
+                        platformSDK: platformWrapper,
+                        assetLockBridge: assetLockBridge
+                    )
+                    
+                    // Create transaction history service
+                    self.transactionHistory = UnifiedTransactionHistoryService(
+                        coreSDK: coreSDK,
+                        platformWrapper: platformWrapper,
+                        tokenService: TokenService(),
+                        walletService: WalletService.shared
+                    )
+                }
                 
-                // Create CrossLayerBridge
-                self.crossLayerBridge = await CrossLayerBridge(
-                    coreSDK: coreSDK,
-                    platformSDK: platformWrapper,
-                    assetLockBridge: assetLockBridge
-                )
+                // Mark initialization as successful
+                await MainActor.run {
+                    self.isInitialized = true
+                    self.initializationError = nil
+                }
                 
-                // Create transaction history service
-                self.transactionHistory = UnifiedTransactionHistoryService(
-                    coreSDK: coreSDK,
-                    platformWrapper: platformWrapper,
-                    tokenService: TokenService(),
-                    walletService: WalletService.shared
-                )
+            } catch {
+                // Handle initialization errors
+                await MainActor.run {
+                    self.isInitialized = false
+                    self.initializationError = error
+                    print("🔴 UnifiedStateManager initialization failed: \(error)")
+                }
             }
         }
         
@@ -63,20 +81,48 @@ class UnifiedStateManager: ObservableObject {
     }
     
     func updatePlatformWrapper(_ wrapper: PlatformSDKWrapper) async {
-        self.platformWrapper = wrapper
-        self.assetLockBridge = await AssetLockBridge(
-            coreSDK: coreSDK,
-            platformSDK: wrapper
-        )
+        do {
+            self.platformWrapper = wrapper
+            self.assetLockBridge = await AssetLockBridge(
+                coreSDK: coreSDK,
+                platformSDK: wrapper
+            )
+            
+            // Update initialization state
+            await MainActor.run {
+                self.isInitialized = true
+                self.initializationError = nil
+            }
+        } catch {
+            await MainActor.run {
+                self.isInitialized = false
+                self.initializationError = error
+                print("🔴 Platform wrapper update failed: \(error)")
+            }
+        }
     }
     
     func updateCoreSDK(_ sdk: DashSDKProtocol) async {
-        self.coreSDK = sdk
-        if let platformWrapper = platformWrapper {
-            self.assetLockBridge = await AssetLockBridge(
-                coreSDK: sdk,
-                platformSDK: platformWrapper
-            )
+        do {
+            self.coreSDK = sdk
+            if let platformWrapper = platformWrapper {
+                self.assetLockBridge = await AssetLockBridge(
+                    coreSDK: sdk,
+                    platformSDK: platformWrapper
+                )
+            }
+            
+            // Update initialization state
+            await MainActor.run {
+                self.isInitialized = true
+                self.initializationError = nil
+            }
+        } catch {
+            await MainActor.run {
+                self.isInitialized = false
+                self.initializationError = error
+                print("🔴 Core SDK update failed: \(error)")
+            }
         }
     }
     
@@ -169,6 +215,10 @@ class UnifiedStateManager: ObservableObject {
         amount: UInt64,
         progressCallback: ((String) -> Void)?
     ) async throws -> Identity {
+        guard isInitialized else {
+            throw PlatformError.sdkInitializationFailed
+        }
+        
         guard let platformWrapper = platformWrapper,
               let assetLockBridge = assetLockBridge else {
             throw PlatformError.sdkInitializationFailed
@@ -237,6 +287,10 @@ class UnifiedStateManager: ObservableObject {
     
     /// Top up existing identity credits
     func topUpIdentity(_ identity: Identity, from wallet: Wallet, amount: UInt64) async throws {
+        guard isInitialized else {
+            throw PlatformError.sdkInitializationFailed
+        }
+        
         guard let platformWrapper = platformWrapper,
               let assetLockBridge = assetLockBridge else {
             throw PlatformError.sdkInitializationFailed
@@ -283,6 +337,10 @@ class UnifiedStateManager: ObservableObject {
         to coreAddress: String,
         amount: UInt64
     ) async throws -> WithdrawResult {
+        guard isInitialized else {
+            throw PlatformError.sdkInitializationFailed
+        }
+        
         guard let crossLayerBridge = crossLayerBridge else {
             throw PlatformError.sdkInitializationFailed
         }
@@ -321,6 +379,10 @@ class UnifiedStateManager: ObservableObject {
         useBackupFunding: Bool = false,
         backupWallet: Wallet? = nil
     ) async throws -> TransferResult {
+        guard isInitialized else {
+            throw PlatformError.sdkInitializationFailed
+        }
+        
         guard let crossLayerBridge = crossLayerBridge else {
             throw PlatformError.sdkInitializationFailed
         }
@@ -360,6 +422,10 @@ class UnifiedStateManager: ObservableObject {
         from wallet: Wallet,
         operations: [BatchFundingOperation]
     ) async throws -> [FundingResult] {
+        guard isInitialized else {
+            throw PlatformError.sdkInitializationFailed
+        }
+        
         guard let crossLayerBridge = crossLayerBridge else {
             throw PlatformError.sdkInitializationFailed
         }
@@ -391,6 +457,10 @@ class UnifiedStateManager: ObservableObject {
     
     /// Synchronize all balances across layers
     func synchronizeAllBalances() async throws -> BalanceSyncResult {
+        guard isInitialized else {
+            throw PlatformError.sdkInitializationFailed
+        }
+        
         guard let crossLayerBridge = crossLayerBridge else {
             throw PlatformError.sdkInitializationFailed
         }

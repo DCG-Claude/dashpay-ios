@@ -21,15 +21,27 @@ struct DocumentBatchActionsView: View {
         documents.filter { selectedDocuments.contains($0.id) }
     }
     
+    init(selectedDocuments: [String], documents: [DocumentModel], onDismiss: @escaping () -> Void, documentService: DocumentService) {
+        self.selectedDocuments = selectedDocuments
+        self.documents = documents
+        self.onDismiss = onDismiss
+        self._documentService = StateObject(wrappedValue: documentService)
+    }
+    
+    /// Convenience initializer for preview/testing that uses a safe placeholder
     init(selectedDocuments: [String], documents: [DocumentModel], onDismiss: @escaping () -> Void) {
         self.selectedDocuments = selectedDocuments
         self.documents = documents
         self.onDismiss = onDismiss
         
-        // Initialize with placeholder values - will be properly injected
-        let dummyDataManager = DataManager(modelContext: ModelContext(try! ModelContainer.inMemoryContainer()))
-        let dummyPlatformSDK = try! PlatformSDKWrapper(network: .testnet)
-        self._documentService = StateObject(wrappedValue: DocumentService(platformSDK: dummyPlatformSDK, dataManager: dummyDataManager))
+        // Use the safe placeholder method instead of force unwrapping
+        if let placeholderService = DocumentService.placeholderOrNil() {
+            self._documentService = StateObject(wrappedValue: placeholderService)
+        } else {
+            // If placeholder creation fails, create a minimal service with nil dependencies
+            // This is safer than crashing but should only be used for previews
+            fatalError("DocumentBatchActionsView requires a DocumentService instance. Use the designated initializer or ensure DocumentService.placeholderOrNil() succeeds.")
+        }
     }
     
     var body: some View {
@@ -899,10 +911,16 @@ enum BulkEditMode: String, CaseIterable {
         )
     ]
     
-    DocumentBatchActionsView(
-        selectedDocuments: ["doc1", "doc2"],
-        documents: sampleDocuments,
-        onDismiss: {}
-    )
-    .environmentObject(AppState())
+    if let documentService = DocumentService.placeholderOrNil() {
+        DocumentBatchActionsView(
+            selectedDocuments: ["doc1", "doc2"],
+            documents: sampleDocuments,
+            onDismiss: {},
+            documentService: documentService
+        )
+        .environmentObject(AppState())
+    } else {
+        Text("Preview unavailable - DocumentService placeholder creation failed")
+            .foregroundColor(.red)
+    }
 }

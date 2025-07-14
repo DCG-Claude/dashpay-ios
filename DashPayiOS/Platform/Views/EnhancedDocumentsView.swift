@@ -147,7 +147,8 @@ struct EnhancedDocumentsView: View {
                     onDismiss: {
                         showingBatchActions = false
                         clearSelection()
-                    }
+                    },
+                    documentService: documentService
                 )
                 .environmentObject(appState)
             }
