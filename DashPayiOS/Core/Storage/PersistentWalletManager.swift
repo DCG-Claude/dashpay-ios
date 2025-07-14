@@ -219,6 +219,10 @@ final class PersistentWalletManager {
         amount: UInt64,
         feeRate: UInt64
     ) async throws -> Data {
+        // TODO: Add support for InstantSend, multiple outputs, and RBF (Replace-By-Fee)
+        // TODO: Implement proper transaction signing with private keys
+        logger.info("Creating transaction to \(address) for amount \(amount) with fee rate \(feeRate)")
+        
         // Get available UTXOs for transaction building
         let utxos = try await getSpendableUTXOs()
         
@@ -357,8 +361,12 @@ final class PersistentWalletManager {
         if changeAmount > 546 {
             rawTx.append(contentsOf: withUnsafeBytes(of: changeAmount.littleEndian) { Array($0) })
             
-            // Use first watched address as change address
+            // TODO: Implement proper change address derivation instead of using first watched address
+            // This should derive a new address from the HD wallet for better privacy
             let changeAddress = watchedAddresses.first ?? "default_change_address"
+            if changeAddress == "default_change_address" {
+                logger.warning("Using default change address - proper HD wallet derivation should be implemented")
+            }
             let changeScript = try createP2PKHScript(for: changeAddress)
             rawTx.append(UInt8(changeScript.count))
             rawTx.append(changeScript)
@@ -372,7 +380,8 @@ final class PersistentWalletManager {
     
     private func createP2PKHScript(for address: String) throws -> Data {
         // Create Pay-to-Public-Key-Hash script
-        // This is a simplified implementation
+        // TODO: This is a simplified implementation - should validate address format and support more script types
+        logger.debug("Creating P2PKH script for address: \(address)")
         var script = Data()
         
         // OP_DUP
