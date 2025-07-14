@@ -33,9 +33,57 @@ typedef struct ContextProviderHandle ContextProviderHandle;
 /* Unified FFI Functions                          */
 /* ============================================== */
 
+/**
+ * Initialize the Dash Unified FFI library
+ *
+ * This function must be called before using any other functions in the library.
+ * It sets up the necessary internal state for the unified FFI.
+ *
+ * # Returns
+ * * `0` - Success, library initialized successfully
+ * * Non-zero error code - Initialization failed
+ */
 int32_t dash_unified_init(void);
-int32_t dash_unified_register_core_sdk_handle(void *core_handle);
+
+/**
+ * Register a Core SDK handle with the unified FFI
+ *
+ * This function registers a Core SDK client handle to enable unified operations
+ * between Core and Platform SDKs. The handle must be a valid FFIDashSpvClient
+ * instance created through the Core SDK.
+ *
+ * # Parameters
+ * * `core_handle` - Valid pointer to an FFIDashSpvClient instance
+ *
+ * # Returns
+ * * `0` - Success, handle registered successfully
+ * * Non-zero error code - Registration failed (invalid handle, already registered, etc.)
+ */
+int32_t dash_unified_register_core_sdk_handle(struct FFIDashSpvClient *core_handle);
+
+/**
+ * Test the unified FFI functionality
+ *
+ * This function performs basic tests to verify that the unified FFI is working
+ * correctly. It checks the initialization state, validates registered handles,
+ * and performs basic communication tests between Core and Platform components.
+ *
+ * # Returns
+ * * `0` - Success, all tests passed
+ * * Non-zero error code - Test failed, specific error indicates failure type
+ */
 int32_t dash_unified_test(void);
+
+/**
+ * Free a string allocated by the unified FFI
+ *
+ * This function properly deallocates strings that were allocated by the unified
+ * FFI library. All strings returned by unified FFI functions must be freed
+ * using this function to prevent memory leaks.
+ *
+ * # Parameters
+ * * `s` - Pointer to the string to free (can be NULL)
+ */
 void dash_unified_string_free(char *s);
 
 /* ============================================== */

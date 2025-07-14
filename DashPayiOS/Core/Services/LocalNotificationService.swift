@@ -13,10 +13,18 @@ class LocalNotificationService: ObservableObject {
     @Published var isEnabled = false
     
     private let logger = Logger(subsystem: "com.dash.wallet", category: "LocalNotificationService")
+    private let notificationQueue = DispatchQueue(label: "com.dash.wallet.notifications", qos: .background)
+    private var observers: [NSObjectProtocol] = []
     
     private init() {
-        checkAuthorizationStatus()
         setupNotificationObservers()
+        Task {
+            await checkAuthorizationStatus()
+        }
+    }
+    
+    deinit {
+        removeObservers()
     }
     
     // MARK: - Authorization
@@ -46,18 +54,18 @@ class LocalNotificationService: ObservableObject {
         }
     }
     
-    private func checkAuthorizationStatus() {
+    private func checkAuthorizationStatus() async {
         let center = UNUserNotificationCenter.current()
-        center.getNotificationSettings { settings in
-            Task { @MainActor in
-                self.authorizationStatus = settings.authorizationStatus
-                self.isEnabled = settings.authorizationStatus == .authorized
-                
-                if settings.authorizationStatus == .notDetermined {
-                    // Automatically request authorization on first launch
-                    await self.requestAuthorization()
-                }
-            }
+        let settings = await center.notificationSettings()
+        
+        await MainActor.run {
+            self.authorizationStatus = settings.authorizationStatus
+            self.isEnabled = settings.authorizationStatus == .authorized
+        }
+        
+        if settings.authorizationStatus == .notDetermined {
+            // Automatically request authorization on first launch
+            await requestAuthorization()
         }
     }
     
@@ -65,10 +73,10 @@ class LocalNotificationService: ObservableObject {
     
     private func setupNotificationObservers() {
         // Listen for funds received notifications
-        NotificationCenter.default.addObserver(
+        let fundsReceivedObserver = NotificationCenter.default.addObserver(
             forName: NSNotification.Name("FundsReceived"),
             object: nil,
-            queue: .main
+            queue: OperationQueue()
         ) { [weak self] notification in
             guard let self = self,
                   let userInfo = notification.userInfo,
@@ -90,12 +98,13 @@ class LocalNotificationService: ObservableObject {
                 )
             }
         }
+        observers.append(fundsReceivedObserver)
         
         // Listen for balance updates
-        NotificationCenter.default.addObserver(
+        let balanceUpdateObserver = NotificationCenter.default.addObserver(
             forName: NSNotification.Name("BalanceUpdated"),
             object: nil,
-            queue: .main
+            queue: OperationQueue()
         ) { [weak self] notification in
             guard let self = self,
                   let userInfo = notification.userInfo,
@@ -107,6 +116,19 @@ class LocalNotificationService: ObservableObject {
                 await self.handleBalanceUpdate(balance)
             }
         }
+        observers.append(balanceUpdateObserver)
+    }
+    
+    private func removeObservers() {
+        observers.forEach { observer in
+            NotificationCenter.default.removeObserver(observer)
+        }
+        observers.removeAll()
+    }
+    
+    /// Manually remove all notification observers - useful for testing or explicit cleanup
+    func cleanup() {
+        removeObservers()
     }
     
     // MARK: - Notification Methods
