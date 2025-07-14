@@ -4,7 +4,7 @@ import SwiftData
 import SwiftDashCoreSDK
 
 @Observable
-public final class DashSDK {
+public final class DashSDK: UTXOTransactionSyncProtocol {
     private let client: SwiftDashCoreSDK.SPVClient
     private let wallet: PersistentWalletManager
     // Storage is not needed in this wrapper - wallet manager has its own storage
@@ -73,7 +73,7 @@ public final class DashSDK {
             let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
             let modelContainer = try ModelContainer(for: schema, configurations: [modelConfiguration])
             let storage = try StorageManager(modelContainer: modelContainer)
-            self.wallet = PersistentWalletManager(client: client, storage: storage)
+            self.wallet = PersistentWalletManager(client: client, storage: storage, syncDelegate: self)
             print("✅ PersistentWalletManager created with in-memory storage")
         } catch {
             print("🔴 Failed to create wallet manager: \(error)")
@@ -185,11 +185,12 @@ public final class DashSDK {
     }
     
     // Transaction type is internal, cannot be exposed in public API
-    internal func getTransactions(for address: String, limit: Int = 100) async throws -> [SwiftDashCoreSDK.Transaction] {
+    // However, we need it for the UTXOTransactionSyncProtocol
+    public func getTransactions(for address: String, limit: Int = 100) async throws -> [SwiftDashCoreSDK.Transaction] {
         return try await wallet.getTransactions(for: address, limit: limit)
     }
     
-    public func getUTXOs() async throws -> [UTXO] {
+    public func getUTXOs() async throws -> [SwiftDashCoreSDK.UTXO] {
         return try await wallet.getUTXOs()
     }
     

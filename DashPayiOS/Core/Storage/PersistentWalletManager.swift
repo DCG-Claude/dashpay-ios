@@ -4,10 +4,17 @@ import SwiftData
 import SwiftDashCoreSDK
 import os.log
 
+/// Protocol for UTXO and transaction synchronization
+public protocol UTXOTransactionSyncProtocol: AnyObject {
+    func getUTXOs() async throws -> [SwiftDashCoreSDK.UTXO]
+    func getTransactions(for address: String) async throws -> [SwiftDashCoreSDK.Transaction]
+}
+
 @Observable
 final class PersistentWalletManager {
     private let client: SwiftDashCoreSDK.SPVClient
     private let storage: StorageManager
+    private weak var syncDelegate: UTXOTransactionSyncProtocol?
     private var syncTask: Task<Void, Never>?
     private let logger = Logger(subsystem: "com.dash.wallet", category: "PersistentWalletManager")
     
@@ -21,9 +28,10 @@ final class PersistentWalletManager {
         total: 0
     )
     
-    init(client: SwiftDashCoreSDK.SPVClient, storage: StorageManager) {
+    init(client: SwiftDashCoreSDK.SPVClient, storage: StorageManager, syncDelegate: UTXOTransactionSyncProtocol? = nil) {
         self.client = client
         self.storage = storage
+        self.syncDelegate = syncDelegate
         
         Task {
             await loadPersistedData()
@@ -32,6 +40,13 @@ final class PersistentWalletManager {
     
     deinit {
         syncTask?.cancel()
+    }
+    
+    // MARK: - Configuration Methods
+    
+    /// Set the sync delegate for UTXO and transaction synchronization
+    func setSyncDelegate(_ syncDelegate: UTXOTransactionSyncProtocol) {
+        self.syncDelegate = syncDelegate
     }
     
     // MARK: - Public Methods
@@ -447,13 +462,32 @@ extension PersistentWalletManager {
             // Sync balance
             _ = try await getBalance(for: address)
             
-            // Sync UTXOs (when implemented in SPV client)
-            // let utxos = try await client.getUTXOs(for: address)
-            // try await storage.saveUTXOs(utxos.map { LocalUTXO(from: $0) })
-            
-            // Sync transactions (when implemented in SPV client)
-            // let transactions = try await client.getTransactions(for: address)
-            // try await storage.saveTransactions(transactions.map { Transaction(from: $0) })
+            // Sync UTXOs and transactions from sync delegate
+            if let syncDelegate = self.syncDelegate {
+                // Sync UTXOs
+                do {
+                    let utxos = try await syncDelegate.getUTXOs()
+                    // Filter UTXOs for the specific address
+                    let addressUTXOs = utxos.filter { $0.address == address }
+                    let localUTXOs = addressUTXOs.map { LocalUTXO(from: $0) }
+                    try await storage.saveUTXOs(localUTXOs)
+                    logger.info("Synced \(localUTXOs.count) UTXOs for address: \(address)")
+                } catch {
+                    logger.error("Failed to sync UTXOs for address \(address): \(error)")
+                }
+                
+                // Sync transactions
+                do {
+                    let transactions = try await syncDelegate.getTransactions(for: address)
+                    let localTransactions = transactions.map { Transaction(from: $0) }
+                    try await storage.saveTransactions(localTransactions)
+                    logger.info("Synced \(localTransactions.count) transactions for address: \(address)")
+                } catch {
+                    logger.error("Failed to sync transactions for address \(address): \(error)")
+                }
+            } else {
+                logger.warning("Sync delegate not available, skipping UTXO and transaction sync for address: \(address)")
+            }
             
             // Update activity timestamp
             if let watchedAddress = try storage.fetchWatchedAddress(by: address) {
