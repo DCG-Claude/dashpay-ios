@@ -208,7 +208,10 @@ class UnifiedAppState: ObservableObject {
     
     @objc private func appWillEnterForeground() {
         Task {
-            // Disabled auto-sync to allow manual sync control
+            // INTENTIONALLY DISABLED: Auto-sync on app foreground
+            // Auto-sync is disabled to provide manual sync control when the app returns to foreground.
+            // This prevents automatic network activity and gives users explicit control over when sync occurs.
+            // To re-enable, uncomment the line below:
             // await walletService.startAutoSync()
         }
     }
