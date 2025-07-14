@@ -4,7 +4,6 @@ import SwiftData
 /// Comprehensive document creation wizard with contract schema validation
 struct DocumentCreationWizardView: View {
     @EnvironmentObject var appState: AppState
-    @StateObject private var documentService: DocumentService
     @Environment(\.dismiss) private var dismiss
     
     @State private var currentStep: WizardStep
@@ -30,12 +29,6 @@ struct DocumentCreationWizardView: View {
             self.steps = [.selectContract, .selectType, .selectOwner, .enterData, .review]
             self._currentStep = State(initialValue: .selectContract)
         }
-        
-        // Initialize with placeholder values - will be properly injected
-        let dummyContainer = try! ModelContainer.inMemoryContainer()
-        let dummyDataManager = DataManager(modelContext: dummyContainer.mainContext)
-        let dummyPlatformSDK = try! PlatformSDKWrapper(network: .testnet)
-        self._documentService = StateObject(wrappedValue: DocumentService(platformSDK: dummyPlatformSDK, dataManager: dummyDataManager))
         
         self._selectedContract = State(initialValue: contract)
     }
@@ -103,10 +96,9 @@ struct DocumentCreationWizardView: View {
     // MARK: - Helper Methods
     
     private func setupDocumentService() {
-        // Use the real document service from AppState if available
-        if let realDocumentService = appState.documentService {
-            // The documentService StateObject will be replaced with the real one
-            print("📄 Using real DocumentService for creation wizard")
+        // Check if DocumentService is available in AppState
+        if appState.documentService != nil {
+            print("📄 DocumentService is available for creation wizard")
         } else {
             print("⚠️ No DocumentService available in AppState")
         }
@@ -184,7 +176,7 @@ struct DocumentCreationWizardView: View {
     private func createDocument() {
         guard let contract = selectedContract,
               let owner = selectedOwner,
-              let realDocumentService = appState.documentService else {
+              let documentService = appState.documentService else {
             appState.showError(message: "Document service not available")
             return
         }
@@ -194,7 +186,7 @@ struct DocumentCreationWizardView: View {
             defer { isCreating = false }
             
             do {
-                let document = try await realDocumentService.createDocument(
+                let document = try await documentService.createDocument(
                     contractId: contract.id,
                     documentType: selectedDocumentType,
                     ownerId: owner.idString,
@@ -987,24 +979,25 @@ struct ReviewStep: View {
                         if let contract = contract {
                             ReviewRow(label: "Name", value: contract.name)
                             ReviewRow(label: "ID", value: contract.id, isMono: true)
-                            ReviewRow(label: "Version", value: "v\(contract.version)")
+                            ReviewRow(label: "Version", value: "v\(contract.version)", isLast: true)
                         }
                     }
                     
                     // Document Info
                     ReviewSection(title: "Document") {
-                        ReviewRow(label: "Type", value: documentType.capitalized)
+                        ReviewRow(label: "Type", value: documentType.capitalized, isLast: owner == nil)
                         if let owner = owner {
                             ReviewRow(label: "Owner", value: owner.alias ?? "Unnamed Identity")
-                            ReviewRow(label: "Owner ID", value: owner.idString, isMono: true)
+                            ReviewRow(label: "Owner ID", value: owner.idString, isMono: true, isLast: true)
                         }
                     }
                     
                     // Document Data
                     ReviewSection(title: "Data (\(documentData.count) properties)") {
-                        ForEach(Array(documentData.keys.sorted()), id: \.self) { key in
+                        let sortedKeys = Array(documentData.keys.sorted())
+                        ForEach(Array(sortedKeys.enumerated()), id: \.element) { index, key in
                             if let value = documentData[key] {
-                                ReviewRow(label: key.capitalized, value: "\(value)")
+                                ReviewRow(label: key.capitalized, value: "\(value)", isLast: index == sortedKeys.count - 1)
                             }
                         }
                     }
@@ -1045,11 +1038,13 @@ struct ReviewRow: View {
     let label: String
     let value: String
     let isMono: Bool
+    let isLast: Bool
     
-    init(label: String, value: String, isMono: Bool = false) {
+    init(label: String, value: String, isMono: Bool = false, isLast: Bool = false) {
         self.label = label
         self.value = value
         self.isMono = isMono
+        self.isLast = isLast
     }
     
     var body: some View {
@@ -1069,16 +1064,10 @@ struct ReviewRow: View {
         .padding(.horizontal)
         .padding(.vertical, 8)
         
-        if value != Array(documentData.keys.sorted()).last {
+        if !isLast {
             Divider()
                 .padding(.leading)
         }
-    }
-    
-    private var documentData: [String: Any] {
-        // This is a workaround since we can't access the parent's documentData
-        // In a real implementation, this would be passed down properly
-        return [:]
     }
 }
 
