@@ -124,14 +124,18 @@ struct ModelContainerHelper {
             print("Detailed error: \(error.localizedDescription)")
             
             // Check if it's a migration error, model error, or missing table error
-            if error.localizedDescription.contains("migration") || 
-               error.localizedDescription.contains("relationship") ||
-               error.localizedDescription.contains("to-one") ||
-               error.localizedDescription.contains("to-many") ||
-               error.localizedDescription.contains("materialize") ||
-               error.localizedDescription.contains("Array") ||
-               error.localizedDescription.contains("no such table") ||
-               error.localizedDescription.contains("ZHDWATCHEDADDRESS") {
+            let errorSubstrings = [
+                "migration",
+                "relationship",
+                "to-one",
+                "to-many",
+                "materialize",
+                "Array",
+                "no such table",
+                "ZHDWATCHEDADDRESS"
+            ]
+            
+            if errorSubstrings.contains(where: { error.localizedDescription.contains($0) }) {
                 print("Model/Migration error detected, performing complete cleanup...")
                 UserDefaults.standard.set(true, forKey: "ForceModelCleanup")
             }
