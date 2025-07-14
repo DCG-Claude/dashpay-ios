@@ -17,11 +17,8 @@ public typealias IOSCanSignCallback = @convention(c) (
     _ identityPublicKeyLen: Int
 ) -> Bool
 
-// Mock function until FFI is linked
-func dash_sdk_signer_create(_ signCallback: IOSSignCallback, _ canSignCallback: IOSCanSignCallback) -> OpaquePointer? {
-    // Mock implementation
-    return nil
-}
+// dash_sdk_signer_create is provided by SwiftDashCoreSDK import
+// No mock implementation needed - use the real FFI function
 
 // Memory deallocation function for signature results
 // This function should be called to free memory allocated by IOSSignCallback
