@@ -1,5 +1,6 @@
 import XCTest
 import SwiftUI
+import SwiftData
 @testable import DashPayiOS
 
 /// Comprehensive test suite for Document and Contract functionality in DashPay iOS
@@ -15,8 +16,29 @@ class DocumentContractTestSuite: XCTestCase {
     override func setUpWithError() throws {
         // Initialize test environment
         appState = AppState()
-        documentService = appState.documentService
-        contractService = appState.contractService
+        
+        // Create in-memory model container and data manager for testing
+        let container = try ModelContainer.inMemoryContainer()
+        let modelContext = ModelContext(container)
+        let dataManager = DataManager(modelContext: modelContext, currentNetwork: .testnet)
+        
+        // Create test platform SDK wrapper
+        let testPlatformSDK = try PlatformSDKWrapper(network: .testnet)
+        
+        // Initialize services directly for testing
+        documentService = DocumentService(platformSDK: testPlatformSDK, dataManager: dataManager)
+        contractService = ContractService(platformSDK: testPlatformSDK, dataManager: dataManager)
+        
+        // Update AppState with test dependencies to avoid nil crashes
+        // Note: This is a test-specific setup to ensure the AppState has the required dependencies
+        let expectation = XCTestExpectation(description: "AppState setup")
+        Task { @MainActor in
+            // Set up the AppState with test configuration
+            appState.initializeSDK(modelContext: modelContext)
+            expectation.fulfill()
+        }
+        wait(for: [expectation], timeout: 5.0)
+        
         testContractId = "test-contract-id"
         testOwnerId = "test-owner-id"
     }
