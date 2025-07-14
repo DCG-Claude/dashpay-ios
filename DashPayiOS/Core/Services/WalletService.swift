@@ -309,12 +309,20 @@ class WalletService: ObservableObject {
         let config = try SPVConfigurationManager.shared.configuration(for: wallet.network)
         logger.info("📁 SPV data directory: \(config.dataDirectory?.path ?? "nil")")
         
-        // Set log level based on build configuration
-        #if DEBUG
-        config.logLevel = "trace"
-        #else
-        config.logLevel = "info"
-        #endif
+        // Set log level based on user preference or build configuration
+        let userLogLevel = UserDefaults.standard.string(forKey: "walletLogLevel")
+        if let userLogLevel = userLogLevel, !userLogLevel.isEmpty {
+            config.logLevel = userLogLevel
+            logger.info("📝 Using user-configured log level: \(userLogLevel)")
+        } else {
+            // Fall back to build configuration defaults
+            #if DEBUG
+            config.logLevel = "trace"
+            #else
+            config.logLevel = "info"
+            #endif
+            logger.info("📝 Using build configuration log level: \(config.logLevel)")
+        }
         
         // Configure peers based on user preference
         let useLocalPeers = UserDefaults.standard.bool(forKey: "useLocalPeers")
