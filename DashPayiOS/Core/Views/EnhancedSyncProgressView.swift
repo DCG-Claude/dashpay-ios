@@ -2,6 +2,10 @@ import SwiftUI
 import UIKit
 import SwiftDashCoreSDK
 
+#if os(macOS)
+import AppKit
+#endif
+
 struct EnhancedSyncProgressView: View {
     @EnvironmentObject private var walletService: WalletService
     @Environment(\.dismiss) private var dismiss
