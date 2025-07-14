@@ -13,7 +13,9 @@ struct AccountDetailView: View {
     @State private var isConnecting = false
     @State private var connectionError: String?
     @State private var showConnectionError = false
+#if DEBUG
     @State private var showForceConnect = false
+#endif
     
     var body: some View {
         VStack(spacing: 0) {
@@ -25,11 +27,13 @@ struct AccountDetailView: View {
                 )
             }
             
+#if DEBUG
             // Debug button
             Button("Force Connect Test") {
                 showForceConnect = true
             }
             .padding()
+#endif
             
             // Account Header
             AccountHeaderView(
