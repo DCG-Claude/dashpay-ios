@@ -47,9 +47,9 @@ struct TokenModel: Identifiable, Codable {
     let decimals: Int?
     let totalSupply: UInt64?
     let balance: UInt64
-    let frozenBalance: UInt64
+    let frozenBalance: UInt64?
     let frozen: Bool
-    let availableClaims: [TokenClaim]
+    let availableClaims: [TokenClaim]?
     let priceInfo: TokenPriceInfo?
     let status: TokenStatus?
     
@@ -64,9 +64,9 @@ struct TokenModel: Identifiable, Codable {
         decimals: Int? = nil,
         totalSupply: UInt64? = nil,
         balance: UInt64 = 0,
-        frozenBalance: UInt64 = 0,
+        frozenBalance: UInt64? = nil,
         frozen: Bool = false,
-        availableClaims: [TokenClaim] = [],
+        availableClaims: [TokenClaim]? = nil,
         priceInfo: TokenPriceInfo? = nil,
         status: TokenStatus? = nil
     ) {
@@ -95,9 +95,9 @@ struct TokenModel: Identifiable, Codable {
         self.decimals = tokenInfo.decimals
         self.totalSupply = tokenInfo.totalSupply
         self.balance = balance.balance
-        self.frozenBalance = 0 // Would need separate call to get frozen balance
+        self.frozenBalance = nil // Would need separate call to get frozen balance
         self.frozen = balance.frozen
-        self.availableClaims = [] // Would need separate call to get claims
+        self.availableClaims = nil // Would need separate call to get claims
         // Convert TokenService.TokenPriceInfo to local TokenPriceInfo
         if let servicePriceInfo = tokenInfo.priceInfo {
             self.priceInfo = TokenPriceInfo(
@@ -134,6 +134,7 @@ struct TokenModel: Identifiable, Codable {
     }
     
     var formattedFrozenBalance: String {
+        guard let frozenBalance = frozenBalance else { return "Unknown" }
         let divisor = pow(10.0, Double(effectiveDecimals))
         let tokenAmount = Double(frozenBalance) / divisor
         return String(format: "%.\(effectiveDecimals)f %@", tokenAmount, displaySymbol)
@@ -147,6 +148,7 @@ struct TokenModel: Identifiable, Codable {
     }
     
     var availableBalance: UInt64 {
+        guard let frozenBalance = frozenBalance else { return balance }
         return balance > frozenBalance ? balance - frozenBalance : 0
     }
     
@@ -157,7 +159,7 @@ struct TokenModel: Identifiable, Codable {
     }
     
     var hasClaimsAvailable: Bool {
-        return !availableClaims.isEmpty
+        return availableClaims?.isEmpty == false
     }
     
     var isPurchasable: Bool {
