@@ -113,6 +113,13 @@ struct ReceiveAddressView: View {
         } message: {
             Text("The current address has been used. Generate a new address for better privacy?")
         }
+        .alert("Address Generation Error", isPresented: .constant(addressGenerationError != nil)) {
+            Button("OK") {
+                addressGenerationError = nil
+            }
+        } message: {
+            Text(addressGenerationError ?? "")
+        }
     }
     
     private func copyAddress() {
