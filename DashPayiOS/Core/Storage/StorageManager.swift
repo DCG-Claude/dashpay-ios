@@ -80,8 +80,24 @@ final class StorageManager {
         )
         
         if let address = address {
-            // Filter by address if needed
-            // This would require a relationship or additional field to filter by address
+            // Get the watched address to access its transaction IDs
+            if let watchedAddress = try fetchWatchedAddress(by: address) {
+                let transactionIds = watchedAddress.transactionIds
+                
+                if !transactionIds.isEmpty {
+                    // Filter transactions to only include those with txids in the address's transaction list
+                    let predicate = #Predicate<Transaction> { transaction in
+                        transactionIds.contains(transaction.txid)
+                    }
+                    descriptor.predicate = predicate
+                }
+            } else {
+                // If address not found, return empty results
+                let predicate = #Predicate<Transaction> { _ in
+                    false
+                }
+                descriptor.predicate = predicate
+            }
         }
         
         descriptor.fetchLimit = limit
