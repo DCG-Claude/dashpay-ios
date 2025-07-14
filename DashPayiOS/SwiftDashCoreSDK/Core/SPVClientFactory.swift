@@ -10,16 +10,58 @@ public class SPVClientFactory {
         case auto // Automatically choose based on FFI availability
     }
     
-    // Cached testnet configuration instance
+    // Cached configuration instances for different networks
     private static let testnetConfiguration: SPVClientConfiguration = {
         return SPVConfigurationManager.shared.configuration(for: .testnet)
     }()
     
-    /// Create an SPV client instance
+    private static let mainnetConfiguration: SPVClientConfiguration = {
+        return SPVConfigurationManager.shared.configuration(for: .mainnet)
+    }()
+    
+    private static let devnetConfiguration: SPVClientConfiguration = {
+        return SPVConfigurationManager.shared.configuration(for: .devnet)
+    }()
+    
+    private static let regtestConfiguration: SPVClientConfiguration = {
+        return SPVConfigurationManager.shared.configuration(for: .regtest)
+    }()
+    
+    /// Get cached configuration for a specific network
+    /// - Parameter network: The network type
+    /// - Returns: Cached configuration instance
+    private static func getCachedConfiguration(for network: DashNetwork) -> SPVClientConfiguration {
+        switch network {
+        case .testnet:
+            return testnetConfiguration
+        case .mainnet:
+            return mainnetConfiguration
+        case .devnet:
+            return devnetConfiguration
+        case .regtest:
+            return regtestConfiguration
+        }
+    }
+    
+    /// Create an SPV client instance with cached configuration
+    /// - Parameters:
+    ///   - network: The network type to create a client for
+    ///   - type: The type of client to create
+    /// - Returns: An SPV client instance (either real or mock)
+    public static func createClient(
+        for network: DashNetwork,
+        type: ClientType = .auto
+    ) -> SPVClientProtocol {
+        let configuration = getCachedConfiguration(for: network)
+        return createClient(configuration: configuration, type: type)
+    }
+    
+    /// Create an SPV client instance with custom configuration
     /// - Parameters:
     ///   - configuration: SPV client configuration
     ///   - type: The type of client to create
     /// - Returns: An SPV client instance (either real or mock)
+    /// - Note: For standard network configurations, prefer using `createClient(for:type:)` which uses cached configurations
     public static func createClient(
         configuration: SPVClientConfiguration,
         type: ClientType = .auto
@@ -64,11 +106,11 @@ public class SPVClientFactory {
         }
     }
     
-    /// Create a client with default configuration
+    /// Create a client with default configuration (testnet)
     @MainActor
     public static func createDefaultClient(type: ClientType = .auto) -> SPVClientProtocol {
-        // Use cached testnet configuration instance
-        return createClient(configuration: testnetConfiguration, type: type)
+        // Use cached configuration for testnet
+        return createClient(for: .testnet, type: type)
     }
 }
 
