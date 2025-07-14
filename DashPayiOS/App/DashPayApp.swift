@@ -11,7 +11,11 @@ struct DashPayApp: App {
     
     init() {
         // Initialize unified FFI library early
-        UnifiedFFIInitializer.shared.initialize()
+        do {
+            try UnifiedFFIInitializer.shared.initialize()
+        } catch {
+            print("🔴 Failed to initialize unified FFI library: \(error)")
+        }
         
         // Set up notification delegate
         // UNUserNotificationCenter.current().delegate = notificationDelegate

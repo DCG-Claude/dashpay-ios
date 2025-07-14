@@ -98,7 +98,7 @@ actor PlatformSDKWrapper {
     
     private static func createPlatformSDK(for network: PlatformNetwork, withCore coreSDK: DashSDK?) async throws -> OpaquePointer {
         // Initialize unified library first (replaces dash_sdk_init)
-        UnifiedFFIInitializer.shared.initialize()
+        try UnifiedFFIInitializer.shared.initialize()
         
         // Create standard configuration (not extended)
         var config = DashSDKConfig()
