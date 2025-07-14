@@ -385,7 +385,7 @@ struct RecentActivityRow: View {
     
     private func formatAmount(_ amount: Int64) -> String {
         let dash = Double(amount) / 100_000_000
-        return String(format: "%.6f DASH", dash)
+        return String(format: "%.8f DASH", dash)
     }
 }
 
