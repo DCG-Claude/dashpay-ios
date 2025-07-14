@@ -45,6 +45,17 @@ public struct SDK {
     public init(network: FFINetwork) throws {
         // Mock initialization with network
         self.init()
+        
+        // Convert FFINetwork to DashNetwork and store it
+        let dashNetwork: DashNetwork
+        switch network {
+        case 0: dashNetwork = .mainnet
+        case 1: dashNetwork = .testnet
+        case 2: dashNetwork = .devnet
+        default: dashNetwork = .testnet
+        }
+        var mutableSelf = self
+        mutableSelf.setNetwork(dashNetwork)
     }
     
     public static func initialize() {
@@ -102,6 +113,8 @@ class AppState: ObservableObject {
     @Published var isLoading = false
     @Published var showError = false
     @Published var errorMessage = ""
+    @Published var showSuccess = false
+    @Published var successMessage = ""
     
     @Published var identities: [IdentityModel] = []
     @Published var contracts: [ContractModel] = []
@@ -646,6 +659,11 @@ class AppState: ObservableObject {
     func showError(message: String) {
         errorMessage = message
         showError = true
+    }
+    
+    func showSuccess(message: String) {
+        successMessage = message
+        showSuccess = true
     }
     
     func switchNetwork(to network: PlatformNetwork) async {

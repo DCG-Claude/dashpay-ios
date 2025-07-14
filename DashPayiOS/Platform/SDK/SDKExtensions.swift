@@ -2,6 +2,8 @@ import Foundation
 import SwiftDashCoreSDK
 
 // Callback types for signing
+// NOTE: The returned UnsafeMutablePointer<UInt8> from IOSSignCallback must be freed by the caller
+// using dash_sdk_free_signature() to prevent memory leaks
 public typealias IOSSignCallback = @convention(c) (
     _ identityPublicKeyBytes: UnsafePointer<UInt8>?,
     _ identityPublicKeyLen: Int,
@@ -21,15 +23,26 @@ func dash_sdk_signer_create(_ signCallback: IOSSignCallback, _ canSignCallback: 
     return nil
 }
 
+// Memory deallocation function for signature results
+// This function should be called to free memory allocated by IOSSignCallback
+func dash_sdk_free_signature(_ ptr: UnsafeMutablePointer<UInt8>?) {
+    guard let ptr = ptr else { return }
+    ptr.deallocate()
+}
+
 // MARK: - Network Helper  
 // C enums are imported as structs with RawValue in Swift
 // We'll use the raw values directly
 
 extension SDK {
+    private static var storedNetwork: DashNetwork = .testnet
+    
     var network: DashNetwork {
-        // In a real implementation, we would track the network during initialization
-        // For now, return testnet as default
-        return .testnet
+        return SDK.storedNetwork
+    }
+    
+    mutating func setNetwork(_ network: DashNetwork) {
+        SDK.storedNetwork = network
     }
 }
 
@@ -43,6 +56,7 @@ protocol Signer {
 private var globalSignerStorage: Signer?
 
 // C function callbacks that use the global signer
+// WARNING: The returned pointer must be freed by the caller using dash_sdk_free_signature()
 private let globalSignCallback: IOSSignCallback = { identityPublicKeyBytes, identityPublicKeyLen, dataBytes, dataLen, resultLenPtr in
     guard let identityPublicKeyBytes = identityPublicKeyBytes,
           let dataBytes = dataBytes,
@@ -59,6 +73,7 @@ private let globalSignCallback: IOSSignCallback = { identityPublicKeyBytes, iden
     }
     
     // Allocate memory for the result and copy the signature
+    // IMPORTANT: This memory must be freed by the caller using dash_sdk_free_signature()
     let result = UnsafeMutablePointer<UInt8>.allocate(capacity: signature.count)
     signature.withUnsafeBytes { bytes in
         result.initialize(from: bytes.bindMemory(to: UInt8.self).baseAddress!, count: signature.count)
@@ -90,6 +105,16 @@ extension SDK {
         
         // Initialize the SDK with the signer
         try self.init(network: network)
+        
+        // Convert FFINetwork to DashNetwork and store it
+        let dashNetwork: DashNetwork
+        switch network {
+        case 0: dashNetwork = .mainnet
+        case 1: dashNetwork = .testnet
+        case 2: dashNetwork = .devnet
+        default: dashNetwork = .testnet
+        }
+        SDK.storedNetwork = dashNetwork
         
         // Store signer handle for FFI operations
         if let signerHandle = signerHandle {
