@@ -144,6 +144,11 @@ public protocol SPVClientProtocol: AnyObject {
     
     // Transactions
     func broadcastTransaction(_ txHex: String) async throws
+    func getTransactions(for address: String, limit: Int) async throws -> [SwiftDashCoreSDK.Transaction]
+    
+    // UTXOs
+    func getUTXOs() async throws -> [SwiftDashCoreSDK.UTXO]
+    func getUTXOs(for address: String) async throws -> [SwiftDashCoreSDK.UTXO]
     
     // Mempool
     func enableMempoolTracking(strategy: SwiftDashCoreSDK.MempoolStrategy) async throws
@@ -232,6 +237,18 @@ class SPVClientWrapper: SPVClientProtocol {
     
     func broadcastTransaction(_ txHex: String) async throws {
         try await client.broadcastTransaction(txHex)
+    }
+    
+    func getTransactions(for address: String, limit: Int = 100) async throws -> [SwiftDashCoreSDK.Transaction] {
+        try await client.getTransactions(for: address, limit: limit)
+    }
+    
+    func getUTXOs() async throws -> [SwiftDashCoreSDK.UTXO] {
+        try await client.getUTXOs()
+    }
+    
+    func getUTXOs(for address: String) async throws -> [SwiftDashCoreSDK.UTXO] {
+        try await client.getUTXOs(for: address)
     }
     
     func enableMempoolTracking(strategy: SwiftDashCoreSDK.MempoolStrategy) async throws {
