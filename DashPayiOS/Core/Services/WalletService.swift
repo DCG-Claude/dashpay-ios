@@ -1061,9 +1061,14 @@ class WalletService: ObservableObject {
             mempoolTotal += balance.mempool
             
             // Update individual address balance safely
+            guard let context = modelContext else {
+                logger.error("ModelContext is nil, cannot update address balance for \(address.address)")
+                continue
+            }
+            
             do {
                 // Update address balance directly with SDK Balance
-                try address.updateBalanceSafely(from: balance, in: modelContext!)
+                try address.updateBalanceSafely(from: balance, in: context)
             } catch {
                 logger.error("Failed to update address balance: \(error)")
             }

@@ -88,7 +88,15 @@ public final class SPVConfigurationManager {
                 .appendingPathComponent(network.rawValue)
             
             // Create directory if needed
-            try? FileManager.default.createDirectory(at: config.dataDirectory!, withIntermediateDirectories: true)
+            do {
+                try FileManager.default.createDirectory(at: config.dataDirectory!, withIntermediateDirectories: true, attributes: nil)
+                logger.info("📁 Created data directory: \(config.dataDirectory!.path)")
+            } catch {
+                logger.error("❌ Failed to create data directory: \(error.localizedDescription)")
+                logger.error("   Path: \(config.dataDirectory!.path)")
+                // Don't throw here as SPV client might handle missing directory gracefully
+                // But log the error so it's visible for debugging
+            }
         }
         
         return config

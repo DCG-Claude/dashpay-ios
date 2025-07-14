@@ -186,8 +186,18 @@ public final class HDWatchedAddress {
         self.derivationPath = derivationPath
         self.label = label
         self.createdAt = Date()
-        // Initialize with a default balance to avoid nil issues
-        self.balance = LocalBalance(
+        // Note: balance is left nil and created lazily when needed to avoid SwiftData persistence issues
+    }
+    
+    var formattedBalance: String {
+        guard let balance = balance else { return "0.00000000 DASH" }
+        return balance.formattedTotal
+    }
+    
+    /// Factory method to create initial balance when needed
+    /// Should be called from a SwiftData context to ensure proper persistence
+    func createInitialBalance() -> LocalBalance {
+        let newBalance = LocalBalance(
             confirmed: 0,
             pending: 0,
             instantLocked: 0,
@@ -196,11 +206,8 @@ public final class HDWatchedAddress {
             total: 0,
             lastUpdated: Date()
         )
-    }
-    
-    var formattedBalance: String {
-        guard let balance = balance else { return "0.00000000 DASH" }
-        return balance.formattedTotal
+        self.balance = newBalance
+        return newBalance
     }
 }
 
