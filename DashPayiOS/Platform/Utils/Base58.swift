@@ -10,10 +10,9 @@ struct Base58 {
         guard !string.isEmpty else { return Data() }
         
         var result = [UInt8]()
-        var index = 0
-        var multi = 1
         let s = string.unicodeScalars
         
+        var index = 0
         for _ in s {
             guard let digit = alphabet.firstIndex(of: string[string.index(string.startIndex, offsetBy: index)]) else {
                 return nil
@@ -22,6 +21,7 @@ struct Base58 {
             index += 1
             let digitValue = alphabet.distance(from: alphabet.startIndex, to: digit)
             
+            var multi = 0
             for j in 0..<result.count {
                 let temp = Int(result[j]) * base + (j == 0 ? digitValue : 0)
                 result[j] = UInt8(temp % 256)
