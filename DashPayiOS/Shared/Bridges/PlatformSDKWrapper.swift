@@ -785,7 +785,7 @@ actor PlatformSDKWrapper {
         
         defer {
             // TODO: Re-enable when dash_sdk_document_info_free is available in unified FFI
-            // dash_sdk_document_info_free(docInfo)
+            dash_sdk_document_info_free(docInfo)
         }
         
         let documentId = String(cString: docInfo.pointee.id)
@@ -829,7 +829,7 @@ actor PlatformSDKWrapper {
         
         defer {
             // TODO: Re-enable when dash_sdk_document_info_free is available in unified FFI
-            // dash_sdk_document_info_free(docInfo)
+            dash_sdk_document_info_free(docInfo)
         }
         
         let documentId = String(cString: docInfo.pointee.id)
@@ -910,7 +910,7 @@ actor PlatformSDKWrapper {
         
         defer {
             // TODO: Re-enable when dash_sdk_document_info_free is available in unified FFI
-            // dash_sdk_document_info_free(docInfo)
+            dash_sdk_document_info_free(docInfo)
         }
         
         let fetchedOwnerId = String(cString: docInfo.pointee.owner_id)
@@ -1026,7 +1026,7 @@ actor PlatformSDKWrapper {
         
         defer {
             // TODO: Re-enable when dash_sdk_document_info_free is available in unified FFI
-            // dash_sdk_document_info_free(docInfo)
+            dash_sdk_document_info_free(docInfo)
         }
         
         let newRevision = docInfo.pointee.revision
@@ -1065,7 +1065,7 @@ actor PlatformSDKWrapper {
         
         defer {
             // TODO: Re-enable when dash_sdk_document_info_free is available in unified FFI
-            // dash_sdk_document_info_free(docInfo)
+            dash_sdk_document_info_free(docInfo)
         }
         
         let newRevision = docInfo.pointee.revision
@@ -1326,7 +1326,7 @@ actor PlatformSDKWrapper {
                 
                 defer {
                     // TODO: Re-enable when dash_sdk_document_info_free is available in unified FFI
-                    // dash_sdk_document_info_free(docInfo)
+                    dash_sdk_document_info_free(docInfo)
                 }
                 
                 let documentId = String(cString: docInfo.pointee.id)
@@ -1832,7 +1832,7 @@ extension PlatformSDKWrapper: PlatformSDKProtocol {
         
         // Clean up
         // TODO: Re-enable when dash_sdk_identity_info_free is available in unified FFI
-        // dash_sdk_identity_info_free(updatedInfo)
+        dash_sdk_identity_info_free(updatedInfo)
         
         print("✅ Identity topped up successfully. New balance: \(newBalance)")
         

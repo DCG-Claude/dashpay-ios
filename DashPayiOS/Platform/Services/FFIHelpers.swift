@@ -227,9 +227,7 @@ class FFIResourceManager {
         
         // Clean up signer handles
         for handle in signerHandles {
-            // TODO: Re-enable when dash_sdk_signer_destroy is available in unified FFI
-            // dash_sdk_signer_destroy(handle)
-            _ = handle
+            dash_sdk_signer_destroy(handle)
         }
         signerHandles.removeAll()
     }

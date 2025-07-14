@@ -1831,6 +1831,35 @@ int32_t dash_sdk_register_context_callbacks(const struct ContextProviderCallback
 struct DashSDKResult dash_sdk_create_with_callbacks(const struct DashSDKConfig *config,
                                                     const struct ContextProviderCallbacks *callbacks);
 // Get the current network the SDK is connected to
+enum FFINetwork dash_sdk_get_network(const struct SDKHandle *handle);
+
+// Create a mock SDK instance with a dump directory (for offline testing)
+struct SDKHandle *dash_sdk_create_handle_with_mock(const char *dump_dir);
+
+// Create a new iOS signer
+struct SignerHandle *dash_sdk_signer_create(IOSSignCallback sign_callback,
+                                            IOSCanSignCallback can_sign_callback);
+
+// Destroy an iOS signer
+void dash_sdk_signer_destroy(struct SignerHandle *handle);
+
+// Free bytes allocated by iOS callbacks
+void dash_sdk_bytes_free(uint8_t *bytes);
+
+// Free a string allocated by the FFI
+void dash_sdk_string_free(char *s);
+
+// Free binary data allocated by the FFI
+void dash_sdk_binary_data_free(struct DashSDKBinaryData *binary_data);
+
+// Free an identity info structure
+void dash_sdk_identity_info_free(struct DashSDKIdentityInfo *info);
+
+// Free a document info structure
+void dash_sdk_document_info_free(struct DashSDKDocumentInfo *info);
+
+// Free an identity balance map
+void dash_sdk_identity_balance_map_free(struct DashSDKIdentityBalanceMap *map);
 
 #ifdef __cplusplus
 }  // extern "C"
