@@ -611,7 +611,7 @@ struct TokenActionDetailView: View {
             }
             
             // Show success message
-            appState.showError(message: resultMessage)
+            appState.showSuccess(message: resultMessage)
             
             // Refresh token data after successful operation
             await appState.refreshTokensForIdentity(identity)
