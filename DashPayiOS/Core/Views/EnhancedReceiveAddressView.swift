@@ -310,10 +310,10 @@ struct EnhancedReceiveAddressView: View {
         
         Task {
             do {
-                // Get transactions for this specific address
+                // Get transactions for this specific address using the wallet service
                 let transactions = try await walletService.sdk?.getTransactions(for: address.address, limit: 5) ?? []
                 
-                // Map SDK transactions to RecentActivity objects
+                // Map SDK transactions to RecentActivity objects with real transaction details
                 await MainActor.run {
                     recentActivity = transactions.map { transaction in
                         RecentActivity(
@@ -325,8 +325,16 @@ struct EnhancedReceiveAddressView: View {
                         )
                     }
                 }
+                
+                // Log successful loading for debugging
+                print("✅ Loaded \(transactions.count) recent transactions for address \(address.address)")
+                
             } catch {
+                // Log error appropriately with detailed information
                 print("❌ Error loading recent activity for address \(address.address): \(error)")
+                print("   Error type: \(type(of: error))")
+                print("   Error description: \(error.localizedDescription)")
+                
                 // Fall back to empty activity on error
                 await MainActor.run {
                     recentActivity = []
