@@ -144,8 +144,7 @@ actor PlatformSDKWrapper {
         // TODO: Add resource manager cleanup when available
         
         if let signer = signer {
-            // TODO: Re-enable when dash_sdk_signer_destroy is available in unified FFI
-            // dash_sdk_signer_destroy(signer)
+            dash_sdk_signer_destroy(signer)
         }
         dash_sdk_destroy(sdk)
         
@@ -260,12 +259,65 @@ actor PlatformSDKWrapper {
     }
     
     private func testNodeConnectivity(_ nodeUrl: String) async -> Bool {
-        // Simple connectivity test - in production would use proper DAPI health check
+        // Perform proper DAPI health check by testing actual Platform API functionality
+        print("🔍 Testing DAPI connectivity for node: \(nodeUrl)")
+        
         do {
-            guard let url = URL(string: nodeUrl) else { return false }
-            let (_, response) = try await URLSession.shared.data(from: url)
-            return (response as? HTTPURLResponse)?.statusCode == 200
+            // Create a temporary Platform SDK instance to test this specific endpoint
+            let tempResult = nodeUrl.withCString { nodeUrlCStr -> DashSDKResult in
+                var tempConfig = DashSDKConfig()
+                tempConfig.network = network.sdkNetwork
+                tempConfig.skip_asset_lock_proof_verification = false
+                tempConfig.request_retry_count = 1  // Use fewer retries for faster testing
+                tempConfig.request_timeout_ms = 10000  // Use shorter timeout for faster testing
+                tempConfig.dapi_addresses = nodeUrlCStr
+                
+                return dash_sdk_create(&tempConfig)
+            }
+            
+            guard let tempSdk = tempResult.data else {
+                if let error = tempResult.error {
+                    let errorMessage = error.pointee.message.map { String(cString: $0) } ?? "Unknown error"
+                    defer { dash_sdk_error_free(error) }
+                    print("🔴 Failed to create temporary SDK for node test: \(errorMessage)")
+                } else {
+                    print("🔴 Failed to create temporary SDK for node test: No error details")
+                }
+                return false
+            }
+            
+            defer {
+                dash_sdk_destroy(tempSdk)
+            }
+            
+            // Test the node by attempting to fetch the DPNS contract
+            // This verifies the node can process Platform requests correctly
+            let dpnsContractId = getDPNSContractId()
+            
+            let testResult = dpnsContractId.withCString { contractIdCStr in
+                dash_sdk_data_contract_fetch(tempSdk, contractIdCStr)
+            }
+            
+            if let error = testResult.error {
+                let errorMessage = error.pointee.message.map { String(cString: $0) } ?? "Unknown error"
+                defer { dash_sdk_error_free(error) }
+                print("🔴 Node connectivity test failed for \(nodeUrl): \(errorMessage)")
+                return false
+            }
+            
+            if let contractHandle = testResult.data {
+                defer {
+                    dash_sdk_data_contract_destroy(OpaquePointer(contractHandle))
+                }
+                print("✅ Node connectivity test passed for \(nodeUrl)")
+                return true
+            }
+            
+            print("🔴 Node connectivity test failed for \(nodeUrl): No contract data returned")
+            return false
+            
         } catch {
+            print("🔴 Node connectivity test failed for \(nodeUrl): \(error)")
             return false
         }
     }
@@ -304,7 +356,7 @@ actor PlatformSDKWrapper {
             defer {
                 // Enhanced cleanup
                 // TODO: Re-enable when dash_sdk_identity_info_free is available in unified FFI
-                // dash_sdk_identity_info_free(identityInfo)
+                dash_sdk_identity_info_free(identityInfo)
             }
             
             // Safe string extraction
@@ -388,7 +440,7 @@ actor PlatformSDKWrapper {
         
         // Clean up
         // TODO: Re-enable when dash_sdk_identity_info_free is available in unified FFI
-        // dash_sdk_identity_info_free(identityInfo)
+        dash_sdk_identity_info_free(identityInfo)
         dash_sdk_identity_destroy(OpaquePointer(identityHandle))
         
         return Identity(

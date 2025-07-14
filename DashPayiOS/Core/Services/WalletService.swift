@@ -1359,7 +1359,12 @@ class WalletService: ObservableObject {
                     print("✅ Mempool transaction confirmed: \(txid) at height \(blockHeight) with \(confirmations) confirmations")
                     
                     // Update transaction confirmation status
-                    await confirmTransaction(txid: txid, blockHeight: blockHeight)
+                    do {
+                        try await confirmTransaction(txid: txid, blockHeight: blockHeight)
+                    } catch {
+                        logger.error("❌ Failed to confirm transaction \(txid): \(error)")
+                        // Continue processing but log the error - mempool tracking will handle eventual consistency
+                    }
                     
                     // Update mempool count
                     await updateMempoolTransactionCount()
@@ -1372,7 +1377,12 @@ class WalletService: ObservableObject {
                     print("❌ Mempool transaction removed: \(txid), reason: \(reason)")
                     
                     // Remove or mark transaction as dropped
-                    await removeTransaction(txid: txid)
+                    do {
+                        try await removeTransaction(txid: txid)
+                    } catch {
+                        logger.error("❌ Failed to remove transaction \(txid): \(error)")
+                        // Continue processing but log the error - mempool tracking will handle eventual consistency
+                    }
                     
                     // Update mempool count
                     await updateMempoolTransactionCount()
@@ -2025,9 +2035,12 @@ class WalletService: ObservableObject {
         // 6. Test confirmation simulation
         logger.info("🧪 Step 6: Simulating transaction confirmation...")
         
-        await confirmTransaction(txid: mockTxid, blockHeight: 850000)
-        
-        logger.info("✅ Step 6: Transaction confirmation simulated")
+        do {
+            try await confirmTransaction(txid: mockTxid, blockHeight: 850000)
+            logger.info("✅ Step 6: Transaction confirmation simulated")
+        } catch {
+            logger.error("❌ Step 6: Transaction confirmation failed - \(error)")
+        }
         
         logger.info("🎉 Comprehensive receiving funds detection test completed!")
         logger.info("📊 Test Summary:")
