@@ -19,13 +19,16 @@ class WalletService: ObservableObject {
     
     @Published var activeWallet: HDWallet?
     @Published var activeAccount: HDAccount?
-    @Published var mempoolTransactionCount: Int = 0
     
     // Service dependencies
     private let connectionService = ConnectionStateService()
     private let syncService = SyncStateService()
     private let watchAddressService = WatchAddressService()
     private let autoSyncService = AutoSyncService()
+    private let walletLifecycleService = WalletLifecycleService()
+    private let addressManagementService = AddressManagementService()
+    private let balanceTransactionService = BalanceTransactionService()
+    private let networkConfigurationService = NetworkConfigurationService()
     
     private var cancellables = Set<AnyCancellable>()
     var modelContext: ModelContext?
@@ -52,6 +55,7 @@ class WalletService: ObservableObject {
     var lastAutoSyncDate: Date? { autoSyncService.lastAutoSyncDate }
     var syncQueue: [HDWallet] { autoSyncService.syncQueue }
     var sdk: DashSDK? { connectionService.sdk }
+    var mempoolTransactionCount: Int { balanceTransactionService.mempoolTransactionCount }
     
     // Computed property for sync statistics
     var syncStatistics: [String: String] {
@@ -64,6 +68,9 @@ class WalletService: ObservableObject {
         logger.info("🔧 WalletService.configure() called")
         self.modelContext = modelContext
         autoSyncService.configure(modelContext: modelContext)
+        walletLifecycleService.configure(modelContext: modelContext)
+        addressManagementService.configure(modelContext: modelContext)
+        balanceTransactionService.configure(modelContext: modelContext)
         logger.info("✅ WalletService configured with modelContext")
     }
     
@@ -75,46 +82,12 @@ class WalletService: ObservableObject {
         password: String,
         network: DashNetwork
     ) throws -> HDWallet {
-        guard let context = modelContext else {
-            throw WalletError.noContext
-        }
-        
-        // Generate seed from mnemonic
-        let seed = try HDWalletService.mnemonicToSeed(mnemonic)
-        let seedHash = HDWalletService.seedHash(seed)
-        
-        // Check for duplicate wallet
-        let descriptor = FetchDescriptor<HDWallet>()
-        let allWallets = try context.fetch(descriptor)
-        if allWallets.first(where: { $0.seedHash == seedHash && $0.network == network }) != nil {
-            throw WalletError.duplicateWallet
-        }
-        
-        // Encrypt seed
-        let encryptedSeed = try HDWalletService.encryptSeed(seed, password: password)
-        
-        // Create wallet
-        let wallet = HDWallet(
+        return try walletLifecycleService.createWallet(
             name: name,
-            network: network,
-            encryptedSeed: encryptedSeed,
-            seedHash: seedHash
+            mnemonic: mnemonic,
+            password: password,
+            network: network
         )
-        
-        context.insert(wallet)
-        
-        // Create default account
-        let account = try createAccount(
-            for: wallet,
-            index: 0,
-            label: "Primary Account",
-            password: password
-        )
-        wallet.accounts.append(account)
-        
-        try context.save()
-        
-        return wallet
     }
     
     /// Helper method to perform heavy cryptographic operations for account creation
@@ -198,44 +171,15 @@ class WalletService: ObservableObject {
         label: String,
         password: String
     ) throws -> HDAccount {
-        // Move heavy cryptographic operations to background
-        let accountData = try performAccountCreation(
-            encryptedSeed: wallet.encryptedSeed,
-            password: password,
-            network: wallet.network,
-            accountIndex: index
-        )
-        
-        // Create account
-        let account = HDAccount(
-            accountIndex: index,
+        return try walletLifecycleService.createAccount(
+            for: wallet,
+            index: index,
             label: label,
-            extendedPublicKey: accountData.xpub
+            password: password
         )
-        
-        account.wallet = wallet
-        
-        // Generate initial addresses using the background-generated data
-        for addressData in accountData.addresses {
-            let watchedAddress = HDWatchedAddress(
-                address: addressData.address,
-                index: addressData.index,
-                isChange: addressData.isChange,
-                derivationPath: addressData.path,
-                label: addressData.label
-            )
-            watchedAddress.account = account
-            account.addresses.append(watchedAddress)
-        }
-        
-        return account
     }
     
     func deleteWallet(_ wallet: HDWallet) throws {
-        guard let context = modelContext else {
-            throw WalletError.noContext
-        }
-        
         if wallet == activeWallet {
             Task {
                 await disconnect()
@@ -244,8 +188,7 @@ class WalletService: ObservableObject {
             activeAccount = nil
         }
         
-        context.delete(wallet)
-        try context.save()
+        try walletLifecycleService.deleteWallet(wallet)
     }
     
     // MARK: - Auto-Sync Management
@@ -503,10 +446,9 @@ class WalletService: ObservableObject {
                 if case .networkError(let message) = sdkError {
                     logger.error("   Network error: \(message)")
                     // Try fallback to different peers
-                    let useLocalPeers = UserDefaults.standard.bool(forKey: "useLocalPeers")
-                    if !useLocalPeers {
+                    if !networkConfigurationService.isUsingLocalPeers() {
                         logger.info("🔄 Attempting peer connectivity fallback...")
-                        await handlePeerConnectivityIssue()
+                        await networkConfigurationService.handlePeerConnectivityIssue()
                     }
                 } else if case .ffiError(let code, let message) = sdkError {
                     logger.error("   FFI error code: \(code), message: \(message)")
@@ -534,7 +476,19 @@ class WalletService: ObservableObject {
         // Start watching addresses
         logger.info("👀 Watching account addresses...")
         logger.info("   Account has \(account.addresses.count) addresses")
-        await watchAccountAddresses(account)
+        
+        guard let sdk = sdk else {
+            logger.error("Cannot watch addresses: SDK not initialized")
+            return
+        }
+        
+        let failedAddresses = await addressManagementService.watchAccountAddresses(account, sdk: sdk)
+        
+        // Handle failed addresses
+        if !failedAddresses.isEmpty {
+            watchAddressService.handleFailedWatchAddresses(failedAddresses, accountId: account.id.uuidString)
+        }
+        
         logger.info("   Address watching setup complete")
         
         // Start watch address verification
@@ -805,138 +759,20 @@ class WalletService: ObservableObject {
     // MARK: - Address Management
     
     func discoverAddresses(for account: HDAccount) async throws {
-        guard let sdk = sdk, let wallet = account.wallet else {
+        guard let sdk = sdk else {
             throw WalletError.invalidState
         }
         
-        print("🔍 Starting address discovery for account: \(account.displayName)")
-        
-        // Use the AddressDiscoveryService for proper gap limit discovery
-        let discoveryService = AddressDiscoveryService(sdk: sdk)
-        
-        let (externalAddresses, internalAddresses) = try await discoveryService.discoverAddresses(
-            for: account,
-            network: wallet.network,
-            gapLimit: account.gapLimit
-        )
-        
-        print("✅ Discovered \(externalAddresses.count) external and \(internalAddresses.count) internal addresses")
-        
-        // Save discovered addresses
-        try await saveDiscoveredAddresses(
-            account: account,
-            external: externalAddresses,
-            internalAddresses: internalAddresses
-        )
-        
-        print("✅ Address discovery completed for account: \(account.displayName)")
+        try await addressManagementService.discoverAddresses(for: account, sdk: sdk)
     }
     
     /// Enhanced address generation with gap limit checking
     func generateAddressesWithGapLimit(for account: HDAccount) async throws {
-        guard let wallet = account.wallet, let sdk = sdk else {
+        guard let sdk = sdk else {
             throw WalletError.invalidState
         }
         
-        // Generate addresses up to gap limit
-        let gapLimit = account.gapLimit
-        
-        // Generate receive addresses
-        var consecutiveUnused: UInt32 = 0
-        var currentIndex = account.lastUsedExternalIndex + 1
-        
-        while consecutiveUnused < gapLimit && currentIndex < 1000 {
-            let address = HDWalletService.deriveAddress(
-                xpub: account.extendedPublicKey,
-                network: wallet.network,
-                change: false,
-                index: currentIndex
-            )
-            
-            // Check if address has been used
-            let balance = try await sdk.getBalance(for: address)
-            let isUsed = balance.total > 0
-            
-            if isUsed {
-                consecutiveUnused = 0
-                account.lastUsedExternalIndex = currentIndex
-            } else {
-                consecutiveUnused += 1
-            }
-            
-            // Create watched address
-            let path = HDWalletService.BIP44.derivationPath(
-                network: wallet.network,
-                account: account.accountIndex,
-                change: false,
-                index: currentIndex
-            )
-            
-            let watchedAddress = HDWatchedAddress(
-                address: address,
-                index: currentIndex,
-                isChange: false,
-                derivationPath: path,
-                label: "Receive"
-            )
-            watchedAddress.account = account
-            account.addresses.append(watchedAddress)
-            
-            // Watch the address
-            try await sdk.watchAddress(address)
-            
-            currentIndex += 1
-        }
-        
-        // Generate change addresses (smaller number)
-        consecutiveUnused = 0
-        currentIndex = account.lastUsedInternalIndex + 1
-        let changeGapLimit = min(gapLimit, 5) // Limit change addresses
-        
-        while consecutiveUnused < changeGapLimit && currentIndex < 100 {
-            let address = HDWalletService.deriveAddress(
-                xpub: account.extendedPublicKey,
-                network: wallet.network,
-                change: true,
-                index: currentIndex
-            )
-            
-            // Check if address has been used
-            let balance = try await sdk.getBalance(for: address)
-            let isUsed = balance.total > 0
-            
-            if isUsed {
-                consecutiveUnused = 0
-                account.lastUsedInternalIndex = currentIndex
-            } else {
-                consecutiveUnused += 1
-            }
-            
-            // Create watched address
-            let path = HDWalletService.BIP44.derivationPath(
-                network: wallet.network,
-                account: account.accountIndex,
-                change: true,
-                index: currentIndex
-            )
-            
-            let watchedAddress = HDWatchedAddress(
-                address: address,
-                index: currentIndex,
-                isChange: true,
-                derivationPath: path,
-                label: "Change"
-            )
-            watchedAddress.account = account
-            account.addresses.append(watchedAddress)
-            
-            // Watch the address
-            try await sdk.watchAddress(address)
-            
-            currentIndex += 1
-        }
-        
-        try? modelContext?.save()
+        try await addressManagementService.generateAddressesWithGapLimit(for: account, sdk: sdk)
     }
     
     /// Helper method to perform heavy cryptographic operations in a non-isolated context
@@ -966,55 +802,12 @@ class WalletService: ObservableObject {
     }
     
     func generateNewAddress(for account: HDAccount, isChange: Bool = false) throws -> HDWatchedAddress {
-        guard let wallet = account.wallet, let context = modelContext else {
-            throw WalletError.noContext
-        }
+        let watchedAddress = try addressManagementService.generateNewAddress(for: account, isChange: isChange)
         
-        let index = isChange ? account.lastUsedInternalIndex + 1 : account.lastUsedExternalIndex + 1
-        
-        // Move heavy cryptographic operations to background
-        let addressResult = try performAddressGeneration(
-            xpub: account.extendedPublicKey,
-            network: wallet.network,
-            accountIndex: account.accountIndex,
-            change: isChange,
-            index: index
-        )
-        
-        let watchedAddress = HDWatchedAddress(
-            address: addressResult.address,
-            index: index,
-            isChange: isChange,
-            derivationPath: addressResult.path,
-            label: isChange ? "Change" : "Receive"
-        )
-        watchedAddress.account = account
-        
-        account.addresses.append(watchedAddress)
-        
-        if isChange {
-            account.lastUsedInternalIndex = index
-        } else {
-            account.lastUsedExternalIndex = index
-        }
-        
-        try context.save()
-        
-        // Watch in PersistentWalletManager with proper error handling on background thread
-        Task.detached { [weak self, address = addressResult.address, label = watchedAddress.label] in
-            do {
-                if let sdk = await self?.sdk {
-                    try await sdk.watchAddress(address, label: label)
-                    await self?.logger.info("Successfully watching new address: \(address)")
-                } else {
-                    await self?.logger.error("Cannot watch address: SDK not initialized")
-                }
-            } catch {
-                await self?.logger.error("Failed to watch new address \(address): \(error)")
-                // Schedule retry
-                if let sdk = await self?.sdk, sdk.isConnected {
-                    await self?.scheduleWatchAddressRetry(addresses: [address], account: account)
-                }
+        // Watch the new address if SDK is available
+        if let sdk = sdk {
+            Task {
+                await addressManagementService.watchAddress(watchedAddress.address, label: watchedAddress.label, sdk: sdk)
             }
         }
         
@@ -1063,53 +856,11 @@ class WalletService: ObservableObject {
             throw WalletError.notConnected
         }
         
-        logger.info("💰 Updating account balance for: \(account.displayName)")
-        
-        // Store previous balance for comparison
-        let previousBalance = account.balance?.total ?? 0
-        
-        // Move heavy I/O operations to background
-        let balanceData = try await performBalanceUpdate(sdk: sdk, addresses: account.addresses)
-        
-        // Update individual address balances on main thread
-        guard let context = modelContext else {
-            logger.error("ModelContext is nil, cannot update address balances")
-            throw WalletError.noContext
-        }
-        
-        for (address, balance) in balanceData.addressBalances {
-            do {
-                try address.updateBalanceSafely(from: balance, in: context)
-            } catch {
-                logger.error("Failed to update address balance for \(address.address): \(error)")
-            }
-        }
-        
-        // Update account balance safely
-        do {
-            try account.updateBalanceSafely(from: balanceData.accountBalance, in: context)
-        } catch {
-            logger.error("Failed to update account balance: \(error)")
-        }
+        try await balanceTransactionService.updateAccountBalance(account, sdk: sdk)
         
         // Force UI update on main thread
         // This will trigger SwiftUI updates due to @Published properties
         objectWillChange.send()
-        
-        // Save to persistence
-        try? context.save()
-        
-        // Log balance change using the updated account balance
-        let currentTotal = account.balance?.total ?? 0
-        let balanceChange = Int64(currentTotal) - Int64(previousBalance)
-        if balanceChange != 0 {
-            logger.info("💰 Balance changed by \(balanceChange) satoshis")
-            logger.info("   Previous: \(previousBalance) satoshis")
-            logger.info("   Current: \(currentTotal) satoshis")
-            logger.info("   Confirmed: \(account.balance?.confirmed ?? 0)")
-            logger.info("   Pending: \(account.balance?.pending ?? 0)")
-            logger.info("   InstantLocked: \(account.balance?.instantLocked ?? 0)")
-        }
         
         // Trigger balance update notification for immediate UI refresh
         if let updatedBalance = account.balance {
@@ -1118,84 +869,31 @@ class WalletService: ObservableObject {
     }
     
     func updateTransactions(for account: HDAccount) async throws {
-        guard let sdk = sdk, let context = modelContext else {
+        guard let sdk = sdk else {
             throw WalletError.notConnected
         }
         
-        for address in account.addresses {
-            let sdkTransactions = try await sdk.getTransactions(for: address.address)
-            
-            for sdkTx in sdkTransactions {
-                // Check if transaction already exists
-                let txidToCheck = sdkTx.txid
-                let descriptor = FetchDescriptor<Transaction>(
-                    predicate: #Predicate { transaction in
-                        transaction.txid == txidToCheck
-                    }
-                )
-                let existingTransactions = try? context.fetch(descriptor)
-                
-                if existingTransactions?.isEmpty == false {
-                    // Transaction already exists, skip
-                    continue
-                } else {
-                    // Create a new transaction instance for this context
-                    let newTransaction = Transaction(
-                        txid: sdkTx.txid,
-                        height: sdkTx.height,
-                        timestamp: sdkTx.timestamp,
-                        amount: sdkTx.amount,
-                        fee: sdkTx.fee,
-                        confirmations: sdkTx.confirmations,
-                        isInstantLocked: sdkTx.isInstantLocked,
-                        raw: sdkTx.raw,
-                        size: sdkTx.size,
-                        version: sdkTx.version
-                    )
-                    context.insert(newTransaction)
-                    
-                    // Add transaction ID to account and address
-                    if !account.transactionIds.contains(sdkTx.txid) {
-                        account.transactionIds.append(sdkTx.txid)
-                    }
-                    if !address.transactionIds.contains(sdkTx.txid) {
-                        address.transactionIds.append(sdkTx.txid)
-                    }
-                }
-            }
-        }
-        
-        try context.save()
+        try await balanceTransactionService.updateTransactions(for: account, sdk: sdk)
     }
     
     // MARK: - Private Helpers
     
     private func handlePeerConnectivityIssue() async {
-        logger.warning("🔄 Handling peer connectivity issue...")
+        await networkConfigurationService.handlePeerConnectivityIssue()
         
-        // Check if we're using local peers and should fallback to public
-        if isUsingLocalPeers() {
-            logger.info("📡 Local peers failed, attempting fallback to public peers...")
+        // Disconnect and reconnect with new configuration
+        if let wallet = activeWallet, let account = activeAccount {
+            await disconnect()
             
-            // Switch to public peers
-            setUseLocalPeers(false)
+            // Wait a moment before reconnecting
+            try? await Task.sleep(nanoseconds: 2_000_000_000) // 2 seconds
             
-            // Disconnect and reconnect with new configuration
-            if let wallet = activeWallet, let account = activeAccount {
-                await disconnect()
-                
-                // Wait a moment before reconnecting
-                try? await Task.sleep(nanoseconds: 2_000_000_000) // 2 seconds
-                
-                do {
-                    try await connect(wallet: wallet, account: account)
-                    logger.info("✅ Successfully reconnected with public peers")
-                } catch {
-                    logger.error("❌ Failed to reconnect with public peers: \(error)")
-                }
+            do {
+                try await connect(wallet: wallet, account: account)
+                logger.info("✅ Successfully reconnected with new peer configuration")
+            } catch {
+                logger.error("❌ Failed to reconnect with new peer configuration: \(error)")
             }
-        } else {
-            logger.error("❌ Public peers also failed to connect. Check network connectivity.")
         }
     }
     
@@ -1354,7 +1052,7 @@ class WalletService: ObservableObject {
                     }
                     
                     // Create and save the transaction
-                    await saveTransaction(
+                    await balanceTransactionService.saveTransaction(
                         txid: txid,
                         amount: amount,
                         addresses: addresses,
@@ -1380,7 +1078,7 @@ class WalletService: ObservableObject {
                 print("   Addresses: \(addresses)")
                 
                 // Save as unconfirmed transaction
-                await saveTransaction(
+                await balanceTransactionService.saveTransaction(
                     txid: txid,
                     amount: amount,
                     addresses: addresses,
@@ -1390,7 +1088,9 @@ class WalletService: ObservableObject {
                 )
                 
                 // Update mempool count
-                await updateMempoolTransactionCount()
+                if let account = activeAccount {
+                    await balanceTransactionService.updateMempoolTransactionCount(for: account)
+                }
             }
         }
     }
@@ -1402,14 +1102,16 @@ class WalletService: ObservableObject {
                 
                 // Update transaction confirmation status
                 do {
-                    try await confirmTransaction(txid: txid, blockHeight: blockHeight)
+                    try await balanceTransactionService.confirmTransaction(txid: txid, blockHeight: blockHeight)
                 } catch {
                     logger.error("❌ Failed to confirm transaction \(txid): \(error)")
                     // Continue processing but log the error - mempool tracking will handle eventual consistency
                 }
                 
                 // Update mempool count
-                await updateMempoolTransactionCount()
+                if let account = activeAccount {
+                    await balanceTransactionService.updateMempoolTransactionCount(for: account)
+                }
             }
         }
     }
@@ -1421,14 +1123,18 @@ class WalletService: ObservableObject {
                 
                 // Remove or mark transaction as dropped
                 do {
-                    try await removeTransaction(txid: txid)
+                    if let account = activeAccount {
+                        try await balanceTransactionService.removeTransaction(txid: txid, account: account)
+                    }
                 } catch {
                     logger.error("❌ Failed to remove transaction \(txid): \(error)")
                     // Continue processing but log the error - mempool tracking will handle eventual consistency
                 }
                 
                 // Update mempool count
-                await updateMempoolTransactionCount()
+                if let account = activeAccount {
+                    await balanceTransactionService.updateMempoolTransactionCount(for: account)
+                }
             }
         }
     }
@@ -1438,29 +1144,6 @@ class WalletService: ObservableObject {
         logger.info("📊 Sync progress: \(progress.percentageComplete)% - \(progress.status.description)")
     }
     
-    private func watchAccountAddresses(_ account: HDAccount) async {
-        guard let sdk = sdk else {
-            logger.error("Cannot watch addresses: SDK not initialized")
-            return
-        }
-        
-        var failedAddresses: [(address: String, error: Error)] = []
-        
-        for address in account.addresses {
-            do {
-                try await sdk.watchAddress(address.address, label: address.label)
-                logger.info("Successfully watching address: \(address.address)")
-            } catch {
-                logger.error("Failed to watch address \(address.address): \(error)")
-                failedAddresses.append((address.address, error))
-            }
-        }
-        
-        // Handle failed addresses
-        if !failedAddresses.isEmpty {
-            await handleFailedWatchAddresses(failedAddresses, account: account)
-        }
-    }
     
     private func handleFailedWatchAddresses(_ failures: [(address: String, error: Error)], account: HDAccount) async {
         // Delegate to watch address service
@@ -1479,59 +1162,6 @@ class WalletService: ObservableObject {
         }
     }
     
-    private func saveDiscoveredAddresses(
-        account: HDAccount,
-        external: [String],
-        internalAddresses: [String]
-    ) async throws {
-        guard let wallet = account.wallet, let context = modelContext else {
-            throw WalletError.noContext
-        }
-        
-        // Save external addresses
-        for (index, address) in external.enumerated() {
-            let path = HDWalletService.BIP44.derivationPath(
-                network: wallet.network,
-                account: account.accountIndex,
-                change: false,
-                index: UInt32(index)
-            )
-            
-            let watchedAddress = HDWatchedAddress(
-                address: address,
-                index: UInt32(index),
-                isChange: false,
-                derivationPath: path,
-                label: "Receive"
-            )
-            watchedAddress.account = account
-            
-            account.addresses.append(watchedAddress)
-        }
-        
-        // Save internal addresses
-        for (index, address) in internalAddresses.enumerated() {
-            let path = HDWalletService.BIP44.derivationPath(
-                network: wallet.network,
-                account: account.accountIndex,
-                change: true,
-                index: UInt32(index)
-            )
-            
-            let watchedAddress = HDWatchedAddress(
-                address: address,
-                index: UInt32(index),
-                isChange: true,
-                derivationPath: path,
-                label: "Change"
-            )
-            watchedAddress.account = account
-            
-            account.addresses.append(watchedAddress)
-        }
-        
-        try context.save()
-    }
     
     private func updateSyncState(walletId: UUID, progress: SyncProgress) async {
         guard let context = modelContext else { return }
@@ -1550,164 +1180,9 @@ class WalletService: ObservableObject {
         try? context.save()
     }
     
-    private func saveTransaction(
-        txid: String,
-        amount: Int64,
-        addresses: [String],
-        confirmed: Bool,
-        blockHeight: UInt32?,
-        account: HDAccount
-    ) async {
-        guard let context = modelContext else { return }
-        
-        // Check if transaction already exists
-        let descriptor = FetchDescriptor<Transaction>()
-        
-        let existingTransactions = try? context.fetch(descriptor)
-        if let existingTx = existingTransactions?.first(where: { $0.txid == txid }) {
-            // Update existing transaction
-            existingTx.confirmations = confirmed ? max(1, existingTx.confirmations) : 0
-            existingTx.height = blockHeight ?? existingTx.height
-            print("📝 Updated existing transaction: \(txid)")
-        } else {
-            // Create new transaction
-            let transaction = Transaction(
-                txid: txid,
-                height: blockHeight,
-                timestamp: Date(),
-                amount: amount,
-                confirmations: confirmed ? 1 : 0,
-                isInstantLocked: false
-            )
-            
-            // Associate transaction ID with account
-            if !account.transactionIds.contains(txid) {
-                account.transactionIds.append(txid)
-            }
-            
-            // Associate transaction ID with addresses
-            for addressString in addresses {
-                if let watchedAddress = account.addresses.first(where: { $0.address == addressString }) {
-                    if !watchedAddress.transactionIds.contains(txid) {
-                        watchedAddress.transactionIds.append(txid)
-                    }
-                    print("🔗 Linked transaction to address: \(addressString)")
-                }
-            }
-            
-            context.insert(transaction)
-            print("💾 Saved new transaction: \(txid) with amount: \(amount) satoshis")
-        }
-        
-        // Save context
-        do {
-            try context.save()
-            logger.info("✅ Transaction saved to database")
-            
-            // Force immediate UI update
-            objectWillChange.send()
-            
-            // Update account balance (this will trigger another UI update)
-            try? await updateAccountBalance(account)
-            
-            // Log transaction for debugging
-            // Note: SwiftData doesn't have registeredObjects, so we'll skip this for now
-            logger.info("✅ Transaction saved successfully: \(txid)")
-            
-        } catch {
-            logger.error("❌ Error saving transaction: \(error)")
-        }
-    }
     
-    // MARK: - Mempool Transaction Helpers
-    
-    private func confirmTransaction(txid: String, blockHeight: UInt32) async throws {
-        guard let context = modelContext else { return }
-        
-        let descriptor = FetchDescriptor<Transaction>()
-        let existingTransactions = try? context.fetch(descriptor)
-        
-        if let transaction = existingTransactions?.first(where: { $0.txid == txid }) {
-            transaction.confirmations = 1
-            transaction.height = blockHeight
-            print("✅ Updated transaction \(txid) as confirmed at height \(blockHeight)")
-            
-            do {
-                try context.save()
-                // Update balance after confirmation
-                if let account = activeAccount {
-                    do {
-                        try await updateAccountBalance(account)
-                    } catch {
-                        logger.error("❌ Error updating balance after transaction confirmation: \(error)")
-                        // Balance update failure is critical - throw to maintain consistency
-                        throw error
-                    }
-                }
-            } catch {
-                logger.error("❌ Error updating confirmed transaction: \(error)")
-                // Database save failure is critical - throw to maintain data integrity
-                throw error
-            }
-        }
-    }
-    
-    private func removeTransaction(txid: String) async throws {
-        guard let context = modelContext else { return }
-        
-        let descriptor = FetchDescriptor<Transaction>()
-        let existingTransactions = try? context.fetch(descriptor)
-        
-        if let transaction = existingTransactions?.first(where: { $0.txid == txid }) {
-            // Remove transaction from account and address references
-            if let account = activeAccount {
-                account.transactionIds.removeAll { $0 == txid }
-                
-                for address in account.addresses {
-                    address.transactionIds.removeAll { $0 == txid }
-                }
-            }
-            
-            // Delete the transaction
-            context.delete(transaction)
-            print("🗑️ Removed transaction \(txid) from database")
-            
-            do {
-                try context.save()
-                // Update balance after removal
-                if let account = activeAccount {
-                    do {
-                        try await updateAccountBalance(account)
-                    } catch {
-                        logger.error("❌ Error updating balance after transaction removal: \(error)")
-                        // Balance update failure is critical - throw to maintain consistency
-                        throw error
-                    }
-                }
-            } catch {
-                logger.error("❌ Error removing transaction: \(error)")
-                // Database save failure is critical - throw to maintain data integrity
-                throw error
-            }
-        }
-    }
-    
-    private func updateMempoolTransactionCount() async {
-        guard let context = modelContext, let account = activeAccount else { return }
-        
-        let descriptor = FetchDescriptor<Transaction>()
-        let allTransactions = try? context.fetch(descriptor)
-        
-        // Count unconfirmed transactions (confirmations == 0)
-        let accountTxIds = Set(account.transactionIds)
-        let mempoolCount = allTransactions?.filter { transaction in
-            accountTxIds.contains(transaction.txid) && transaction.confirmations == 0
-        }.count ?? 0
-        
-        await MainActor.run {
-            self.mempoolTransactionCount = mempoolCount
-        }
-    }
+    // MARK: - Transaction Event Handling
+    // Note: Individual transaction management methods moved to BalanceTransactionService
     
     // MARK: - Watch Address Retry
     
@@ -1880,45 +1355,7 @@ class WalletService: ObservableObject {
     
     /// Fetch transactions for a given account from SwiftData
     func fetchTransactionsForAccount(_ account: HDAccount) async -> [SwiftDashCoreSDK.Transaction] {
-        guard let modelContext = modelContext else { return [] }
-        
-        // Get all transaction IDs from the account
-        let txids = account.transactionIds
-        guard !txids.isEmpty else { return [] }
-        
-        var sdkTransactions: [SwiftDashCoreSDK.Transaction] = []
-        
-        // Fetch each transaction from SwiftData
-        for txid in txids {
-            do {
-                let predicate = #Predicate<Transaction> { transaction in
-                    transaction.txid == txid
-                }
-                let descriptor = FetchDescriptor<Transaction>(predicate: predicate)
-                
-                if let storedTransaction = try modelContext.fetch(descriptor).first {
-                    // Convert SwiftData Transaction to SDK Transaction
-                    let sdkTransaction = SwiftDashCoreSDK.Transaction(
-                        txid: storedTransaction.txid,
-                        height: storedTransaction.height,
-                        timestamp: storedTransaction.timestamp,
-                        amount: storedTransaction.amount,
-                        fee: storedTransaction.fee ?? 0,
-                        confirmations: storedTransaction.confirmations,
-                        isInstantLocked: storedTransaction.isInstantLocked,
-                        raw: storedTransaction.raw ?? Data(),
-                        size: storedTransaction.size ?? 0,
-                        version: storedTransaction.version ?? 1
-                    )
-                    sdkTransactions.append(sdkTransaction)
-                }
-            } catch {
-                logger.error("❌ Error fetching transaction \(txid): \(error)")
-            }
-        }
-        
-        // Sort by timestamp, newest first
-        return sdkTransactions.sorted { $0.timestamp > $1.timestamp }
+        return await balanceTransactionService.fetchTransactionsForAccount(account)
     }
     
     /// Manually check for new transactions for all watched addresses
@@ -1928,50 +1365,7 @@ class WalletService: ObservableObject {
             return 
         }
         
-        logger.info("🔍 Manually checking for new transactions...")
-        logger.info("   Active account: \(account.label)")
-        logger.info("   Number of addresses: \(account.addresses.count)")
-        
-        for address in account.addresses {
-            do {
-                logger.info("   Checking address: \(address.address)")
-                let transactions = try await sdk.getTransactions(for: address.address)
-                logger.info("📊 Found \(transactions.count) transactions for address \(address.address)")
-                
-                for transaction in transactions {
-                    // Check if we already have this transaction
-                    if !account.transactionIds.contains(transaction.txid) {
-                        logger.info("🆕 Found new transaction: \(transaction.txid)")
-                        
-                        // Determine the addresses involved
-                        let addresses = [address.address] // We know at least this address is involved
-                        
-                        // Save the transaction
-                        await saveTransaction(
-                            txid: transaction.txid,
-                            amount: transaction.amount,
-                            addresses: addresses,
-                            confirmed: transaction.confirmations > 0,
-                            blockHeight: transaction.height,
-                            account: account
-                        )
-                        
-                        // Show notification for received funds
-                        if transaction.amount > 0 {
-                            await showFundsReceivedNotification(
-                                amount: transaction.amount,
-                                txid: transaction.txid,
-                                confirmed: transaction.confirmations > 0
-                            )
-                        }
-                    }
-                }
-            } catch {
-                logger.error("❌ Error checking transactions for address \(address.address): \(error)")
-            }
-        }
-        
-        logger.info("✅ Transaction check complete")
+        await balanceTransactionService.checkForNewTransactions(for: account, sdk: sdk)
     }
     
     /// Test method to create a test address for receiving funds
@@ -2017,7 +1411,7 @@ class WalletService: ObservableObject {
         let mockAmount: Int64 = 50_000_000 // 0.5 DASH
         
         // Simulate the transaction event directly
-        await saveTransaction(
+        await balanceTransactionService.saveTransaction(
             txid: mockTxid,
             amount: mockAmount,
             addresses: [testAddress],
@@ -2061,7 +1455,7 @@ class WalletService: ObservableObject {
         logger.info("🧪 Step 6: Simulating transaction confirmation...")
         
         do {
-            try await confirmTransaction(txid: mockTxid, blockHeight: 850000)
+            try await balanceTransactionService.confirmTransaction(txid: mockTxid, blockHeight: 850000)
             logger.info("✅ Step 6: Transaction confirmation simulated")
         } catch {
             logger.error("❌ Step 6: Transaction confirmation failed - \(error)")
