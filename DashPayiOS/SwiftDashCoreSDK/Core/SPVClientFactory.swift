@@ -1,9 +1,12 @@
 import Foundation
 import Combine
 import SwiftDashCoreSDK
+import os
 
 /// Factory for creating SPV client instances
 public class SPVClientFactory {
+    private static let logger = Logger(subsystem: "com.dash.wallet.ios", category: "SPVClientFactory")
+    
     public enum ClientType {
         case real
         case mock
@@ -76,7 +79,7 @@ public class SPVClientFactory {
             return MockSPVClient(configuration: configuration)
             #else
             // In production builds, always use real SPVClient even if mock was requested
-            print("⚠️ SPVClientFactory: Mock client requested in production build, using real client instead")
+            logger.warning("Mock client requested in production build, using real client instead")
             let client = SwiftDashCoreSDK.SPVClient(configuration: configuration)
             return SPVClientWrapper(client)
             #endif
@@ -85,20 +88,20 @@ public class SPVClientFactory {
             #if DEBUG
             // In debug builds, check if mock client should be used
             if SPVEnvironment.useMockClient {
-                print("🎭 SPVClientFactory: Creating mock SPVClient for debug environment")
+                logger.info("Creating mock SPVClient for debug environment")
                 return MockSPVClient(configuration: configuration)
             } else {
-                print("🚀 SPVClientFactory: Creating real SPVClient for debug environment")
+                logger.info("Creating real SPVClient for debug environment")
                 let client = SwiftDashCoreSDK.SPVClient(configuration: configuration)
                 return SPVClientWrapper(client)
             }
             #else
             // In production builds, always use real SPVClient
-            print("🚀 SPVClientFactory: Creating real SPVClient for production use")
+            logger.info("Creating real SPVClient for production use")
             
             // FFI initialization is handled by unified library at app startup
             // No need to check or initialize here
-            print("✅ SPVClientFactory: Using unified FFI (initialized at app startup)")
+            logger.info("Using unified FFI (initialized at app startup)")
             
             let client = SwiftDashCoreSDK.SPVClient(configuration: configuration)
             return SPVClientWrapper(client)
@@ -164,6 +167,7 @@ public protocol SPVClientProtocol: AnyObject {
 
 // Wrapper to make SDK's SPVClient conform to our protocol
 class SPVClientWrapper: SPVClientProtocol {
+    private static let logger = Logger(subsystem: "com.dash.wallet.ios", category: "SPVClientWrapper")
     private let client: SwiftDashCoreSDK.SPVClient
     
     var isConnected: Bool { client.isConnected }
@@ -183,7 +187,7 @@ class SPVClientWrapper: SPVClientProtocol {
     func connect() async throws {
         // SPVClient doesn't expose connect directly, this might be internal
         // For now, we'll assume it's already connected when created
-        print("SPVClientWrapper: connect() called - SPVClient manages connection internally")
+        Self.logger.info("connect() called - SPVClient manages connection internally")
     }
     
     func stop() async throws {
@@ -193,7 +197,7 @@ class SPVClientWrapper: SPVClientProtocol {
     
     func disconnect() {
         // SPVClient doesn't expose disconnect directly
-        print("SPVClientWrapper: disconnect() called - SPVClient manages connection internally")
+        Self.logger.info("disconnect() called - SPVClient manages connection internally")
     }
     
     func syncToTip() async throws -> AsyncThrowingStream<SwiftDashCoreSDK.SyncProgress, Error> {
@@ -203,12 +207,12 @@ class SPVClientWrapper: SPVClientProtocol {
     
     func startSync() async throws {
         // SPVClient doesn't expose startSync directly
-        print("SPVClientWrapper: startSync() called - SPVClient manages sync internally")
+        Self.logger.info("startSync() called - SPVClient manages sync internally")
     }
     
     func stopSync() {
         // SPVClient doesn't expose stopSync directly
-        print("SPVClientWrapper: stopSync() called - SPVClient manages sync internally")
+        Self.logger.info("stopSync() called - SPVClient manages sync internally")
     }
     
     func getCurrentSyncProgress() -> SwiftDashCoreSDK.SyncProgress? {
