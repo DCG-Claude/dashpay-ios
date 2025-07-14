@@ -267,7 +267,7 @@ struct AccountRowView: View {
                 .fontDesign(.monospaced)
             
             if let balance = account.balance {
-                Text(formatDash(balance.total))
+                Text(DashFormatting.formatDash(balance.total))
                     .font(.caption)
                     .monospacedDigit()
                     .foregroundColor(.secondary)
@@ -296,8 +296,3 @@ struct EmptyAccountView: View {
 
 
 
-// MARK: - Helper Functions
-private func formatDash(_ satoshis: UInt64) -> String {
-    let dash = Double(satoshis) / 100_000_000.0
-    return String(format: "%.8f DASH", dash)
-}

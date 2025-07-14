@@ -216,7 +216,7 @@ struct WalletRowView: View {
                         .font(.caption2)
                         .foregroundColor(.blue)
                 } else {
-                    Text(formatDash(wallet.totalBalance.total))
+                    Text(DashFormatting.formatDash(wallet.totalBalance.total))
                         .font(.caption)
                         .monospacedDigit()
                         .foregroundColor(.secondary)
@@ -322,8 +322,3 @@ struct EmptyWalletView: View {
     }
 }
 
-// MARK: - Helper Functions
-private func formatDash(_ satoshis: UInt64) -> String {
-    let dash = Double(satoshis) / 100_000_000.0
-    return String(format: "%.8f DASH", dash)
-}

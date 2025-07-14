@@ -10,6 +10,7 @@ struct SyncProgressView: View {
     @Environment(\.dismiss) private var dismiss
     
     @State private var hasStarted = false
+    @State private var syncError: String?
     
     var body: some View {
         NavigationView {
@@ -80,6 +81,21 @@ struct SyncProgressView: View {
                             .multilineTextAlignment(.center)
                             .frame(maxWidth: 300)
                         
+                        // Error display
+                        if let syncError = syncError {
+                            HStack {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .foregroundColor(.red)
+                                Text(syncError)
+                                    .foregroundColor(.red)
+                                    .font(.caption)
+                            }
+                            .padding()
+                            .background(Color.red.opacity(0.1))
+                            .cornerRadius(8)
+                            .frame(maxWidth: 300)
+                        }
+                        
                         Button("Start Sync") {
                             Task {
                                 // First test if we can get stats
@@ -129,8 +145,18 @@ struct SyncProgressView: View {
     
     private func startSync() {
         hasStarted = true
+        syncError = nil // Clear any previous error
         Task {
-            try? await walletService.startSync()
+            do {
+                try await walletService.startSync()
+                print("✅ Sync started successfully")
+            } catch {
+                await MainActor.run {
+                    syncError = error.localizedDescription
+                    hasStarted = false // Reset to allow retry
+                }
+                print("🔴 Failed to start sync: \(error.localizedDescription)")
+            }
         }
     }
     

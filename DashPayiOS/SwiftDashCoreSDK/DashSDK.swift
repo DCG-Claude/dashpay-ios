@@ -61,26 +61,7 @@ public final class DashSDK {
         
         print("🔵 Creating SPVClient with network: \(configuration.network.name)...")
         self.client = SwiftDashCoreSDK.SPVClient(configuration: configuration)
-        
-        // Verify FFI is initialized
-        if !FFIInitializer.initialized {
-            print("🔴 FFI not initialized after SPVClient creation")
-            print("🔴 Attempting manual FFI initialization...")
-            
-            do {
-                try FFIInitializer.initializeWithRetry(logLevel: configuration.logLevel, maxAttempts: 3)
-                print("✅ Manual FFI initialization successful")
-            } catch {
-                print("🔴 Manual FFI initialization failed: \(error)")
-                let errorMessage = "FFI initialization failed after multiple attempts. This may be due to:\n" +
-                    "1. Missing or incompatible FFI library\n" +
-                    "2. Symbol conflicts between libraries\n" +
-                    "3. Initialization race condition\n" +
-                    "Error: \(error.localizedDescription)"
-                throw DashSDKError.ffiError(code: -1, message: errorMessage)
-            }
-        }
-        print("✅ SPVClient created")
+        print("✅ SPVClient created (using unified FFI)")
         
         print("🔵 Creating PersistentWalletManager...")
         // PersistentWalletManager requires StorageManager

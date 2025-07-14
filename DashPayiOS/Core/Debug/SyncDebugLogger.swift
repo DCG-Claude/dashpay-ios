@@ -231,7 +231,12 @@ extension SyncDebugLogger {
                 if FileManager.default.fileExists(atPath: url.path) {
                     let handle = try FileHandle(forWritingTo: url)
                     handle.seekToEndOfFile()
-                    handle.write(logEntry.data(using: .utf8)!)
+                    guard let data = logEntry.data(using: .utf8) else {
+                        print("⚠️ Failed to encode log entry to UTF-8 data")
+                        handle.closeFile()
+                        return
+                    }
+                    handle.write(data)
                     handle.closeFile()
                 } else {
                     try logEntry.write(to: url, atomically: true, encoding: .utf8)

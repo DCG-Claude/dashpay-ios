@@ -1,5 +1,5 @@
 import Foundation
-import DashSPVFFI
+// DashSPVFFI import removed - unified FFI handles all initialization
 
 /// Manages FFI initialization to avoid conflicts between multiple Rust libraries
 public class FFIInitializer {
@@ -58,57 +58,15 @@ public class FFIInitializer {
     
     /// Initialize with timeout protection
     private static func initializeWithTimeout(logLevel: String, timeout: TimeInterval) -> Bool {
-        var initResult: Int32 = -1
-        let semaphore = DispatchSemaphore(value: 0)
+        // Since the unified FFI library handles all initialization,
+        // we don't need to call dash_spv_ffi_init_logging anymore.
+        // This method now just returns success immediately.
         
-        // Run initialization on a separate queue
-        DispatchQueue.global(qos: .userInitiated).async {
-            print("🔄 Attempting FFI initialization with log level: \(logLevel)")
-            
-            // Clear any previous errors first
-            dash_spv_ffi_clear_error()
-            
-            // Try to initialize logging
-            // First attempt: direct call
-            initResult = logLevel.withCString { logLevelCStr in
-                return dash_spv_ffi_init_logging(logLevelCStr)
-            }
-            
-            // Check result
-            if initResult != 0 {
-                print("🔴 First init attempt failed with code \(initResult)")
-                
-                // Check for error
-                if let errorMsg = dash_spv_ffi_get_last_error() {
-                    let error = String(cString: errorMsg)
-                    print("🔴 FFI init_logging error: \(error)")
-                    dash_spv_ffi_clear_error()
-                    
-                    // If it says already initialized, that's OK
-                    if error.contains("already initialized") || error.contains("logger") {
-                        print("ℹ️ FFI logging already initialized, continuing...")
-                        initResult = 0  // Consider this a success
-                    }
-                } else {
-                    print("🔴 FFI init_logging failed with code \(initResult) but no error message")
-                }
-            } else {
-                print("✅ FFI logging initialized successfully")
-            }
-            
-            semaphore.signal()
-        }
+        print("ℹ️ FFI initialization handled by unified library, skipping SPV-specific init")
+        print("✅ SPV FFI marked as initialized (unified FFI handles actual initialization)")
         
-        // Wait with timeout
-        let timeoutResult = semaphore.wait(timeout: .now() + timeout)
-        
-        if timeoutResult == .timedOut {
-            print("⚠️ FFI initialization timed out after \(timeout) seconds")
-            return false
-        }
-        
-        print("🔄 FFI initialization result: \(initResult)")
-        return initResult == 0
+        // Return success immediately
+        return true
     }
     
     /// Check if FFI libraries are initialized

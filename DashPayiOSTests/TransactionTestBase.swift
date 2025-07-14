@@ -527,8 +527,7 @@ class TransactionTestBase: XCTestCase {
     }
     
     func formatDash(_ satoshis: UInt64) -> String {
-        let dash = Double(satoshis) / 100_000_000.0
-        return String(format: "%.8f DASH", dash)
+        return DashFormatting.formatDash(satoshis)
     }
     
     func parseDashAmount(_ dashString: String) -> UInt64? {

@@ -45,7 +45,7 @@ struct SendTransactionView: View {
                     HStack {
                         Text("Available Balance")
                         Spacer()
-                        Text(formatDash(availableBalance))
+                        Text(DashFormatting.formatDash(availableBalance))
                             .monospacedDigit()
                             .fontWeight(.medium)
                     }
@@ -117,7 +117,7 @@ struct SendTransactionView: View {
                     HStack {
                         Text("Estimated Fee")
                         Spacer()
-                        Text(formatDash(estimatedFee))
+                        Text(DashFormatting.formatDash(estimatedFee))
                             .monospacedDigit()
                     }
                 }
@@ -128,7 +128,7 @@ struct SendTransactionView: View {
                         Text("Total")
                             .fontWeight(.medium)
                         Spacer()
-                        Text(formatDash(totalAmount))
+                        Text(DashFormatting.formatDash(totalAmount))
                             .monospacedDigit()
                             .fontWeight(.medium)
                     }
@@ -251,8 +251,4 @@ struct SendTransactionView: View {
         }
     }
     
-    private func formatDash(_ satoshis: UInt64) -> String {
-        let dash = Double(satoshis) / 100_000_000.0
-        return String(format: "%.8f DASH", dash)
-    }
 }

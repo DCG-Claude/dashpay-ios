@@ -38,20 +38,9 @@ public class SPVClientFactory {
             // Always use real SPVClient for production builds
             print("🚀 SPVClientFactory: Creating real SPVClient for production use")
             
-            // Ensure FFI is initialized
-            if !FFIInitializer.initialized {
-                print("🔧 SPVClientFactory: FFI not yet initialized, initializing now...")
-                let ffiInitialized = FFIInitializer.tryInitialize(logLevel: configuration.logLevel)
-                
-                if ffiInitialized {
-                    print("✅ SPVClientFactory: FFI initialized successfully")
-                } else {
-                    print("⚠️ SPVClientFactory: FFI initialization failed - continuing anyway")
-                    print("⚠️ The SPVClient will handle initialization internally")
-                }
-            } else {
-                print("✅ SPVClientFactory: FFI already initialized")
-            }
+            // FFI initialization is handled by unified library at app startup
+            // No need to check or initialize here
+            print("✅ SPVClientFactory: Using unified FFI (initialized at app startup)")
             
             // Always return real SPVClient
             let client = SwiftDashCoreSDK.SPVClient(configuration: configuration)

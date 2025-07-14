@@ -200,20 +200,20 @@ struct BalanceView: View {
     
     var body: some View {
         VStack(spacing: 8) {
-            Text(formatDash(balance.total))
+            Text(DashFormatting.formatDashAmount(balance.total))
                 .font(.system(size: 32, weight: .medium, design: .monospaced))
             
             HStack(spacing: 20) {
                 BalanceComponent(
                     label: "Available",
-                    amount: formatDash(balance.total),
+                    amount: DashFormatting.formatDashAmount(balance.total),
                     color: .green
                 )
                 
                 if balance.pending > 0 {
                     BalanceComponent(
                         label: "Pending",
-                        amount: formatDash(balance.pending),
+                        amount: DashFormatting.formatDashAmount(balance.pending),
                         color: .orange
                     )
                 }
@@ -223,10 +223,6 @@ struct BalanceView: View {
         }
     }
     
-    private func formatDash(_ satoshis: UInt64) -> String {
-        let dash = Double(satoshis) / 100_000_000.0
-        return String(format: "%.8f", dash)
-    }
 }
 
 struct BalanceComponent: View {
@@ -430,7 +426,7 @@ struct UTXOsTabView: View {
                         Text("\(utxos.count) UTXOs")
                             .font(.headline)
                         Spacer()
-                        Text("Total: \(formatDash(totalValue))")
+                        Text("Total: \(DashFormatting.formatDash(totalValue))")
                             .font(.headline)
                             .monospacedDigit()
                     }
@@ -445,11 +441,6 @@ struct UTXOsTabView: View {
                 }
             }
         }
-    }
-    
-    private func formatDash(_ satoshis: UInt64) -> String {
-        let dash = Double(satoshis) / 100_000_000.0
-        return String(format: "%.8f DASH", dash)
     }
 }
 
@@ -578,7 +569,7 @@ struct AddressRowView: View {
             Spacer()
             
             if let balance = address.balance {
-                Text(formatDash(balance.total))
+                Text(DashFormatting.formatDash(balance.total))
                     .font(.caption)
                     .monospacedDigit()
                     .foregroundColor(.secondary)
@@ -591,11 +582,6 @@ struct AddressRowView: View {
             .buttonStyle(.plain)
         }
         .padding(.vertical, 4)
-    }
-    
-    private func formatDash(_ satoshis: UInt64) -> String {
-        let dash = Double(satoshis) / 100_000_000.0
-        return String(format: "%.8f DASH", dash)
     }
     
     private func copyAddress() {

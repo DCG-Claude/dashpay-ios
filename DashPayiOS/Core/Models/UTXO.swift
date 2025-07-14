@@ -60,6 +60,6 @@ final class LocalUTXO {
     }
     
     var isSpendable: Bool {
-        !isSpent && confirmations > 0
+        !isSpent && (confirmations > 0 || isInstantLocked)
     }
 }

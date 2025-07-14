@@ -80,35 +80,30 @@ final class LocalBalance {
 // MARK: - Formatting Extensions
 extension LocalBalance {
     var formattedConfirmed: String {
-        return formatDash(confirmed)
+        return DashFormatting.formatDash(confirmed)
     }
     
     var formattedPending: String {
-        return formatDash(pending)
+        return DashFormatting.formatDash(pending)
     }
     
     var formattedInstantLocked: String {
-        return formatDash(instantLocked)
+        return DashFormatting.formatDash(instantLocked)
     }
     
     var formattedTotal: String {
-        return formatDash(total)
+        return DashFormatting.formatDash(total)
     }
     
     var formattedMempool: String {
-        return formatDash(mempool)
+        return DashFormatting.formatDash(mempool)
     }
     
     var formattedMempoolInstant: String {
-        return formatDash(mempoolInstant)
+        return DashFormatting.formatDash(mempoolInstant)
     }
     
     var formattedAvailable: String {
-        return formatDash(available)
-    }
-    
-    private func formatDash(_ satoshis: UInt64) -> String {
-        let dash = Double(satoshis) / 100_000_000.0
-        return String(format: "%.8f DASH", dash)
+        return DashFormatting.formatDash(available)
     }
 }

@@ -86,7 +86,7 @@ struct CreateIdentityView: View {
                             HStack {
                                 Text("Estimated fee:")
                                 Spacer()
-                                Text("\(formatDash(estimatedFee)) DASH")
+                                Text("\(DashFormatting.formatDashAmount(estimatedFee)) DASH")
                             }
                             .font(.caption)
                             .foregroundColor(.secondary)
@@ -94,7 +94,7 @@ struct CreateIdentityView: View {
                             HStack {
                                 Text("Total cost:")
                                 Spacer()
-                                Text("\(formatDash(totalCost)) DASH")
+                                Text("\(DashFormatting.formatDashAmount(totalCost)) DASH")
                                     .fontWeight(.medium)
                             }
                             .font(.caption)
@@ -349,10 +349,6 @@ struct CreateIdentityView: View {
         totalCost = amountInSatoshis + estimatedFee
     }
     
-    private func formatDash(_ satoshis: UInt64) -> String {
-        let dash = Double(satoshis) / 100_000_000.0
-        return String(format: "%.8f", dash)
-    }
 }
 
 // MARK: - Creation Progress View
