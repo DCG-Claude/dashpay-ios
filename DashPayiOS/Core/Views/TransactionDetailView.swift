@@ -2,11 +2,43 @@ import SwiftUI
 import SwiftData
 import SwiftDashCoreSDK
 
+/// Block explorer configuration for different networks
+/// This provides configurable base URLs for block explorers across different Dash networks
+struct BlockExplorerConfig {
+    static func url(for network: DashNetwork, txid: String) -> URL? {
+        let baseURL: String
+        
+        switch network {
+        case .mainnet:
+            baseURL = "https://insight.dash.org/insight/tx/"
+        case .testnet:
+            baseURL = "https://testnet-insight.dashevo.org/insight/tx/"
+        case .devnet:
+            baseURL = "https://insight-testnet.dash.org/insight/tx/"
+        case .regtest:
+            baseURL = "https://insight-testnet.dash.org/insight/tx/"
+        @unknown default:
+            baseURL = "https://insight.dash.org/insight/tx/"
+        }
+        
+        return URL(string: "\(baseURL)\(txid)")
+    }
+}
+
 struct TransactionDetailView: View {
     let transaction: SwiftDashCoreSDK.Transaction
     @State private var showRawData = false
     @State private var isCopied = false
     @Environment(\.dismiss) private var dismiss
+    
+    // Access the current network from the app state
+    // This can be injected or passed as a parameter when creating the view
+    var currentNetwork: DashNetwork
+    
+    init(transaction: SwiftDashCoreSDK.Transaction, currentNetwork: DashNetwork = .testnet) {
+        self.transaction = transaction
+        self.currentNetwork = currentNetwork
+    }
     
     var body: some View {
         NavigationView {
@@ -25,7 +57,7 @@ struct TransactionDetailView: View {
                     TransactionTechnicalSection(transaction: transaction, showRawData: $showRawData)
                     
                     // Actions
-                    TransactionActionsSection(transaction: transaction, isCopied: $isCopied)
+                    TransactionActionsSection(transaction: transaction, isCopied: $isCopied, currentNetwork: currentNetwork)
                 }
                 .padding()
             }
@@ -218,6 +250,7 @@ struct TransactionTechnicalSection: View {
 struct TransactionActionsSection: View {
     let transaction: SwiftDashCoreSDK.Transaction
     @Binding var isCopied: Bool
+    let currentNetwork: DashNetwork
     
     var body: some View {
         VStack(spacing: 12) {
@@ -264,8 +297,8 @@ struct TransactionActionsSection: View {
     }
     
     private func openBlockExplorer() {
-        // Open transaction in block explorer
-        if let url = URL(string: "https://insight.dash.org/insight/tx/\(transaction.txid)") {
+        // Open transaction in block explorer using configurable URL
+        if let url = BlockExplorerConfig.url(for: currentNetwork, txid: transaction.txid) {
             #if os(iOS)
             UIApplication.shared.open(url)
             #elseif os(macOS)
@@ -349,5 +382,5 @@ extension Data {
         watchedAddress: nil
     )
     
-    TransactionDetailView(transaction: transaction)
+    TransactionDetailView(transaction: transaction, currentNetwork: .testnet)
 }
