@@ -125,16 +125,21 @@ struct ReceiveAddressView: View {
     private func copyAddress() {
         guard let address = currentAddress ?? account.receiveAddress else { return }
         
-        Clipboard.copy(address.address)
-        
-        withAnimation {
-            isCopied = true
-        }
-        
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+        do {
+            try Clipboard.copy(address.address)
+            
             withAnimation {
-                isCopied = false
+                isCopied = true
             }
+            
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                withAnimation {
+                    isCopied = false
+                }
+            }
+        } catch {
+            print("Failed to copy address to clipboard: \(error)")
+            // Could also show user-friendly error message here
         }
     }
     
