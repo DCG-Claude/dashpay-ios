@@ -131,6 +131,13 @@ struct TransactionAmountSection: View {
 struct TransactionDetailsSection: View {
     let transaction: SwiftDashCoreSDK.Transaction
     
+    private static let timestampFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .medium
+        return formatter
+    }()
+    
     var body: some View {
         VStack(spacing: 0) {
             SectionHeader(title: "Details")
@@ -156,10 +163,7 @@ struct TransactionDetailsSection: View {
     }
     
     private func formatTimestamp(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .medium
-        return formatter.string(from: date)
+        return Self.timestampFormatter.string(from: date)
     }
 }
 
@@ -246,7 +250,7 @@ struct TransactionActionsSection: View {
     }
     
     private func copyTransactionId() {
-        Clipboard.copy(transaction.txid)
+        UIPasteboard.general.string = transaction.txid
         
         withAnimation {
             isCopied = true
@@ -264,6 +268,8 @@ struct TransactionActionsSection: View {
         if let url = URL(string: "https://insight.dash.org/insight/tx/\(transaction.txid)") {
             #if os(iOS)
             UIApplication.shared.open(url)
+            #elseif os(macOS)
+            NSWorkspace.shared.open(url)
             #endif
         }
     }
