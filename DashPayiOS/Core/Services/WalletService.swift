@@ -27,28 +27,30 @@ class WalletService: ObservableObject {
     private let watchAddressService = WatchAddressService()
     private let autoSyncService = AutoSyncService()
     
-    var sdk: DashSDK?
-    // FIX: Removed duplicate spvClient - use only sdk which has its own SPVClient
     private var cancellables = Set<AnyCancellable>()
-    
-    // FIX: Proper sync state management to prevent duplicate syncs
-    private var activeSyncTask: Task<Void, Never>?
-    private var syncRequestId: UUID?
     var modelContext: ModelContext?
-    private var autoSyncTimer: Timer?
     var networkMonitor: NetworkMonitor?
-    
-    // Watch address error tracking
-    private var pendingWatchAddresses: [String: [(address: String, error: Error)]] = [:]
-    private var watchVerificationTimer: Timer?
     private let logger = Logger(subsystem: "com.dash.wallet", category: "WalletService")
+    
+    // Expose service properties for backward compatibility
+    var isConnected: Bool { connectionService.isConnected }
+    var isSyncing: Bool { syncService.isSyncing }
+    var syncProgress: SyncProgress? { syncService.syncProgress }
+    var detailedSyncProgress: DetailedSyncProgress? { syncService.detailedSyncProgress }
+    var watchAddressErrors: [WatchAddressError] { watchAddressService.watchAddressErrors }
+    var pendingWatchCount: Int { watchAddressService.pendingWatchCount }
+    var watchVerificationStatus: WatchVerificationStatus { watchAddressService.watchVerificationStatus }
+    var autoSyncEnabled: Bool { 
+        get { autoSyncService.autoSyncEnabled }
+        set { autoSyncService.autoSyncEnabled = newValue }
+    }
+    var lastAutoSyncDate: Date? { autoSyncService.lastAutoSyncDate }
+    var syncQueue: [HDWallet] { autoSyncService.syncQueue }
+    var sdk: DashSDK? { connectionService.sdk }
     
     // Computed property for sync statistics
     var syncStatistics: [String: String] {
-        guard let progress = detailedSyncProgress else {
-            return [:]
-        }
-        return progress.statistics
+        return syncService.syncStatistics
     }
     
     private init() {}
@@ -56,6 +58,7 @@ class WalletService: ObservableObject {
     func configure(modelContext: ModelContext) {
         logger.info("🔧 WalletService.configure() called")
         self.modelContext = modelContext
+        autoSyncService.configure(modelContext: modelContext)
         logger.info("✅ WalletService configured with modelContext")
     }
     
