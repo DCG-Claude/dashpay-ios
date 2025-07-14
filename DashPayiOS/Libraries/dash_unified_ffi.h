@@ -60,7 +60,20 @@ int32_t dash_unified_init(void);
  * Register a Core SDK handle with the unified FFI system
  *
  * This function registers a Dash SPV client handle with the unified FFI system,
- * allowing it to be used for core blockchain operations.
+ * allowing it to be used for core blockchain operations such as transaction
+ * processing, balance queries, and SPV sync operations.
+ *
+ * Thread Safety: NOT thread-safe. Must be called from the same thread that
+ * called dash_unified_init(). Do not call concurrently with other FFI functions.
+ *
+ * Error Codes:
+ *   0: Success - handle registered successfully
+ *  -1: Invalid handle - core_handle is NULL or invalid
+ *  -2: System not initialized - call dash_unified_init() first
+ *  -3: Handle already registered - only one core handle allowed
+ *
+ * Usage: Call after dash_unified_init() and before any core operations.
+ * The handle must remain valid for the lifetime of the unified system.
  *
  * @param core_handle Pointer to a valid FFIDashSpvClient instance
  * @return 0 on success, negative error code on failure
@@ -99,10 +112,8 @@ typedef enum FFINetwork {
   Devnet = 3,
 } FFINetwork;
 
-/* Shared handle for Core SDK */
-typedef struct CoreSDKHandle {
-  struct FFIDashSpvClient *client;
-} CoreSDKHandle;
+/* Shared handle for Core SDK - opaque type */
+typedef struct CoreSDKHandle CoreSDKHandle;
 
 /* Shared result type */
 typedef struct FFIResult {
@@ -974,8 +985,27 @@ typedef struct ContextProviderCallbacks {
   GetQuorumPublicKeyFn get_quorum_public_key;
 } ContextProviderCallbacks;
 // Function pointer type for iOS signing callback
-// Returns pointer to allocated byte array (caller must free with dash_sdk_bytes_free)
-// Returns null on error
+//
+// Memory Management:
+// - Returns pointer to allocated byte array that MUST be freed by caller using dash_sdk_bytes_free()
+// - The returned pointer is owned by the caller and must be freed to prevent memory leaks
+// - Sets *result_len to the size of the allocated buffer
+//
+// Error Handling:
+// - Returns NULL on error (signing failure, invalid parameters, etc.)
+// - When NULL is returned, *result_len is undefined and should not be used
+//
+// Thread Safety:
+// - This callback may be called from any thread
+// - Implementation must be thread-safe if accessing shared state
+// - The callback should not block for extended periods
+//
+// Parameters:
+// - identity_public_key_bytes: Public key bytes to sign with
+// - identity_public_key_len: Length of public key bytes
+// - data: Data to be signed
+// - data_len: Length of data to be signed
+// - result_len: Output parameter for signature length (set only on success)
 typedef uint8_t *(*IOSSignCallback)(const uint8_t *identity_public_key_bytes,
                                     uintptr_t identity_public_key_len,
                                     const uint8_t *data,
