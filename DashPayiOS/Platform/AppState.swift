@@ -1,7 +1,6 @@
 import Foundation
 import SwiftData
-import DashSDKFFI
-import DashSPVFFI
+import SwiftDashCoreSDK
 import Combine
 
 // SDK type placeholders
@@ -32,7 +31,7 @@ public struct SDK {
     
     public init() {}
     
-    public init(network: DashSDKFFI.DashSDKNetwork) throws {
+    public init(network: FFINetwork) throws {
         // Mock initialization with network
         self.init()
     }
@@ -140,10 +139,11 @@ class AppState: ObservableObject {
         }
     }
     
-    func initializeSDK(modelContext: ModelContext) {
+    func initializeSDK(modelContext: ModelContext, existingCoreSDK: DashSDK? = nil) {
         print("📍 AppState.initializeSDK() called")
         print("📍 Current thread in initializeSDK: \(Thread.current)")
         print("📍 Is main thread: \(Thread.isMainThread)")
+        print("📍 Existing Core SDK provided: \(existingCoreSDK != nil)")
         
         // Save the model context for later use
         self.modelContext = modelContext
@@ -158,61 +158,50 @@ class AppState: ObservableObject {
                 isLoading = true
                 print("🔄 Initializing Dash SDK components... isLoading set to true")
                 
-                // Step 1: Initialize Core SDK first with enhanced configuration
-                print("🔧 Initializing Core SDK...")
-                let coreConfig = createEnhancedSPVConfig(for: currentNetwork)
-                print("📍 SPV config created")
-                
-                // Run FFI diagnostics first
-                print("🔍 Running FFI diagnostics...")
-                // FFI diagnostics are handled internally by the SDK
-                // let diagnosticReport = FFIDiagnostics.runDiagnostics()
-                // print(diagnosticReport)
-                
-                // Initialize Core SDK with real FFI
-                print("🔧 Creating real Core SDK instance...")
-                do {
-                    let coreSdk = try DashSDK(configuration: coreConfig)
-                    print("📍 DashSDK instance created")
-                    coreSDK = coreSdk
-                    print("✅ Core SDK initialized successfully")
-                } catch {
-                    print("🔴 Core SDK initialization failed: \(error)")
+                // Step 1: Use existing Core SDK if provided, otherwise create new one
+                if let existingSDK = existingCoreSDK {
+                    print("🔧 Using existing Core SDK instance...")
+                    coreSDK = existingSDK
+                    print("✅ Core SDK reused from UnifiedAppState")
+                } else {
+                    print("🔧 Initializing Core SDK...")
+                    let coreConfig = createEnhancedSPVConfig(for: currentNetwork)
+                    print("📍 SPV config created")
                     
-                    // Enhanced error diagnostics
-                    if let sdkError = error as? DashSDKError {
-                        print("🔴 SDK Error type: \(sdkError)")
-                        print("🔴 Recovery suggestion: \(sdkError.recoverySuggestion ?? "None")")
-                    }
-                    
-                    // Get FFI diagnostics
-                    print("🔴 FFI Diagnostics:")
-                    print(FFIManager.shared.diagnostics())
-                    
-                    // Check for FFI-specific errors
-                    if let lastFFIError = dash_spv_ffi_get_last_error() {
-                        let ffiError = String(cString: lastFFIError)
-                        print("🔴 Last FFI error: \(ffiError)")
-                        dash_spv_ffi_clear_error()
-                    }
-                    
-                    // Log more context about the failure
-                    print("🔴 Additional context:")
-                    print("   - Network: \(currentNetwork.displayName)")
-                    print("   - Platform SDK Network: \(currentNetwork.sdkNetwork)")
-                    print("   - Raw Value: \(currentNetwork.rawValue)")
-                    
-                    // Attempt fallback with minimal configuration
-                    print("🔄 Attempting fallback initialization with minimal config...")
-                    let fallbackConfig = createMinimalSPVConfig(for: currentNetwork)
-                    
+                    // Initialize Core SDK with real FFI
+                    print("🔧 Creating real Core SDK instance...")
                     do {
-                        let coreSdk = try DashSDK(configuration: fallbackConfig)
+                        let coreSdk = try DashSDK(configuration: coreConfig)
+                        print("📍 DashSDK instance created")
                         coreSDK = coreSdk
-                        print("✅ Core SDK initialized with fallback configuration")
+                        print("✅ Core SDK initialized successfully")
                     } catch {
-                        print("🔴 Fallback initialization also failed: \(error)")
-                        throw error
+                        print("🔴 Core SDK initialization failed: \(error)")
+                        
+                        // Enhanced error diagnostics
+                        if let sdkError = error as? SwiftDashCoreSDK.DashSDKError {
+                            print("🔴 SDK Error type: \(sdkError)")
+                            print("🔴 Recovery suggestion: \(sdkError.recoverySuggestion ?? "None")")
+                        }
+                        
+                        // Log more context about the failure
+                        print("🔴 Additional context:")
+                        print("   - Network: \(currentNetwork.displayName)")
+                        print("   - Platform SDK Network: \(currentNetwork.sdkNetwork)")
+                        print("   - Raw Value: \(currentNetwork.rawValue)")
+                        
+                        // Attempt fallback with minimal configuration
+                        print("🔄 Attempting fallback initialization with minimal config...")
+                        let fallbackConfig = createMinimalSPVConfig(for: currentNetwork)
+                        
+                        do {
+                            let coreSdk = try DashSDK(configuration: fallbackConfig)
+                            coreSDK = coreSdk
+                            print("✅ Core SDK initialized with fallback configuration")
+                        } catch {
+                            print("🔴 Fallback initialization also failed: \(error)")
+                            throw error
+                        }
                     }
                 }
                 
@@ -233,17 +222,19 @@ class AppState: ObservableObject {
                     
                     // Test Platform SDK connection
                     print("🔍 Testing Platform SDK connection...")
-                    let isConnected = await platformSdk.testConnection()
-                    if isConnected {
-                        print("✅ Platform SDK connection test passed")
-                        
-                        // Get network status
-                        let networkStatus = await platformSdk.getNetworkStatus()
-                        print("📊 Platform Network Status: \(networkStatus.statusDescription)")
-                        print("📊 Response Time: \(networkStatus.formattedResponseTime)")
-                    } else {
-                        print("🔴 Platform SDK connection test failed")
-                    }
+                    // TODO: Implement proper Platform SDK connection test when available
+                    // let isConnected = await platformSdk.testConnection()
+                    // if isConnected {
+                    //     print("✅ Platform SDK connection test passed")
+                    //     
+                    //     // Get network status
+                    //     let networkStatus = await platformSdk.getNetworkStatus()
+                    //     print("📊 Platform Network Status: \(networkStatus.statusDescription)")
+                    //     print("📊 Response Time: \(networkStatus.formattedResponseTime)")
+                    // } else {
+                    //     print("🔴 Platform SDK connection test failed")
+                    // }
+                    print("⚠️ Platform SDK connection test skipped - not implemented yet")
                 } catch {
                     print("🔴 Platform SDK initialization failed: \(error)")
                     
@@ -340,15 +331,15 @@ class AppState: ObservableObject {
         }
         
         // Enhanced configuration for better sync performance
-        config.validationMode = .basic  // Use basic validation (full validation requires compact filters)
+        config.validationMode = .full   // Use full validation to match rust-dashcore example
         config.mempoolConfig = .fetchAll(maxTransactions: 5000)  // Enable mempool tracking
         config.logLevel = "info"  // Enable info logging for sync progress
-        config.maxPeers = 12  // Allow up to 12 peer connections
+        config.maxPeers = 1  // Allow up to 12 peer connections
         
         // Add testnet node configuration
         if network == .testnet {
-            config.additionalPeers = ["192.168.1.163:19999"]  // Local testnet node
-            print("🔧 Added local testnet node: 192.168.1.163:19999")
+            config.additionalPeers = ["54.191.28.44:19999"]  // Local testnet node
+//            print("🔧 Added local testnet node: 192.168.1.163:19999")
         }
         
         print("📡 SPV Config: Network=\(config.network.name), Peers=\(config.additionalPeers.count), Validation=\(config.validationMode)")
@@ -384,11 +375,11 @@ class AppState: ObservableObject {
         }
         
         // Minimal configuration for fallback
-        config.validationMode = .none  // No validation to minimize requirements
+        config.validationMode = .basic  // Use basic validation as minimum
         config.mempoolConfig = .disabled  // Disable mempool
         config.logLevel = "debug"  // Enable debug logging to diagnose issues
-        config.maxPeers = 3  // Minimal peer connections
-        config.enableFilterLoad = false  // Disable filter loading
+        config.maxPeers = 1  // Minimal peer connections
+        config.enableFilterLoad = true   // Enable filter loading for validation
         
         print("🔧 Minimal SPV Config: Network=\(config.network.name), Validation=\(config.validationMode)")
         
@@ -428,17 +419,11 @@ class AppState: ObservableObject {
     
     private func handleSyncEvent(_ event: SPVEvent) async {
         switch event {
-        case .connected(let peerCount):
-            print("🌐 Connected to \(peerCount) peers")
+        case .connectionStatusChanged(let connected):
+            print("🌐 Connection status: \(connected ? "Connected" : "Disconnected")")
             
-        case .syncStarted:
-            print("🔄 Blockchain sync started")
-            
-        case .syncProgress(let progress):
-            print("📊 Sync: \(progress.formattedPercentage) - \(progress.currentHeight)/\(progress.totalHeight) headers")
-            
-        case .syncCompleted:
-            print("✅ Blockchain sync completed successfully!")
+        case .syncProgressUpdated(let progress):
+            print("📊 Sync: \(progress.progress * 100)% - \(progress.currentHeight)/\(progress.totalHeight) headers")
             
         case .transactionReceived(let txid, let confirmed, let amount, let addresses, let height):
             print("💰 Transaction received: \(amount) DASH to \(addresses.joined(separator: ", "))")
@@ -448,8 +433,8 @@ class AppState: ObservableObject {
                 print("   Block: \(height)")
             }
             
-        case .balanceChanged(let newBalance):
-            print("💎 Balance updated: \(newBalance) DASH")
+        case .balanceUpdated(let balance):
+            print("💎 Balance updated: \(balance.total) DASH")
             
         case .error(let error):
             print("🔴 SPV Error: \(error)")
