@@ -10,27 +10,27 @@ struct Base58 {
         guard !string.isEmpty else { return Data() }
         
         var result = [UInt8]()
-        let s = string.unicodeScalars
         
-        var index = 0
-        for _ in s {
-            guard let digit = alphabet.firstIndex(of: string[string.index(string.startIndex, offsetBy: index)]) else {
+        // Iterate directly over each character in the input string
+        for char in string {
+            guard let digit = alphabet.firstIndex(of: char) else {
                 return nil
             }
             
-            index += 1
             let digitValue = alphabet.distance(from: alphabet.startIndex, to: digit)
             
-            var multi = 0
+            // Convert the digit value and correctly accumulate across all bytes
+            var carry = digitValue
             for j in 0..<result.count {
-                let temp = Int(result[j]) * base + (j == 0 ? digitValue : 0)
+                let temp = Int(result[j]) * base + carry
                 result[j] = UInt8(temp % 256)
-                multi = temp / 256
+                carry = temp / 256
             }
             
-            while multi > 0 {
-                result.append(UInt8(multi % 256))
-                multi /= 256
+            // Handle multi-byte results by appending carry as needed
+            while carry > 0 {
+                result.append(UInt8(carry % 256))
+                carry /= 256
             }
         }
         
