@@ -153,24 +153,6 @@ struct EnhancedSyncProgressView: View {
         syncError = nil
         
         Task {
-            // Add a timeout check with proper cancellation handling
-            let timeoutTask = Task { [weak self] in
-                try await Task.sleep(nanoseconds: 10_000_000_000) // 10 seconds
-                
-                guard let self = self else { return }
-                
-                // Use task cancellation to prevent timeout from overwriting errors
-                if !Task.isCancelled && hasStarted && walletService.syncProgress == nil && walletService.detailedSyncProgress == nil {
-                    await MainActor.run {
-                        // Double-check that no error has been set by main sync operation
-                        if self.syncError == nil {
-                            self.syncError = "Sync timed out - no progress received after 10 seconds"
-                            self.hasStarted = false
-                        }
-                    }
-                }
-            }
-            
             do {
                 print("📱 EnhancedSyncProgressView: Starting sync...")
                 print("   Is connected: \(walletService.isConnected)")
@@ -183,16 +165,31 @@ struct EnhancedSyncProgressView: View {
                     throw NSError(domain: "WalletError", code: 1, userInfo: [NSLocalizedDescriptionKey: "Wallet is not connected"])
                 }
                 
-                try await walletService.startSyncWithCallbacks()
+                // Use TaskGroup to run sync operation and timeout concurrently
+                try await withThrowingTaskGroup(of: Void.self) { group in
+                    // Add sync operation task
+                    group.addTask {
+                        try await self.walletService.startSyncWithCallbacks()
+                    }
+                    
+                    // Add timeout task
+                    group.addTask {
+                        try await Task.sleep(nanoseconds: 10_000_000_000) // 10 seconds
+                        // If we reach here, timeout occurred first
+                        throw NSError(domain: "SyncTimeout", code: 1, userInfo: [NSLocalizedDescriptionKey: "Sync timed out - no progress received after 10 seconds"])
+                    }
+                    
+                    // Wait for first completed task (either sync success or timeout)
+                    try await group.next()
+                    
+                    // Cancel remaining tasks to prevent race conditions
+                    group.cancelAll()
+                }
                 
                 print("✅ EnhancedSyncProgressView: Sync started successfully")
-                // Cancel timeout task to prevent it from overwriting success state
-                timeoutTask.cancel()
             } catch {
                 print("❌ EnhancedSyncProgressView: Sync error: \(error)")
                 print("   Error type: \(type(of: error))")
-                // Cancel timeout task to prevent it from overwriting error state
-                timeoutTask.cancel()
                 
                 await MainActor.run {
                     syncError = "Sync failed: \(error.localizedDescription)"
