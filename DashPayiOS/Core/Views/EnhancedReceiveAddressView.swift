@@ -308,17 +308,30 @@ struct EnhancedReceiveAddressView: View {
     private func loadRecentActivity() {
         guard let address = currentAddress ?? account.receiveAddress else { return }
         
-        // Load recent activity for this address
-        recentActivity = address.transactionIds.prefix(5).compactMap { txid in
-            // In a real implementation, you would fetch transaction details
-            // For now, create mock activity data
-            RecentActivity(
-                id: UUID(),
-                type: .received,
-                amount: Int64.random(in: 100_000...1_000_000),
-                timestamp: Date().addingTimeInterval(-Double.random(in: 0...3600)),
-                txid: txid
-            )
+        Task {
+            do {
+                // Get transactions for this specific address
+                let transactions = try await walletService.sdk?.getTransactions(for: address.address, limit: 5) ?? []
+                
+                // Map SDK transactions to RecentActivity objects
+                await MainActor.run {
+                    recentActivity = transactions.map { transaction in
+                        RecentActivity(
+                            id: UUID(),
+                            type: transaction.amount > 0 ? .received : .sent,
+                            amount: transaction.amount,
+                            timestamp: transaction.timestamp,
+                            txid: transaction.txid
+                        )
+                    }
+                }
+            } catch {
+                print("❌ Error loading recent activity for address \(address.address): \(error)")
+                // Fall back to empty activity on error
+                await MainActor.run {
+                    recentActivity = []
+                }
+            }
         }
     }
 }
