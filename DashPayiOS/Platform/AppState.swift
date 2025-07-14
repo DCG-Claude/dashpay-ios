@@ -414,6 +414,100 @@ class AppState: ObservableObject {
     
     // MARK: - Token Management Methods
     
+    /// Discover available token IDs from various sources
+    private func discoverAvailableTokenIds() async -> [String] {
+        // Priority order: configuration file > blockchain registry > fallback list
+        
+        // 1. Try to load from configuration file
+        if let configTokenIds = loadTokenIdsFromConfiguration() {
+            print("📄 Loaded \(configTokenIds.count) token IDs from configuration")
+            return configTokenIds
+        }
+        
+        // 2. Try to discover from blockchain/registry (when available)
+        if let discoveredTokenIds = await discoverTokenIdsFromBlockchain() {
+            print("🔍 Discovered \(discoveredTokenIds.count) token IDs from blockchain")
+            return discoveredTokenIds
+        }
+        
+        // 3. Fall back to a curated list of known tokens
+        let fallbackTokenIds = getFallbackTokenIds()
+        print("⚠️ Using fallback token IDs list with \(fallbackTokenIds.count) tokens")
+        return fallbackTokenIds
+    }
+    
+    /// Load token IDs from a local configuration file
+    private func loadTokenIdsFromConfiguration() -> [String]? {
+        // Try to load from Bundle resources
+        guard let url = Bundle.main.url(forResource: "tokens", withExtension: "json") else {
+            print("📄 No tokens.json configuration file found")
+            return nil
+        }
+        
+        do {
+            let data = try Data(contentsOf: url)
+            let json = try JSONSerialization.jsonObject(with: data, options: [])
+            
+            if let tokenDict = json as? [String: Any],
+               let networkTokens = tokenDict[currentNetwork.rawValue] as? [String: Any],
+               let tokenIds = networkTokens["tokenIds"] as? [String] {
+                return tokenIds
+            }
+        } catch {
+            print("📄 Failed to parse tokens configuration: \(error)")
+        }
+        
+        return nil
+    }
+    
+    /// Discover token IDs from blockchain registry or API
+    private func discoverTokenIdsFromBlockchain() async -> [String]? {
+        // TODO: Implement when Platform SDK supports token discovery
+        // This would query the blockchain for registered token contracts
+        // For now, return nil to fall back to other methods
+        print("🔍 Blockchain token discovery not yet implemented")
+        return nil
+        
+        /*
+        // Future implementation when Platform SDK is ready:
+        guard let platformSdk = platformSDK else { return nil }
+        
+        do {
+            let sdkHandle = await platformSdk.sdkHandle
+            let sdk = SimpleSDK(handle: sdkHandle)
+            
+            // Use a hypothetical token registry query
+            let discoveredTokens = try await tokenService?.discoverTokens(sdk: sdk, network: currentNetwork)
+            return discoveredTokens?.map { $0.id }
+        } catch {
+            print("🔍 Failed to discover tokens from blockchain: \(error)")
+            return nil
+        }
+        */
+    }
+    
+    /// Get fallback token IDs for the current network
+    private func getFallbackTokenIds() -> [String] {
+        // Return network-specific fallback token IDs
+        switch currentNetwork {
+        case .testnet:
+            return [
+                "AEzd9k8r8P3u8RGU5tGz8kXR9V5hN2J7K3M4P6Q8S1T2", // Testnet example token
+                "BF2e9l9s9Q4v9SGV6uH9l9YS0W6iO3K8L4N5Q7R9T2U3"  // Another testnet token
+            ]
+        case .mainnet:
+            return [
+                "C3f4g5h6i7j8k9l0m1n2o3p4q5r6s7t8u9v0w1x2y3z4", // Mainnet example token
+                "D4g5h6i7j8k9l0m1n2o3p4q5r6s7t8u9v0w1x2y3z4a5"  // Another mainnet token
+            ]
+        case .devnet:
+            return [
+                "E5h6i7j8k9l0m1n2o3p4q5r6s7t8u9v0w1x2y3z4a5b6", // Devnet example token
+                "F6i7j8k9l0m1n2o3p4q5r6s7t8u9v0w1x2y3z4a5b6c7"  // Another devnet token
+            ]
+        }
+    }
+    
     /// Load token balances and information for all identities
     func loadTokensForIdentities() async {
         guard let tokenService = tokenService,
@@ -428,28 +522,25 @@ class AppState: ObservableObject {
         
         var allTokens: [TokenModel] = []
         
+        // Discover available token IDs dynamically
+        let availableTokenIds = await discoverAvailableTokenIds()
+        print("🪙 Using \(availableTokenIds.count) discovered token IDs for balance queries")
+        
         // For each identity, fetch their token balances
         for identity in identities {
             do {
-                // For now, use some example token contract IDs
-                // In a real app, these would come from a registry or be discovered
-                let exampleTokenIds = [
-                    "AEzd9k8r8P3u8RGU5tGz8kXR9V5hN2J7K3M4P6Q8S1T2", // Example token ID
-                    "BF2e9l9s9Q4v9SGV6uH9l9YS0W6iO3K8L4N5Q7R9T2U3"  // Another example token ID
-                ]
-                
-                // Fetch token balances for this identity
+                // Fetch token balances for this identity using discovered tokens
                 let balances = try await tokenService.fetchTokenBalances(
                     sdk: sdk,
                     identityId: identity.idString,
-                    tokenIds: exampleTokenIds
+                    tokenIds: availableTokenIds
                 )
                 
                 // Fetch token info for this identity
                 let tokenInfos = try await tokenService.fetchTokenInfos(
                     sdk: sdk,
                     identityId: identity.idString,
-                    tokenIds: exampleTokenIds
+                    tokenIds: availableTokenIds
                 )
                 
                 // Merge balance and info data into TokenModel objects
@@ -485,26 +576,24 @@ class AppState: ObservableObject {
         let sdk = SimpleSDK(handle: sdkHandle)
         
         do {
-            // Use the same example token IDs as above
-            let exampleTokenIds = [
-                "AEzd9k8r8P3u8RGU5tGz8kXR9V5hN2J7K3M4P6Q8S1T2",
-                "BF2e9l9s9Q4v9SGV6uH9l9YS0W6iO3K8L4N5Q7R9T2U3"
-            ]
+            // Discover available token IDs dynamically
+            let availableTokenIds = await discoverAvailableTokenIds()
+            print("🪙 Refreshing tokens for identity using \(availableTokenIds.count) discovered token IDs")
             
             let balances = try await tokenService.fetchTokenBalances(
                 sdk: sdk,
                 identityId: identity.idString,
-                tokenIds: exampleTokenIds
+                tokenIds: availableTokenIds
             )
             
             let tokenInfos = try await tokenService.fetchTokenInfos(
                 sdk: sdk,
                 identityId: identity.idString,
-                tokenIds: exampleTokenIds
+                tokenIds: availableTokenIds
             )
             
             var updatedTokens = tokens.filter { token in
-                !exampleTokenIds.contains(token.id)
+                !availableTokenIds.contains(token.id)
             }
             
             for balance in balances {

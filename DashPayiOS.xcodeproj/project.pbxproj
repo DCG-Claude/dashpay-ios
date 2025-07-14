@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		03224BB28259F6FCE84D2E22 /* DashUnified.xcframework in Resources */ = {isa = PBXBuildFile; fileRef = CE756C326A7C84EE2C106DC8 /* DashUnified.xcframework */; };
 		0526532102946A0D802DCE09 /* UnifiedTransactionHistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D22ACE4B49B0C20CEB13D17A /* UnifiedTransactionHistoryView.swift */; };
+		0812D1EF68B7933D35C3337D /* P256K in Frameworks */ = {isa = PBXBuildFile; productRef = 40D597EC662E5C24910EEDB1 /* P256K */; };
 		0B412E66728FDAFB35BC25CD /* KeychainSigner.swift in Sources */ = {isa = PBXBuildFile; fileRef = C698E2EC94B68074A525D3AD /* KeychainSigner.swift */; };
 		0B807F66C5511C0C89B3A935 /* StandaloneModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4133F97B57C8C64C537740D /* StandaloneModels.swift */; };
 		0B977CA71891C49973C5FC9F /* AddressDiscoveryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0EB73A066A86F22D88DD26E5 /* AddressDiscoveryService.swift */; };
@@ -72,6 +73,7 @@
 		7B022AD34CDEAFF53600BFC6 /* SendTransactionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F83D502D320F833CD3140CDE /* SendTransactionView.swift */; };
 		7B4FD25C6A5C543D294E22AA /* ContractBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BC0C671CB6135E8F770DB02 /* ContractBrowserView.swift */; };
 		7F025A54C199689F8F232CBB /* WatchStatusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E4A80D43B2E8840D678B428 /* WatchStatusView.swift */; };
+		7F348CD1F2CE55CC8883C75B /* Data+Hex.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A0087A103CD2A97D9F110D5 /* Data+Hex.swift */; };
 		7F47624BB486D32F90276FDB /* WalletDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3B0F48B937010A943D4D046 /* WalletDetailView.swift */; };
 		7F8E42C689D1FA17A17C5B53 /* StorageManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 296AC455CE9B36466E105120 /* StorageManager.swift */; };
 		81246CB6CEE106633FD69860 /* CreateIdentityView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18BE6ABC01FBF02EF8E9357F /* CreateIdentityView.swift */; };
@@ -233,6 +235,7 @@
 		6531DC0548A8674E08BB4BC0 /* DashSDK+AssetLock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DashSDK+AssetLock.swift"; sourceTree = "<group>"; };
 		66DBA3138B86BF5545BB0D4B /* SPVConfigurationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SPVConfigurationManager.swift; sourceTree = "<group>"; };
 		6725F6C9FF38B01395866E36 /* IntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntegrationTests.swift; sourceTree = "<group>"; };
+		6A0087A103CD2A97D9F110D5 /* Data+Hex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Data+Hex.swift"; sourceTree = "<group>"; };
 		6A17EB5B6C1F3B9101635C8F /* FFIIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FFIIntegrationTests.swift; sourceTree = "<group>"; };
 		6AD8DC0F12F21BF939B07627 /* DashPayiOSTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = DashPayiOSTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		6C430D6D1959CF46836D67C5 /* Transaction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Transaction.swift; sourceTree = "<group>"; };
@@ -335,6 +338,7 @@
 			files = (
 				B1176BB16CE9DDF4A44B8A0E /* SwiftDashCoreSDK in Frameworks */,
 				B0E3CC9CB09D957C537C50CC /* KeyWalletFFISwift in Frameworks */,
+				0812D1EF68B7933D35C3337D /* P256K in Frameworks */,
 				3687CB5D793D82C0B3927EF0 /* DashUnified.xcframework in Frameworks */,
 				1DD3416389421A1882557B6B /* libc++.tbd in Frameworks */,
 				34A3F7DFE31C9EAAD2EAED84 /* libz.tbd in Frameworks */,
@@ -419,6 +423,7 @@
 			isa = PBXGroup;
 			children = (
 				DA62DA60E06A3B840BDD52F1 /* Base58.swift */,
+				6A0087A103CD2A97D9F110D5 /* Data+Hex.swift */,
 			);
 			path = Utils;
 			sourceTree = "<group>";
@@ -833,6 +838,7 @@
 			packageProductDependencies = (
 				6063140896A01075684772DD /* SwiftDashCoreSDK */,
 				7C9C2C8BD18BD527265E4DC5 /* KeyWalletFFISwift */,
+				40D597EC662E5C24910EEDB1 /* P256K */,
 			);
 			productName = DashPayiOS;
 			productReference = 0DBF2707674A66AB53EFCD3D /* DashPayiOS.app */;
@@ -885,6 +891,7 @@
 			mainGroup = 4F8B1F08298D585B645E0B50;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
+				FFB247D9FA74FFC3CB5D4C87 /* XCRemoteSwiftPackageReference "swift-secp256k1" */,
 				C7293D2E2DE7035CF260A3AA /* XCLocalSwiftPackageReference "../rust-dashcore/swift-dash-core-sdk" */,
 			);
 			preferredProjectObjectVersion = 54;
@@ -945,6 +952,7 @@
 				69A6B3BB1F0E18E61D0071E3 /* DashPayApp.swift in Sources */,
 				9B5811D3C949B85E31CDB057 /* DashSDK+AssetLock.swift in Sources */,
 				C7E76A4D88F5425EF7C55863 /* DashSDK.swift in Sources */,
+				7F348CD1F2CE55CC8883C75B /* Data+Hex.swift in Sources */,
 				250500F57C5203A348136765 /* DataContract.swift in Sources */,
 				AF48FE773C13B236AB8EEE43 /* DataManager.swift in Sources */,
 				4ACDB97DDE7F4A30EF19A726 /* DebugLogger.swift in Sources */,
@@ -1401,7 +1409,23 @@
 		};
 /* End XCLocalSwiftPackageReference section */
 
+/* Begin XCRemoteSwiftPackageReference section */
+		FFB247D9FA74FFC3CB5D4C87 /* XCRemoteSwiftPackageReference "swift-secp256k1" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/21-DOT-DEV/swift-secp256k1.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.21.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
 /* Begin XCSwiftPackageProductDependency section */
+		40D597EC662E5C24910EEDB1 /* P256K */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = FFB247D9FA74FFC3CB5D4C87 /* XCRemoteSwiftPackageReference "swift-secp256k1" */;
+			productName = P256K;
+		};
 		6063140896A01075684772DD /* SwiftDashCoreSDK */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = SwiftDashCoreSDK;
