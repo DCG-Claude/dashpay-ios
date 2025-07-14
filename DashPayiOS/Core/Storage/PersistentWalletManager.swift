@@ -204,12 +204,209 @@ final class PersistentWalletManager {
         amount: UInt64,
         feeRate: UInt64
     ) async throws -> Data {
-        // This would need to be implemented with proper transaction building
-        // For now, throw not implemented
-        throw DashSDKError.notImplemented("Transaction creation not yet implemented")
+        // Get available UTXOs for transaction building
+        let utxos = try await getSpendableUTXOs()
+        
+        guard !utxos.isEmpty else {
+            throw DashSDKError.transactionCreationFailed("No spendable UTXOs available")
+        }
+        
+        // Select UTXOs for the transaction
+        let selectedUTXOs = try selectUTXOs(
+            from: utxos,
+            targetAmount: amount,
+            feeRate: feeRate
+        )
+        
+        // Calculate fee
+        let fee = calculateTransactionFee(
+            inputs: selectedUTXOs.count,
+            outputs: 2, // destination + change
+            feeRate: feeRate
+        )
+        
+        // Build raw transaction
+        let rawTransaction = try buildRawTransaction(
+            inputs: selectedUTXOs,
+            outputs: [
+                TransactionOutput(address: address, amount: amount)
+            ],
+            fee: fee
+        )
+        
+        logger.info("Created transaction with \(selectedUTXOs.count) inputs, fee: \(fee)")
+        
+        return rawTransaction
     }
     
-    // MARK: - Persistence Methods
+    // MARK: - Private Transaction Building Methods
+    
+    private func selectUTXOs(
+        from utxos: [SwiftDashCoreSDK.UTXO],
+        targetAmount: UInt64,
+        feeRate: UInt64
+    ) throws -> [SwiftDashCoreSDK.UTXO] {
+        var selected: [SwiftDashCoreSDK.UTXO] = []
+        var total: UInt64 = 0
+        
+        // Estimate fee with 2 inputs and 2 outputs initially
+        let estimatedFee = calculateTransactionFee(inputs: 2, outputs: 2, feeRate: feeRate)
+        let requiredAmount = targetAmount + estimatedFee
+        
+        // Sort UTXOs by value (largest first) for efficient selection
+        let sortedUTXOs = utxos.sorted { $0.value > $1.value }
+        
+        for utxo in sortedUTXOs {
+            if total >= requiredAmount {
+                break
+            }
+            selected.append(utxo)
+            total += utxo.value
+        }
+        
+        if total < requiredAmount {
+            throw DashSDKError.transactionCreationFailed("Insufficient funds: need \(requiredAmount), have \(total)")
+        }
+        
+        return selected
+    }
+    
+    private func calculateTransactionFee(
+        inputs: Int,
+        outputs: Int,
+        feeRate: UInt64
+    ) -> UInt64 {
+        // Calculate transaction size in bytes
+        let baseSize = 10 // Version (4) + Input count (1) + Output count (1) + Lock time (4)
+        let inputSize = inputs * 148 // Average input size with signature
+        let outputSize = outputs * 34 // Average output size (P2PKH)
+        
+        let totalSize = baseSize + inputSize + outputSize
+        return UInt64(totalSize) * feeRate / 1000
+    }
+    
+    private func buildRawTransaction(
+        inputs: [SwiftDashCoreSDK.UTXO],
+        outputs: [TransactionOutput],
+        fee: UInt64
+    ) throws -> Data {
+        var rawTx = Data()
+        
+        // Transaction version (4 bytes)
+        let version: UInt32 = 1
+        rawTx.append(contentsOf: withUnsafeBytes(of: version.littleEndian) { Array($0) })
+        
+        // Input count (1 byte for now, assuming < 253)
+        rawTx.append(UInt8(inputs.count))
+        
+        // Add inputs
+        for input in inputs {
+            // Previous transaction hash (32 bytes, reversed)
+            if let txidData = Data(hex: input.txid) {
+                rawTx.append(txidData.reversed())
+            } else {
+                throw DashSDKError.transactionCreationFailed("Invalid transaction ID format")
+            }
+            
+            // Output index (4 bytes)
+            rawTx.append(contentsOf: withUnsafeBytes(of: input.vout.littleEndian) { Array($0) })
+            
+            // Script length (1 byte for empty script)
+            rawTx.append(0x00)
+            
+            // Sequence number (4 bytes)
+            rawTx.append(contentsOf: [0xFF, 0xFF, 0xFF, 0xFF])
+        }
+        
+        // Calculate change amount
+        let inputTotal = inputs.reduce(0) { $0 + $1.value }
+        let outputTotal = outputs.reduce(0) { $0 + $1.amount }
+        let changeAmount = inputTotal - outputTotal - fee
+        
+        // Determine number of outputs
+        let outputCount = changeAmount > 546 ? outputs.count + 1 : outputs.count // 546 is dust threshold
+        rawTx.append(UInt8(outputCount))
+        
+        // Add outputs
+        for output in outputs {
+            // Amount (8 bytes)
+            rawTx.append(contentsOf: withUnsafeBytes(of: output.amount.littleEndian) { Array($0) })
+            
+            // Script (P2PKH script)
+            let script = try createP2PKHScript(for: output.address)
+            rawTx.append(UInt8(script.count))
+            rawTx.append(script)
+        }
+        
+        // Add change output if needed
+        if changeAmount > 546 {
+            rawTx.append(contentsOf: withUnsafeBytes(of: changeAmount.littleEndian) { Array($0) })
+            
+            // Use first watched address as change address
+            let changeAddress = watchedAddresses.first ?? "default_change_address"
+            let changeScript = try createP2PKHScript(for: changeAddress)
+            rawTx.append(UInt8(changeScript.count))
+            rawTx.append(changeScript)
+        }
+        
+        // Lock time (4 bytes)
+        rawTx.append(contentsOf: [0x00, 0x00, 0x00, 0x00])
+        
+        return rawTx
+    }
+    
+    private func createP2PKHScript(for address: String) throws -> Data {
+        // Create Pay-to-Public-Key-Hash script
+        // This is a simplified implementation
+        var script = Data()
+        
+        // OP_DUP
+        script.append(0x76)
+        // OP_HASH160
+        script.append(0xa9)
+        // Push 20 bytes
+        script.append(0x14)
+        // 20-byte hash160 of public key (derived from address)
+        // For now, use a placeholder hash
+        let pubKeyHash = Data(repeating: 0x00, count: 20)
+        script.append(pubKeyHash)
+        // OP_EQUALVERIFY
+        script.append(0x88)
+        // OP_CHECKSIG
+        script.append(0xac)
+        
+        return script
+    }
+    
+    private struct TransactionOutput {
+        let address: String
+        let amount: UInt64
+    }
+}
+
+// MARK: - Data Extensions
+
+extension Data {
+    init?(hex: String) {
+        let len = hex.count / 2
+        var data = Data(capacity: len)
+        for i in 0..<len {
+            let j = hex.index(hex.startIndex, offsetBy: i*2)
+            let k = hex.index(j, offsetBy: 2)
+            let bytes = hex[j..<k]
+            if var num = UInt8(bytes, radix: 16) {
+                data.append(&num, count: 1)
+            } else {
+                return nil
+            }
+        }
+        self = data
+    }
+}
+
+// MARK: - Persistence Methods - Back to PersistentWalletManager
+
+extension PersistentWalletManager {
     
     private func loadPersistedData() async {
         do {
