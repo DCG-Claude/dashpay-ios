@@ -5,6 +5,10 @@ import SwiftDashCoreSDK
 // Core types are defined in SwiftDashCoreSDK/Models/
 // Using the types from there to avoid duplication
 
+extension Notification.Name {
+    static let appShouldReset = Notification.Name("appShouldReset")
+}
+
 struct SettingsView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
@@ -63,8 +67,8 @@ struct SettingsView: View {
             }
             .alert("Reset Complete", isPresented: $showingResetAlert) {
                 Button("OK") {
-                    // Force app restart
-                    exit(0)
+                    // Reset app state gracefully
+                    resetAppState()
                 }
             } message: {
                 Text(resetMessage)
@@ -95,6 +99,26 @@ struct SettingsView: View {
         } catch {
             resetMessage = "Failed to reset data: \(error.localizedDescription)"
             showingResetAlert = true
+        }
+    }
+    
+    private func resetAppState() {
+        // Reset the wallet service state
+        Task {
+            await walletService.disconnect()
+            
+            // Reset user defaults
+            UserDefaults.standard.removeObject(forKey: "hasLaunchedBefore")
+            UserDefaults.standard.removeObject(forKey: "useLocalPeers")
+            
+            // Return to main app initialization state
+            await MainActor.run {
+                // Dismiss the settings view
+                dismiss()
+                
+                // Post notification to reset app state
+                NotificationCenter.default.post(name: .appShouldReset, object: nil)
+            }
         }
     }
 }

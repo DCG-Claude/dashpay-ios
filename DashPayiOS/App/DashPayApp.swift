@@ -3,9 +3,14 @@ import SwiftData
 import UserNotifications
 import SwiftDashCoreSDK
 
+extension Notification.Name {
+    static let appShouldReset = Notification.Name("appShouldReset")
+}
+
 @main
 struct DashPayApp: App {
     @StateObject private var unifiedState = UnifiedAppState()
+    @State private var shouldResetApp = false
     // private let notificationDelegate = NotificationDelegate()
     // private let consoleRedirect = ConsoleRedirect()
     
@@ -22,26 +27,68 @@ struct DashPayApp: App {
         
         // Start console redirection for debugging
         // consoleRedirect.start()  // DISABLED: Logs now appear in Xcode console
+        
+        // Set up notification observer for app reset
+        NotificationCenter.default.addObserver(
+            forName: .appShouldReset,
+            object: nil,
+            queue: .main
+        ) { _ in
+            self.shouldResetApp = true
+        }
     }
     
     var body: some Scene {
         WindowGroup {
-            ContentView()
-                .environmentObject(unifiedState)
-                .environmentObject(unifiedState.walletService)
-                .environmentObject(unifiedState.platformState)
-                .environmentObject(unifiedState.unifiedState)
-                .environment(\.modelContext, unifiedState.modelContainer.mainContext)
-                .task {
-                    // Initialize notification service
-                    // _ = LocalNotificationService.shared
-                    
-                    // Add a small delay to ensure UI is ready
-                    try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 second
-                    print("🚀 ContentView task starting initialization...")
-                    await unifiedState.initialize()
+            Group {
+                if shouldResetApp {
+                    // Show a simple loading view while resetting
+                    VStack(spacing: 20) {
+                        ProgressView("Resetting app...")
+                            .scaleEffect(1.5)
+                        Text("The app is being reset to its initial state.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .onAppear {
+                        // Reset the app state after a short delay
+                        Task {
+                            try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 second
+                            await resetAppState()
+                        }
+                    }
+                } else {
+                    ContentView()
+                        .environmentObject(unifiedState)
+                        .environmentObject(unifiedState.walletService)
+                        .environmentObject(unifiedState.platformState)
+                        .environmentObject(unifiedState.unifiedState)
+                        .environment(\.modelContext, unifiedState.modelContainer.mainContext)
+                        .task {
+                            // Initialize notification service
+                            // _ = LocalNotificationService.shared
+                            
+                            // Add a small delay to ensure UI is ready
+                            try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 second
+                            print("🚀 ContentView task starting initialization...")
+                            await unifiedState.initialize()
+                        }
                 }
+            }
         }
+    }
+    
+    @MainActor
+    private func resetAppState() async {
+        // Reset the unified state to initial state
+        await unifiedState.reset()
+        
+        // Reinitialize the app state
+        await unifiedState.initialize()
+        
+        // Reset the flag to show normal app content
+        shouldResetApp = false
     }
 }
 
@@ -192,6 +239,35 @@ class UnifiedAppState: ObservableObject {
             self.error = error
             print("🔴 UnifiedAppState initialization failed: \(error)")
         }
+    }
+    
+    func reset() async {
+        // Reset published properties
+        isInitialized = false
+        error = nil
+        
+        // Disconnect and reset wallet service
+        await walletService.disconnect()
+        
+        // Reset platform state properties
+        platformState.sdk = nil
+        platformState.coreSDK = nil
+        platformState.platformSDK = nil
+        platformState.assetLockBridge = nil
+        platformState.isLoading = false
+        platformState.showError = false
+        platformState.errorMessage = ""
+        platformState.showSuccess = false
+        platformState.successMessage = ""
+        platformState.identities = []
+        platformState.contracts = []
+        platformState.tokens = []
+        platformState.documents = []
+        
+        // Reset unified state
+        unifiedState.isInitialized = false
+        
+        print("🔄 UnifiedAppState reset completed")
     }
     
     private func setupLifecycleObservers() {
