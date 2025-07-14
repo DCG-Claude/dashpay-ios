@@ -197,7 +197,7 @@ final class StorageManager {
         try modelContext.delete(model: HDWatchedAddress.self)
         try modelContext.delete(model: Transaction.self)
         try modelContext.delete(model: LocalUTXO.self)
-        try modelContext.delete(model: Balance.self)
+        try modelContext.delete(model: LocalBalance.self)
         try modelContext.save()
     }
     
