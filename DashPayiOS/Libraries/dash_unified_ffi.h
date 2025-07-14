@@ -84,7 +84,20 @@ int32_t dash_unified_register_core_sdk_handle(struct FFIDashSpvClient *core_hand
  * Test the unified FFI system
  *
  * This function performs basic testing of the unified FFI system to verify
- * it is working correctly.
+ * it is working correctly. It validates internal state, checks registered
+ * handles, and performs basic functionality tests.
+ *
+ * Thread Safety: NOT thread-safe. Should only be called from the same thread
+ * that initialized the system, and not concurrently with other FFI operations.
+ *
+ * Error Codes:
+ *   0: Success - all tests passed
+ *  -1: System not initialized - call dash_unified_init() first
+ *  -2: Core handle not registered - call dash_unified_register_core_sdk_handle() first
+ *  -3: Internal test failure - system in invalid state
+ *
+ * Usage: Call after system initialization and handle registration for validation.
+ * Primarily used for debugging and integration testing.
  *
  * @return 0 on success, negative error code on failure
  */
@@ -94,9 +107,19 @@ int32_t dash_unified_test(void);
  * Free a string allocated by the unified FFI system
  *
  * This function frees memory allocated for strings returned by unified FFI
- * functions. Must be called to prevent memory leaks.
+ * functions. Must be called to prevent memory leaks for all char* returns
+ * from dash_unified_* functions.
  *
- * @param s Pointer to the string to be freed
+ * Thread Safety: Thread-safe. Can be called from any thread, but the same
+ * string should not be freed concurrently from multiple threads.
+ *
+ * Error Handling: Silently handles NULL pointers (no-op). Double-free will
+ * result in undefined behavior - ensure each string is freed only once.
+ *
+ * Usage: Call once for each string returned by FFI functions. Do not use
+ * the string after calling this function. Set pointer to NULL after freeing.
+ *
+ * @param s Pointer to the string to be freed (NULL safe)
  */
 void dash_unified_string_free(char *s);
 
@@ -823,10 +846,10 @@ typedef struct DashSDKResult {
 } DashSDKResult;
 // Opaque handle to a context provider
 typedef struct ContextProviderHandle {
-  uint8_t _private[1];
+  uint8_t _private[];
 } ContextProviderHandle;
 typedef struct FFIDashSpvClient {
-  uint8_t _opaque[1];
+  uint8_t _opaque[];
 } FFIDashSpvClient;
 // Handle for Core SDK that can be passed to Platform SDK
 // This matches the definition from dash_spv_ffi.h
