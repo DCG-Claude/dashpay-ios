@@ -354,6 +354,8 @@ struct AddressesTabView: View {
     @EnvironmentObject private var walletService: WalletService
     let account: HDAccount
     @State private var showingExternal = true
+    @State private var addressGenerationError: String?
+    @State private var showAddressGenerationError = false
     
     var addresses: [HDWatchedAddress] {
         showingExternal ? account.externalAddresses : account.internalAddresses
@@ -391,6 +393,13 @@ struct AddressesTabView: View {
                 }
                 .padding()
             }
+        }
+        .alert("Address Generation Error", isPresented: $showAddressGenerationError) {
+            Button("OK") {
+                showAddressGenerationError = false
+            }
+        } message: {
+            Text(addressGenerationError ?? "Unknown error")
         }
     }
     
