@@ -109,8 +109,12 @@ class UnifiedStateManager: ObservableObject {
     }
     
     /// Update token balance (legacy method for compatibility)
+    /// - Warning: This method creates token balances with placeholder metadata that can mislead users and affect calculations.
+    /// Use `updateTokenBalance(_ tokenBalance: TokenBalance)` instead to provide full token metadata.
+    @available(*, deprecated, message: "Use updateTokenBalance(_ tokenBalance: TokenBalance) instead to provide full token metadata. Placeholder metadata can mislead users and affect calculations.")
     func updateTokenBalance(_ tokenId: String, balance: UInt64) {
         // Create a basic TokenBalance for legacy compatibility
+        // WARNING: This uses placeholder metadata that may not be accurate
         let tokenBalance = TokenBalance(
             tokenId: tokenId,
             balance: balance,
