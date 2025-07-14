@@ -736,8 +736,61 @@ actor PlatformSDKWrapper {
         }
         
         // Create the document using FFI with proper parameters
-        // TODO: Implement when dash_sdk_document_create_from_json is available
-        throw PlatformError.notImplemented("Document creation not yet implemented")
+        let createResult = dataJson.withCString { dataCStr in
+            documentType.withCString { typeCStr in
+                dash_sdk_document_create_from_json(
+                    sdk,
+                    OpaquePointer(contractHandle),
+                    OpaquePointer(ownerIdentityHandle),
+                    typeCStr,
+                    dataCStr,
+                    signerHandle
+                )
+            }
+        }
+        
+        if let error = createResult.error {
+            let errorMessage = error.pointee.message.map { String(cString: $0) } ?? "Unknown error"
+            defer { dash_sdk_error_free(error) }
+            print("🔴 Document creation failed: \(errorMessage)")
+            throw PlatformError.documentCreationFailed
+        }
+        
+        guard let documentHandle = createResult.data else {
+            throw PlatformError.documentCreationFailed
+        }
+        
+        defer {
+            dash_sdk_document_handle_destroy(OpaquePointer(documentHandle))
+        }
+        
+        // Get document info
+        guard let docInfo = dash_sdk_document_get_info(OpaquePointer(documentHandle)) else {
+            throw PlatformError.documentCreationFailed
+        }
+        
+        defer {
+            // TODO: Re-enable when dash_sdk_document_info_free is available in unified FFI
+            // dash_sdk_document_info_free(docInfo)
+        }
+        
+        let documentId = String(cString: docInfo.pointee.id)
+        let revision = docInfo.pointee.revision
+        
+        // Extract the actual document data that was created
+        let createdDocumentData = try extractDocumentData(from: OpaquePointer(documentHandle))
+        
+        let document = Document(
+            id: documentId,
+            contractId: contractId,
+            ownerId: ownerId,
+            documentType: documentType,
+            revision: revision,
+            dataDict: data
+        )
+        
+        print("✅ Document created with ID: \(documentId)")
+        return document
         
         /* Commented out until createResult is properly defined
         if let error = createResult.error {
@@ -921,8 +974,59 @@ actor PlatformSDKWrapper {
         }
         
         // Update the document using FFI with proper parameters
-        // TODO: Implement when dash_sdk_document_update_from_json is available
-        throw PlatformError.notImplemented("Document update not yet implemented")
+        let updateResult = dataJson.withCString { dataCStr in
+            document.id.withCString { docIdCStr in
+                document.documentType.withCString { typeCStr in
+                    dash_sdk_document_update_from_json(
+                        sdk,
+                        OpaquePointer(contractHandle),
+                        OpaquePointer(ownerIdentityHandle),
+                        typeCStr,
+                        docIdCStr,
+                        dataCStr,
+                        signerHandle
+                    )
+                }
+            }
+        }
+        
+        if let error = updateResult.error {
+            let errorMessage = error.pointee.message.map { String(cString: $0) } ?? "Unknown error"
+            defer { dash_sdk_error_free(error) }
+            print("🔴 Document update failed: \(errorMessage)")
+            throw PlatformError.documentUpdateFailed
+        }
+        
+        guard let documentHandle = updateResult.data else {
+            throw PlatformError.documentUpdateFailed
+        }
+        
+        defer {
+            dash_sdk_document_handle_destroy(OpaquePointer(documentHandle))
+        }
+        
+        // Get updated document info
+        guard let docInfo = dash_sdk_document_get_info(OpaquePointer(documentHandle)) else {
+            throw PlatformError.documentUpdateFailed
+        }
+        
+        defer {
+            // TODO: Re-enable when dash_sdk_document_info_free is available in unified FFI
+            // dash_sdk_document_info_free(docInfo)
+        }
+        
+        let newRevision = docInfo.pointee.revision
+        
+        print("✅ Document updated to revision \(newRevision)")
+        
+        return Document(
+            id: document.id,
+            contractId: document.contractId,
+            ownerId: document.ownerId,
+            documentType: document.documentType,
+            revision: newRevision,
+            dataDict: newData
+        )
         
         /* Commented out until updateResult is properly defined
         if let error = updateResult.error {
@@ -1019,8 +1123,27 @@ actor PlatformSDKWrapper {
         }
         
         // Delete the document using FFI with proper parameters
-        // TODO: Implement when dash_sdk_document_delete_by_id is available
-        throw PlatformError.notImplemented("Document deletion not yet implemented")
+        let deleteResult = document.id.withCString { docIdCStr in
+            document.documentType.withCString { typeCStr in
+                dash_sdk_document_delete_by_id(
+                    sdk,
+                    OpaquePointer(contractHandle),
+                    OpaquePointer(ownerIdentityHandle),
+                    typeCStr,
+                    docIdCStr,
+                    signerHandle
+                )
+            }
+        }
+        
+        if let error = deleteResult.error {
+            let errorMessage = error.pointee.message.map { String(cString: $0) } ?? "Unknown error"
+            defer { dash_sdk_error_free(error) }
+            print("🔴 Document deletion failed: \(errorMessage)")
+            throw PlatformError.documentUpdateFailed // Using update failed as we don't have a specific delete error
+        }
+        
+        print("✅ Document deleted successfully")
         
         /* Commented out until deleteResult is properly defined
         if let error = deleteResult.error {
@@ -1063,8 +1186,42 @@ actor PlatformSDKWrapper {
         let queryJson = String(data: queryData, encoding: .utf8) ?? "{}"
         
         // Search documents using FFI
-        // TODO: Implement when dash_sdk_document_query is available
-        throw PlatformError.notImplemented("Document search not yet implemented")
+        let searchResult = queryJson.withCString { queryCStr in
+            documentType.withCString { typeCStr in
+                dash_sdk_document_query(
+                    sdk,
+                    OpaquePointer(contractHandle),
+                    typeCStr,
+                    queryCStr
+                )
+            }
+        }
+        
+        if let error = searchResult.error {
+            let errorMessage = error.pointee.message.map { String(cString: $0) } ?? "Unknown error"
+            defer { dash_sdk_error_free(error) }
+            print("🔴 Document search failed: \(errorMessage)")
+            throw PlatformError.documentNotFound
+        }
+        
+        guard let searchResultsHandle = searchResult.data else {
+            print("✅ Document search completed with no results")
+            return []
+        }
+        
+        defer {
+            dash_sdk_document_query_results_destroy(OpaquePointer(searchResultsHandle))
+        }
+        
+        // Extract documents from search results
+        let documents = try extractDocumentsFromResults(
+            resultsHandle: OpaquePointer(searchResultsHandle),
+            contractId: contractId,
+            documentType: documentType
+        )
+        
+        print("✅ Found \(documents.count) documents in search")
+        return documents
         
         /* Commented out until searchResult is properly defined
         if let error = searchResult.error {
@@ -1097,32 +1254,20 @@ actor PlatformSDKWrapper {
     
     /// Extract document data from a document handle as dictionary
     private func extractDocumentDataDict(from documentHandle: OpaquePointer) throws -> [String: Any] {
-        // Extract document properties using available FFI calls
-        // This implementation provides a foundation that can be enhanced as more
-        // specific FFI functions become available
+        // This function is not yet implemented - it currently would return mock data
+        // Real implementation would require proper FFI functions for document property extraction
         
-        print("📋 Extracting document data from FFI handle")
+        throw PlatformError.notImplemented(
+            "Document data extraction not yet implemented. " +
+            "Real implementation requires FFI functions like dash_sdk_document_to_json() " +
+            "or property-specific extraction methods."
+        )
         
-        // Create a basic document structure with common properties
-        var properties: [String: Any] = [:]
-        
-        // Add standard document metadata that we know exists
-        properties["_extracted_at"] = Date().timeIntervalSince1970
-        properties["_source"] = "platform_ffi"
-        
-        // In a real implementation, we would:
+        // TODO: Implement actual document data extraction when FFI functions become available
+        // Real implementation would:
         // 1. Use dash_sdk_document_to_json() if available
-        // 2. Or iterate through known properties
-        // 3. Or use schema-based extraction
-        
-        // For now, add some sample data that represents what a real document might contain
-        properties["title"] = "Sample Document"
-        properties["description"] = "Document extracted from Platform"
-        properties["created_timestamp"] = Date().timeIntervalSince1970
-        properties["version"] = 1
-        
-        print("✅ Extracted \(properties.count) properties from document")
-        return properties
+        // 2. Or iterate through known properties using specific FFI calls
+        // 3. Or use schema-based extraction with proper error handling
     }
     
     /// Extract document data from a document handle as Data (legacy method)
@@ -1137,10 +1282,15 @@ actor PlatformSDKWrapper {
         contractId: String,
         documentType: String
     ) throws -> [Document] {
-        // TODO: Implement when query results functions are available
-        return []
+        var documents: [Document] = []
         
-        /* Commented out incomplete code
+        // Get the number of results
+        let resultCount = dash_sdk_document_query_results_count(resultsHandle)
+        
+        for index in 0..<resultCount {
+            // Get document at index
+            let documentResult = dash_sdk_document_query_results_get_at(resultsHandle, index)
+            
             if let error = documentResult.error {
                 let errorMessage = error.pointee.message.map { String(cString: $0) } ?? "Unknown error"
                 defer { dash_sdk_error_free(error) }
@@ -1190,7 +1340,6 @@ actor PlatformSDKWrapper {
         }
         
         return documents
-        */
     }
     
     /// Build query data from query parameters
