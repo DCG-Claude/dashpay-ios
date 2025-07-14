@@ -4,7 +4,7 @@ import SwiftData
 /// Enhanced documents view with search, filtering, and advanced features
 struct EnhancedDocumentsView: View {
     @EnvironmentObject var appState: AppState
-    @StateObject private var documentService: DocumentService
+    @EnvironmentObject var documentService: DocumentService
     
     @State private var showingCreateDocument = false
     @State private var showingDocumentWizard = false
@@ -69,13 +69,6 @@ struct EnhancedDocumentsView: View {
         return ["All Types"] + types
     }
     
-    init() {
-        // Initialize with placeholder values - will be properly injected
-        let dummyContainer = try! ModelContainer.inMemoryContainer()
-        let dummyDataManager = DataManager(modelContext: dummyContainer.mainContext)
-        let dummyPlatformSDK = try! PlatformSDKWrapper(network: .testnet)
-        self._documentService = StateObject(wrappedValue: DocumentService(platformSDK: dummyPlatformSDK, dataManager: dummyDataManager))
-    }
     
     var body: some View {
         NavigationView {
@@ -169,15 +162,25 @@ struct EnhancedDocumentsView: View {
     
     // MARK: - Helper Methods
     
+    /// Safely creates Data from hex string with fallback to default value
+    private func safeDataFromHex(_ hexString: String) -> Data {
+        return Data(hexString: hexString) ?? Data(repeating: 0, count: 32)
+    }
+    
     private func setupDocumentService() {
         guard let platformSDK = appState.platformSDK,
               let dataManager = appState.dataManager else {
+            print("⚠️ Cannot setup DocumentService: missing platformSDK or dataManager")
             return
         }
         
-        // In a real implementation, we would recreate the service with proper dependencies
-        // For now, just log that we need to set it up
-        print("📄 Setting up DocumentService with real dependencies")
+        // Create new DocumentService with proper dependencies
+        let newDocumentService = DocumentService(platformSDK: platformSDK, dataManager: dataManager)
+        
+        // Assign to AppState so it can be accessed via @EnvironmentObject
+        appState.documentService = newDocumentService
+        
+        print("✅ DocumentService set up with real dependencies")
     }
     
     private func loadSampleDocuments() {
@@ -187,7 +190,7 @@ struct EnhancedDocumentsView: View {
                 id: "doc1_profile",
                 contractId: "dashpay-contract",
                 documentType: "profile",
-                ownerId: Data(hexString: "1111111111111111111111111111111111111111111111111111111111111111")!,
+                ownerId: safeDataFromHex("1111111111111111111111111111111111111111111111111111111111111111"),
                 data: [
                     "displayName": "Alice",
                     "publicMessage": "Hello from Alice!",
@@ -200,7 +203,7 @@ struct EnhancedDocumentsView: View {
                 id: "doc2_domain",
                 contractId: "dpns-contract",
                 documentType: "domain",
-                ownerId: Data(hexString: "2222222222222222222222222222222222222222222222222222222222222222")!,
+                ownerId: safeDataFromHex("2222222222222222222222222222222222222222222222222222222222222222"),
                 data: [
                     "label": "bob",
                     "normalizedLabel": "bob",
@@ -216,7 +219,7 @@ struct EnhancedDocumentsView: View {
                 id: "doc3_note",
                 contractId: "note-taking-contract",
                 documentType: "note",
-                ownerId: Data(hexString: "3333333333333333333333333333333333333333333333333333333333333333")!,
+                ownerId: safeDataFromHex("3333333333333333333333333333333333333333333333333333333333333333"),
                 data: [
                     "title": "Meeting Notes",
                     "content": "Discussed the new document features for DashPay iOS app. Need to implement CRUD operations.",
@@ -230,7 +233,7 @@ struct EnhancedDocumentsView: View {
                 id: "doc4_contact",
                 contractId: "contacts-contract",
                 documentType: "contact",
-                ownerId: Data(hexString: "1111111111111111111111111111111111111111111111111111111111111111")!,
+                ownerId: safeDataFromHex("1111111111111111111111111111111111111111111111111111111111111111"),
                 data: [
                     "name": "Charlie Developer",
                     "email": "charlie@example.com",
@@ -529,6 +532,8 @@ struct EnhancedDocumentRow: View {
                             .font(.title3)
                     }
                     .buttonStyle(PlainButtonStyle())
+                    .accessibilityLabel(isSelected ? "Deselect document" : "Select document")
+                    .accessibilityHint("Double tap to toggle selection of this document")
                 }
                 
                 // Document Icon
@@ -536,6 +541,8 @@ struct EnhancedDocumentRow: View {
                     .font(.title2)
                     .foregroundColor(documentColor(for: document.documentType))
                     .frame(width: 32)
+                    .accessibilityLabel("\(document.documentType.capitalized) document")
+                    .accessibilityHidden(true) // Hide from VoiceOver since it's decorative and info is in main label
                 
                 // Document Info
                 VStack(alignment: .leading, spacing: 4) {
@@ -543,6 +550,7 @@ struct EnhancedDocumentRow: View {
                         Text(document.documentType.capitalized)
                             .font(.headline)
                             .foregroundColor(.primary)
+                            .accessibilityLabel("Document type: \(document.documentType.capitalized)")
                         
                         Spacer()
                         
@@ -553,6 +561,7 @@ struct EnhancedDocumentRow: View {
                             .padding(.vertical, 2)
                             .background(Color(.systemGray5))
                             .cornerRadius(4)
+                            .accessibilityLabel("Revision \(document.revision)")
                     }
                     
                     // Document Summary
@@ -560,6 +569,7 @@ struct EnhancedDocumentRow: View {
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                         .lineLimit(2)
+                        .accessibilityLabel("Document content: \(documentSummary)")
                     
                     // Metadata
                     HStack {
@@ -570,6 +580,7 @@ struct EnhancedDocumentRow: View {
                             .padding(.vertical, 2)
                             .background(Color.blue)
                             .cornerRadius(4)
+                            .accessibilityLabel("Contract: \(contractDisplayName)")
                         
                         Spacer()
                         
@@ -577,6 +588,7 @@ struct EnhancedDocumentRow: View {
                             Text(formatRelativeDate(updatedAt))
                                 .font(.caption)
                                 .foregroundColor(.secondary)
+                                .accessibilityLabel("Last updated: \(formatRelativeDate(updatedAt))")
                         }
                     }
                 }
@@ -586,6 +598,7 @@ struct EnhancedDocumentRow: View {
                     Image(systemName: "chevron.right")
                         .font(.caption)
                         .foregroundColor(.secondary)
+                        .accessibilityHidden(true) // Hide decorative chevron from VoiceOver
                 }
             }
             .padding(.vertical, 8)
@@ -593,6 +606,15 @@ struct EnhancedDocumentRow: View {
         .buttonStyle(PlainButtonStyle())
         .background(isSelected ? Color.blue.opacity(0.1) : Color.clear)
         .cornerRadius(8)
+        .accessibilityLabel(accessibilityMainLabel)
+        .accessibilityHint("Double tap to view document details")
+        .accessibilityValue(isSelected ? "Selected" : "Not selected")
+    }
+    
+    private var accessibilityMainLabel: String {
+        let selectionStatus = isSelected ? "Selected" : "Not selected"
+        let lastUpdated = document.updatedAt.map { ", last updated \(formatRelativeDate($0))" } ?? ""
+        return "\(document.documentType.capitalized) document, revision \(document.revision), \(contractDisplayName) contract\(lastUpdated). \(selectionStatus)."
     }
     
     private var documentSummary: String {
