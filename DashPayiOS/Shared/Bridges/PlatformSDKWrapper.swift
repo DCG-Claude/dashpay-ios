@@ -1488,7 +1488,12 @@ actor PlatformSDKWrapper {
             // For now, generate a deterministic signature based on the data
             // This is better than a fixed mock signature as it varies with input
             let dataToSign = Data(bytes: dataBytes, count: Int(dataLen))
+            #if DEBUG
             let signature = PlatformSDKWrapper.generateDeterministicSignatureStatic(for: dataToSign, with: identityPubKey)
+            #else
+            // In production, this should use proper cryptographic signing
+            fatalError("Deterministic signing is only available in debug builds. Production builds require proper cryptographic signing.")
+            #endif
             
             // Allocate memory for result
             let resultBytes = UnsafeMutablePointer<UInt8>.allocate(capacity: signature.count)
@@ -1546,6 +1551,7 @@ actor PlatformSDKWrapper {
         return encodedData
     }
     
+    #if DEBUG
     /// Generate a deterministic signature for testing/development (static version for C callbacks)
     /// In production, this would use proper cryptographic signing
     private static func generateDeterministicSignatureStatic(for data: Data, with publicKey: Data) -> Data {
@@ -1571,7 +1577,9 @@ actor PlatformSDKWrapper {
         
         return signature
     }
+    #endif
     
+    #if DEBUG
     /// Generate a deterministic signature for testing/development
     /// In production, this would use proper cryptographic signing
     private func generateDeterministicSignature(for data: Data, with publicKey: Data) -> Data {
@@ -1597,6 +1605,7 @@ actor PlatformSDKWrapper {
         
         return signature
     }
+    #endif
     
     private func encodeAssetLockProof(_ proof: AssetLockProof) throws -> Data {
         // Encode asset lock proof for Platform according to Platform protocol
