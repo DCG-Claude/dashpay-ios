@@ -52,11 +52,11 @@ class WatchAddressService: ObservableObject {
     /// Start watch verification timer
     func startWatchVerification(verificationHandler: @escaping () async -> Void) {
         logger.info("⏰ Starting watch verification timer")
-        watchVerificationTimer = Timer.scheduledTimer(withTimeInterval: 60.0, repeats: true) { _ in
+        watchVerificationTimer = Timer.scheduledTimer(withTimeInterval: 60.0, repeats: true) { [weak self] _ in
             // Cancel any previous verification task before starting a new one
-            self.currentVerificationTask?.cancel()
+            self?.currentVerificationTask?.cancel()
             
-            self.currentVerificationTask = Task {
+            self?.currentVerificationTask = Task {
                 await verificationHandler()
             }
         }
