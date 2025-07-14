@@ -96,7 +96,12 @@ class UnifiedTransactionHistoryService: ObservableObject {
     }
     
     /// Get portfolio performance over time
-    func getPortfolioHistory(days: Int = 30) -> [PortfolioDataPoint] {
+    /// - Parameters:
+    ///   - days: Number of days to look back (default: 30)
+    ///   - initialBalance: Optional initial portfolio balance at the start date. If not provided,
+    ///     the function will attempt to estimate the initial balance based on transaction history.
+    /// - Returns: Array of portfolio data points showing value changes over time
+    func getPortfolioHistory(days: Int = 30, initialBalance: Double? = nil) -> [PortfolioDataPoint] {
         let calendar = Calendar.current
         let endDate = Date()
         guard let startDate = calendar.date(byAdding: .day, value: -days, to: endDate) else {
@@ -106,8 +111,33 @@ class UnifiedTransactionHistoryService: ObservableObject {
         let relevantTransactions = getTransactions(from: startDate, to: endDate)
         var portfolioHistory: [PortfolioDataPoint] = []
         
-        // Group transactions by day and calculate running balance
-        var runningBalance: Double = 0
+        // Initialize running balance with the actual portfolio balance at start date
+        var runningBalance: Double
+        if let initialBalance = initialBalance {
+            // Use provided initial balance
+            runningBalance = initialBalance
+        } else {
+            // Calculate initial balance by working backwards from current balance
+            // For now, we'll estimate by calculating the cumulative effect of all transactions
+            // from the start date to now and subtracting from a hypothetical current balance
+            // This is a fallback approach since we don't have direct access to current wallet balance
+            let transactionsFromStart = getTransactions(from: startDate, to: endDate)
+            let netChangeFromStart = transactionsFromStart.reduce(0.0) { result, transaction in
+                switch transaction.direction {
+                case .received:
+                    return result + transaction.dashValue
+                case .sent:
+                    return result - transaction.dashValue
+                case .assetLock, .creditTransfer:
+                    return result // These don't affect portfolio value directly
+                }
+            }
+            // Initialize to zero for now - ideally this should be replaced with actual balance calculation
+            // or the initialBalance parameter should be provided by the caller
+            runningBalance = -netChangeFromStart // Start balance = current - net change
+            print("⚠️ Portfolio history using estimated initial balance. Consider providing initialBalance parameter for accuracy.")
+        }
+        
         var currentDate = startDate
         
         while currentDate <= endDate {

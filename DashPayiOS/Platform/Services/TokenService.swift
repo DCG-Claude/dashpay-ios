@@ -1109,10 +1109,21 @@ class TokenService: ObservableObject {
             
             var priceInfo: TokenPriceInfo? = nil
             if let priceData = tokenInfo["priceInfo"] as? [String: Any] {
+                var parsedPriceEntries: [TokenPriceEntry]? = nil
+                if let priceEntriesArray = priceData["priceEntries"] as? [[String: Any]] {
+                    parsedPriceEntries = priceEntriesArray.compactMap { entryData in
+                        guard let amount = entryData["amount"] as? UInt64,
+                              let price = entryData["price"] as? UInt64 else {
+                            return nil
+                        }
+                        return TokenPriceEntry(amount: amount, price: price)
+                    }
+                }
+                
                 priceInfo = TokenPriceInfo(
                     pricingType: priceData["pricingType"] as? String ?? "SinglePrice",
                     singlePrice: priceData["singlePrice"] as? UInt64,
-                    priceEntries: nil // Would need to parse this array if present
+                    priceEntries: parsedPriceEntries
                 )
             }
             
@@ -1155,10 +1166,21 @@ class TokenService: ObservableObject {
         return json.compactMapValues { value in
             guard let priceData = value as? [String: Any] else { return nil }
             
+            var parsedPriceEntries: [TokenPriceEntry]? = nil
+            if let priceEntriesArray = priceData["priceEntries"] as? [[String: Any]] {
+                parsedPriceEntries = priceEntriesArray.compactMap { entryData in
+                    guard let amount = entryData["amount"] as? UInt64,
+                          let price = entryData["price"] as? UInt64 else {
+                        return nil
+                    }
+                    return TokenPriceEntry(amount: amount, price: price)
+                }
+            }
+            
             return TokenPriceInfo(
                 pricingType: priceData["pricingType"] as? String ?? "SinglePrice",
                 singlePrice: priceData["singlePrice"] as? UInt64,
-                priceEntries: nil // Would parse array if present
+                priceEntries: parsedPriceEntries
             )
         }
     }
