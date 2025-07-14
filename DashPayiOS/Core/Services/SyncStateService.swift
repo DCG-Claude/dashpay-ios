@@ -74,7 +74,7 @@ class SyncStateService: ObservableObject {
     
     /// Check if sync is currently active
     func hasActiveSync() -> Bool {
-        return activeSyncTask != nil && !activeSyncTask!.isCancelled
+        return activeSyncTask?.isCancelled == false
     }
     
     /// Get current sync request ID
