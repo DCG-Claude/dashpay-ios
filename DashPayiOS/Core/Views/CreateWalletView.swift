@@ -7,8 +7,8 @@ struct CreateWalletView: View {
     
     @State private var walletName = "Dev Wallet \(Int.random(in: 1000...9999))"
     @State private var selectedNetwork: DashNetwork = .testnet
-    @State private var password = "password123"
-    @State private var confirmPassword = "password123"
+    @State private var password = ""
+    @State private var confirmPassword = ""
     @State private var mnemonic: [String] = []
     @State private var showMnemonic = true
     @State private var mnemonicConfirmed = true

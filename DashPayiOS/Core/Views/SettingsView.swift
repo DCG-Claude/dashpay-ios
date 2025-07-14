@@ -77,28 +77,41 @@ struct SettingsView: View {
     }
     
     private func resetAllData() {
-        do {
-            // Delete all SwiftData models
-            try modelContext.delete(model: HDWallet.self)
-            try modelContext.delete(model: HDAccount.self)
-            try modelContext.delete(model: HDWatchedAddress.self)
-            // Platform models
-            try modelContext.delete(model: PersistentIdentity.self)
-            try modelContext.delete(model: PersistentContract.self)
-            try modelContext.delete(model: PersistentDocument.self)
-            try modelContext.delete(model: PersistentTokenBalance.self)
-            
-            // Save the context
-            try modelContext.save()
-            
-            // Clean up the persistent store
-            ModelContainerHelper.cleanupCorruptStore()
-            
-            resetMessage = "All data has been reset. The app will now restart."
-            showingResetAlert = true
-        } catch {
-            resetMessage = "Failed to reset data: \(error.localizedDescription)"
-            showingResetAlert = true
+        Task {
+            do {
+                // Perform heavy I/O operations on background thread
+                let result = try await Task.detached {
+                    // Delete all SwiftData models
+                    try modelContext.delete(model: HDWallet.self)
+                    try modelContext.delete(model: HDAccount.self)
+                    try modelContext.delete(model: HDWatchedAddress.self)
+                    // Platform models
+                    try modelContext.delete(model: PersistentIdentity.self)
+                    try modelContext.delete(model: PersistentContract.self)
+                    try modelContext.delete(model: PersistentDocument.self)
+                    try modelContext.delete(model: PersistentTokenBalance.self)
+                    
+                    // Save the context
+                    try modelContext.save()
+                    
+                    // Clean up the persistent store
+                    ModelContainerHelper.cleanupCorruptStore()
+                    
+                    return "All data has been reset. The app will now restart."
+                }.value
+                
+                // Update UI on main thread
+                await MainActor.run {
+                    resetMessage = result
+                    showingResetAlert = true
+                }
+            } catch {
+                // Handle errors and update UI on main thread
+                await MainActor.run {
+                    resetMessage = "Failed to reset data: \(error.localizedDescription)"
+                    showingResetAlert = true
+                }
+            }
         }
     }
     
