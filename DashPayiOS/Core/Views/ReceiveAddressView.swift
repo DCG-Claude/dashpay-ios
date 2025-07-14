@@ -159,6 +159,8 @@ struct QRCodeView: View {
     #elseif os(macOS)
     @State private var qrImage: NSImage?
     #endif
+    @State private var isLoading = true
+    @State private var hasError = false
     
     var body: some View {
         VStack {
@@ -174,7 +176,24 @@ struct QRCodeView: View {
                     .resizable()
                     .scaledToFit()
                 #endif
-            } else {
+            } else if hasError {
+                VStack(spacing: 12) {
+                    Image(systemName: "exclamationmark.triangle")
+                        .font(.system(size: 40))
+                        .foregroundColor(.orange)
+                    
+                    Text("Failed to generate QR code")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                    
+                    Button("Retry") {
+                        retryQRCodeGeneration()
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
+            } else if isLoading {
                 ProgressView()
             }
         }
@@ -184,6 +203,13 @@ struct QRCodeView: View {
     }
     
     private func generateQRCode() {
+        // Reset state
+        DispatchQueue.main.async {
+            self.isLoading = true
+            self.hasError = false
+            self.qrImage = nil
+        }
+        
         // Move QR code generation to background thread to avoid blocking UI
         DispatchQueue.global(qos: .userInitiated).async {
             let context = CIContext()
@@ -192,20 +218,40 @@ struct QRCodeView: View {
             filter.message = Data(content.utf8)
             filter.correctionLevel = "M"
             
-            guard let outputImage = filter.outputImage else { return }
+            guard let outputImage = filter.outputImage else {
+                // Handle QR filter failure
+                DispatchQueue.main.async {
+                    self.isLoading = false
+                    self.hasError = true
+                }
+                return
+            }
             
             let scaledImage = outputImage.transformed(by: CGAffineTransform(scaleX: 10, y: 10))
             
-            if let cgImage = context.createCGImage(scaledImage, from: scaledImage.extent) {
-                // Update UI on main thread
+            guard let cgImage = context.createCGImage(scaledImage, from: scaledImage.extent) else {
+                // Handle CGImage creation failure
                 DispatchQueue.main.async {
-                    #if os(iOS)
-                    self.qrImage = UIImage(cgImage: cgImage)
-                    #elseif os(macOS)
-                    self.qrImage = NSImage(cgImage: cgImage, size: NSSize(width: 200, height: 200))
-                    #endif
+                    self.isLoading = false
+                    self.hasError = true
                 }
+                return
+            }
+            
+            // Update UI on main thread with successful result
+            DispatchQueue.main.async {
+                #if os(iOS)
+                self.qrImage = UIImage(cgImage: cgImage)
+                #elseif os(macOS)
+                self.qrImage = NSImage(cgImage: cgImage, size: NSSize(width: 200, height: 200))
+                #endif
+                self.isLoading = false
+                self.hasError = false
             }
         }
+    }
+    
+    private func retryQRCodeGeneration() {
+        generateQRCode()
     }
 }
