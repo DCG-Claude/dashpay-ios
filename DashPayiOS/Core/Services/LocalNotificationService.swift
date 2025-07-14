@@ -262,8 +262,10 @@ class LocalNotificationService: ObservableObject {
     func openNotificationSettings() {
         guard let settingsUrl = URL(string: UIApplication.openSettingsURLString) else { return }
         
-        if UIApplication.shared.canOpenURL(settingsUrl) {
-            UIApplication.shared.open(settingsUrl)
+        Task { @MainActor in
+            if UIApplication.shared.canOpenURL(settingsUrl) {
+                UIApplication.shared.open(settingsUrl)
+            }
         }
     }
 }
@@ -316,7 +318,7 @@ class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
 // MARK: - Notification Settings View
 
 struct NotificationSettingsView: View {
-    @ObservedObject private var notificationService = LocalNotificationService.shared
+    @StateObject private var notificationService = LocalNotificationService.shared
     
     var body: some View {
         NavigationView {
