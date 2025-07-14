@@ -363,7 +363,7 @@ class WalletService: ObservableObject {
     
     private func setupConfiguration(wallet: HDWallet) async throws -> SPVConfiguration {
         logger.info("🔧 Getting SPV configuration from manager...")
-        let config = SPVConfigurationManager.shared.configuration(for: wallet.network)
+        let config = try SPVConfigurationManager.shared.configuration(for: wallet.network)
         logger.info("📁 SPV data directory: \(config.dataDirectory?.path ?? "nil")")
         
         // Override log level for debugging if needed (temporary)
@@ -2091,10 +2091,14 @@ class WalletService: ObservableObject {
         if sdk != nil {
             // Log current peer configuration
             if wallet.network == .testnet {
-                let testnetConfig = SPVConfigurationManager.shared.configuration(for: .testnet)
+                let testnetConfig = try? SPVConfigurationManager.shared.configuration(for: .testnet)
                 logger.info("   - Available testnet peers:")
-                for peer in testnetConfig.additionalPeers {
-                    logger.info("     • \(peer)")
+                if let testnetConfig = testnetConfig {
+                    for peer in testnetConfig.additionalPeers {
+                        logger.info("     • \(peer)")
+                    }
+                } else {
+                    logger.warning("   - Failed to get testnet configuration for peer logging")
                 }
             }
             

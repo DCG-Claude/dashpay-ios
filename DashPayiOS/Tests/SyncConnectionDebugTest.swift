@@ -15,7 +15,7 @@ class SyncConnectionDebugTest: XCTestCase {
         print("\n🧪 Running Connection Diagnostics Test\n")
         
         // Create SDK with testnet configuration
-        let config = SPVConfigurationManager.shared.configuration(for: .testnet)
+        let config = try SPVConfigurationManager.shared.configuration(for: .testnet)
         config.logLevel = "debug" // Enable debug logging
         
         // Add specific test peers if needed
@@ -64,7 +64,7 @@ class SyncConnectionDebugTest: XCTestCase {
     func testEnhancedConnectionWithRetry() async throws {
         print("\n🧪 Testing Enhanced Connection with Retry\n")
         
-        let config = SPVConfigurationManager.shared.configuration(for: .testnet)
+        let config = try SPVConfigurationManager.shared.configuration(for: .testnet)
         config.logLevel = "trace" // Maximum logging
         
         let sdk = try await DashSDK(configuration: config)
@@ -165,7 +165,7 @@ class SyncConnectionDebugTest: XCTestCase {
     func testSyncProgressMonitoring() async throws {
         print("\n🧪 Testing Sync Progress Monitoring\n")
         
-        let config = SPVConfigurationManager.shared.configuration(for: .testnet)
+        let config = try SPVConfigurationManager.shared.configuration(for: .testnet)
         let sdk = try await DashSDK(configuration: config)
         
         // Connect first

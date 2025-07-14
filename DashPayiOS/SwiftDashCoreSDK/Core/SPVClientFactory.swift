@@ -15,19 +15,39 @@ public class SPVClientFactory {
     
     // Cached configuration instances for different networks
     private static let testnetConfiguration: SPVClientConfiguration = {
-        return SPVConfigurationManager.shared.configuration(for: .testnet)
+        do {
+            return try SPVConfigurationManager.shared.configuration(for: .testnet)
+        } catch {
+            logger.error("Failed to create testnet configuration: \(error)")
+            fatalError("Critical error: Unable to create testnet configuration - \(error)")
+        }
     }()
     
     private static let mainnetConfiguration: SPVClientConfiguration = {
-        return SPVConfigurationManager.shared.configuration(for: .mainnet)
+        do {
+            return try SPVConfigurationManager.shared.configuration(for: .mainnet)
+        } catch {
+            logger.error("Failed to create mainnet configuration: \(error)")
+            fatalError("Critical error: Unable to create mainnet configuration - \(error)")
+        }
     }()
     
     private static let devnetConfiguration: SPVClientConfiguration = {
-        return SPVConfigurationManager.shared.configuration(for: .devnet)
+        do {
+            return try SPVConfigurationManager.shared.configuration(for: .devnet)
+        } catch {
+            logger.error("Failed to create devnet configuration: \(error)")
+            fatalError("Critical error: Unable to create devnet configuration - \(error)")
+        }
     }()
     
     private static let regtestConfiguration: SPVClientConfiguration = {
-        return SPVConfigurationManager.shared.configuration(for: .regtest)
+        do {
+            return try SPVConfigurationManager.shared.configuration(for: .regtest)
+        } catch {
+            logger.error("Failed to create regtest configuration: \(error)")
+            fatalError("Critical error: Unable to create regtest configuration - \(error)")
+        }
     }()
     
     /// Get cached configuration for a specific network

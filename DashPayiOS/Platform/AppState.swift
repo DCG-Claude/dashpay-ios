@@ -191,7 +191,7 @@ class AppState: ObservableObject {
                     print("🔧 Initializing Core SDK...")
                     let dashNetwork = currentNetwork.toDashNetwork()
                     // Use centralized configuration manager
-                    let coreConfig = SPVConfigurationManager.shared.configuration(for: dashNetwork)
+                    let coreConfig = try SPVConfigurationManager.shared.configuration(for: dashNetwork)
                     print("📍 SPV config obtained from manager")
                     
                     // Initialize Core SDK with configuration
@@ -774,7 +774,7 @@ class AppState: ObservableObject {
             // Create configuration for new network
             print("🔄 Switching Core SDK to network: \(network)")
             let dashNetwork = network.toDashNetwork()
-            let coreConfig = SPVConfigurationManager.shared.configuration(for: dashNetwork)
+            let coreConfig = try SPVConfigurationManager.shared.configuration(for: dashNetwork)
             let newCoreSDK = try DashSDK(configuration: coreConfig)
             coreSDK = newCoreSDK
             
