@@ -4,7 +4,7 @@ import SwiftDashCoreSDK
 
 @Model
 final class Transaction {
-    private static let duffsPerDash: Double = 100_000_000
+    private static let duffsPerDash: Decimal = 100_000_000
     
     @Attribute(.unique) var txid: String
     var height: UInt32?
@@ -46,9 +46,16 @@ final class Transaction {
     }
     
     var displayAmount: String {
-        let dashAmount = Double(abs(amount)) / Self.duffsPerDash
+        let dashAmount = Decimal(abs(amount)) / Self.duffsPerDash
         let sign = amount < 0 ? "-" : ""
-        return "\(sign)\(String(format: "%.8f", dashAmount)) DASH"
+        
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.minimumFractionDigits = 8
+        formatter.maximumFractionDigits = 8
+        
+        let formattedAmount = formatter.string(from: dashAmount as NSDecimalNumber) ?? "0.00000000"
+        return "\(sign)\(formattedAmount) DASH"
     }
     
     var displayStatus: String {

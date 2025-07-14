@@ -12,7 +12,6 @@ extension Notification.Name {
 struct SettingsView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
-    @StateObject private var walletService = WalletService.shared
     @State private var showingResetConfirmation = false
     @State private var showingResetAlert = false
     @State private var resetMessage = ""
@@ -118,7 +117,7 @@ struct SettingsView: View {
     private func resetAppState() {
         // Reset the wallet service state
         Task {
-            await walletService.disconnect()
+            await WalletService.shared.disconnect()
             
             // Reset user defaults
             UserDefaults.standard.removeObject(forKey: "hasLaunchedBefore")
