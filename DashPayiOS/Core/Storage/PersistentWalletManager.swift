@@ -429,8 +429,13 @@ final class PersistentWalletManager {
     
     private func createP2PKHScript(for address: String) throws -> Data {
         // Create Pay-to-Public-Key-Hash script
-        // TODO: This is a simplified implementation - should validate address format and support more script types
         logger.debug("Creating P2PKH script for address: \(address)")
+        
+        // Validate and decode the address to extract pubKeyHash
+        guard let pubKeyHash = try decodeAddressToPubKeyHash(address: address) else {
+            throw DashSDKError.transactionCreationFailed("Invalid address format: \(address)")
+        }
+        
         var script = Data()
         
         // OP_DUP
@@ -439,9 +444,7 @@ final class PersistentWalletManager {
         script.append(0xa9)
         // Push 20 bytes
         script.append(0x14)
-        // 20-byte hash160 of public key (derived from address)
-        // For now, use a placeholder hash
-        let pubKeyHash = Data(repeating: 0x00, count: 20)
+        // 20-byte hash160 of public key (decoded from address)
         script.append(pubKeyHash)
         // OP_EQUALVERIFY
         script.append(0x88)
@@ -449,6 +452,80 @@ final class PersistentWalletManager {
         script.append(0xac)
         
         return script
+    }
+    
+    /// Decode a Dash address to extract the pubKeyHash
+    /// - Parameter address: The Base58-encoded Dash address
+    /// - Returns: The 20-byte pubKeyHash if valid, nil otherwise
+    private func decodeAddressToPubKeyHash(address: String) throws -> Data? {
+        // Validate basic address format
+        guard !address.isEmpty, address.count >= 26, address.count <= 35 else {
+            logger.warning("Address has invalid length: \(address.count)")
+            return nil
+        }
+        
+        // Validate network-specific address prefix
+        let firstChar = address.first!
+        let expectedVersionByte: UInt8
+        
+        switch currentNetwork {
+        case .mainnet:
+            guard firstChar == "X" || firstChar == "7" else {
+                logger.warning("Invalid mainnet address prefix: \(firstChar)")
+                return nil
+            }
+            expectedVersionByte = 0x4c // Dash mainnet P2PKH version
+        case .testnet, .devnet, .regtest:
+            guard firstChar == "y" || firstChar == "8" || firstChar == "9" else {
+                logger.warning("Invalid testnet/devnet address prefix: \(firstChar)")
+                return nil
+            }
+            expectedVersionByte = 0x8c // Dash testnet P2PKH version
+        }
+        
+        // Decode the Base58 address
+        guard let decodedData = address.base58DecodedData else {
+            logger.warning("Failed to decode Base58 address: \(address)")
+            return nil
+        }
+        
+        // Validate decoded data length (1 version byte + 20 pubKeyHash bytes + 4 checksum bytes = 25 total)
+        guard decodedData.count == 25 else {
+            logger.warning("Decoded address has invalid length: \(decodedData.count), expected 25")
+            return nil
+        }
+        
+        // Extract components
+        let versionByte = decodedData[0]
+        let pubKeyHash = decodedData[1..<21]
+        let checksum = decodedData[21..<25]
+        
+        // Verify version byte matches network
+        guard versionByte == expectedVersionByte else {
+            logger.warning("Address version byte mismatch. Expected: \(String(format: "0x%02x", expectedVersionByte)), got: \(String(format: "0x%02x", versionByte))")
+            return nil
+        }
+        
+        // Verify checksum
+        let payload = decodedData[0..<21] // version + pubKeyHash
+        let computedChecksum = try computeDoubleSHA256Checksum(payload)
+        
+        guard checksum.elementsEqual(computedChecksum) else {
+            logger.warning("Address checksum verification failed")
+            return nil
+        }
+        
+        logger.debug("Successfully decoded address pubKeyHash: \(pubKeyHash.hexString)")
+        return Data(pubKeyHash)
+    }
+    
+    /// Compute double SHA256 checksum for address validation
+    /// - Parameter data: The payload data (version + pubKeyHash)
+    /// - Returns: First 4 bytes of SHA256(SHA256(data))
+    private func computeDoubleSHA256Checksum(_ data: Data) throws -> Data {
+        let firstHash = SHA256.hash(data: data)
+        let secondHash = SHA256.hash(data: Data(firstHash))
+        return Data(secondHash.prefix(4))
     }
     
     private struct TransactionOutput {
@@ -784,5 +861,14 @@ struct WalletExportData: Codable {
         }
         
         return "Unknown"
+    }
+}
+
+// MARK: - Data Extensions
+
+extension Data {
+    /// Convert Data to hexadecimal string representation
+    var hexString: String {
+        return map { String(format: "%02hhx", $0) }.joined()
     }
 }
