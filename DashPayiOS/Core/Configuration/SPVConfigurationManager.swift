@@ -8,11 +8,26 @@ import SwiftDashCoreSDK
 public final class SPVConfigurationManager {
     public static let shared = SPVConfigurationManager()
     
+    // Concurrent queue for thread-safe access to shared resources
+    private let concurrentQueue = DispatchQueue(label: "com.dash.wallet.spv-config", attributes: .concurrent)
+    
     // One configuration per network
     private var configurations: [DashNetwork: SPVClientConfiguration] = [:]
     
     // Configuration flag to control error handling behavior
-    public var throwOnDirectoryCreationFailure: Bool = false
+    private var _throwOnDirectoryCreationFailure: Bool = false
+    public var throwOnDirectoryCreationFailure: Bool {
+        get {
+            return concurrentQueue.sync {
+                return _throwOnDirectoryCreationFailure
+            }
+        }
+        set {
+            concurrentQueue.async(flags: .barrier) {
+                self._throwOnDirectoryCreationFailure = newValue
+            }
+        }
+    }
     
     // Logger for configuration tracking
     private let logger = Logger(subsystem: "com.dash.wallet", category: "SPVConfigurationManager")
@@ -23,36 +38,47 @@ public final class SPVConfigurationManager {
     
     /// Get the standard configuration for a network (creates once, reuses thereafter)
     public func configuration(for network: DashNetwork) throws -> SPVClientConfiguration {
-        if let existing = configurations[network] {
+        // First, check if configuration exists using sync read
+        if let existing = concurrentQueue.sync(execute: { configurations[network] }) {
             logger.info("♻️ Reusing existing configuration for network: \(network.rawValue)")
             return existing
         }
         
+        // Create new configuration outside the queue to avoid blocking other readers
         logger.info("🆕 Creating new configuration for network: \(network.rawValue)")
         let config = try createStandardConfiguration(for: network)
-        configurations[network] = config
+        
+        // Write to dictionary using barrier write
+        concurrentQueue.async(flags: .barrier) {
+            self.configurations[network] = config
+        }
+        
         logger.info("✅ Configuration cached for network: \(network.rawValue)")
         return config
     }
     
     /// Clear all cached configurations (useful for testing)
     public func clearCache() {
-        let count = configurations.count
-        configurations.removeAll()
-        logger.info("🗑️ Cleared \(count) cached configurations")
+        concurrentQueue.async(flags: .barrier) {
+            let count = self.configurations.count
+            self.configurations.removeAll()
+            self.logger.info("🗑️ Cleared \(count) cached configurations")
+        }
     }
     
     /// Get diagnostic information about cached configurations
     public var diagnostics: String {
-        let configInfo = configurations.map { network, _ in
-            "- \(network.rawValue): cached"
-        }.joined(separator: "\n")
-        
-        return """
-        SPVConfigurationManager Diagnostics:
-        Total cached configurations: \(configurations.count)
-        \(configInfo.isEmpty ? "No configurations cached" : configInfo)
-        """
+        return concurrentQueue.sync {
+            let configInfo = configurations.map { network, _ in
+                "- \(network.rawValue): cached"
+            }.joined(separator: "\n")
+            
+            return """
+            SPVConfigurationManager Diagnostics:
+            Total cached configurations: \(configurations.count)
+            \(configInfo.isEmpty ? "No configurations cached" : configInfo)
+            """
+        }
     }
     
     /// Clear SPV data to enable checkpoint sync
