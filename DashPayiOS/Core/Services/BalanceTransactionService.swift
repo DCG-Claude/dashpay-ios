@@ -86,9 +86,15 @@ class BalanceTransactionService: ObservableObject {
                         transaction.txid == txidToCheck
                     }
                 )
-                let existingTransactions = try? context.fetch(descriptor)
+                let existingTransactions: [Transaction]
+                do {
+                    existingTransactions = try context.fetch(descriptor)
+                } catch {
+                    logger.error("❌ Error fetching existing transaction \(txidToCheck): \(error)")
+                    continue // Skip this transaction and move to the next one
+                }
                 
-                if existingTransactions?.isEmpty == false {
+                if !existingTransactions.isEmpty {
                     // Transaction already exists, skip
                     continue
                 } else {
