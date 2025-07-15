@@ -598,25 +598,41 @@ extension PersistentWalletManager {
             // Sync balance
             _ = try await getBalance(for: address)
             
-            // Sync UTXOs and transactions from SPV client
-            // Sync UTXOs
+            // MARK: - UTXO and Transaction Sync Limitation
+            // NOTE: Direct UTXO and transaction synchronization is currently not available
+            // due to type visibility constraints in SwiftDashCoreSDK. The getUTXOs() and
+            // getTransactions() methods are commented out in SPVClientProtocol because
+            // UTXO and Transaction types are internal to the SDK.
+            //
+            // FUTURE WORK:
+            // 1. Work with SDK team to expose public types for UTXOs and Transactions
+            // 2. Implement alternative data fetching through DAPI or other available APIs
+            // 3. Consider using mempool tracking and event-based updates as interim solution
+            // 4. Explore using broadcastTransaction events to track outgoing transactions
+            //
+            // Current approach: Relying on balance updates and event-driven notifications
+            // from the SPV client for transaction and UTXO changes.
+            
+            // Sync UTXOs - Currently disabled due to SDK type constraints
             do {
-                // getUTXOs not available on SPVClient - need to implement differently
-                let utxos: [UTXO] = [] // try await client.getUTXOs(for: address)
+                // TODO: Implement alternative UTXO fetching when SDK types become available
+                // or when alternative data sources are identified
+                let utxos: [UTXO] = [] // Placeholder - no UTXOs fetched
                 let localUTXOs = utxos.map { LocalUTXO(from: $0) }
                 try await storage.saveUTXOs(localUTXOs)
-                logger.info("Synced \(localUTXOs.count) UTXOs for address: \(address)")
+                logger.debug("UTXO sync skipped - SDK constraints (0 UTXOs synced for address: \(address))")
             } catch {
                 logger.error("Failed to sync UTXOs for address \(address): \(error)")
             }
             
-            // Sync transactions
+            // Sync transactions - Currently disabled due to SDK type constraints
             do {
-                // getTransactions not available on SPVClient - need to implement differently
-                let transactions: [SwiftDashCoreSDK.Transaction] = [] // try await client.getTransactions(for: address, limit: 100)
+                // TODO: Implement alternative transaction fetching when SDK types become available
+                // Consider using DAPI endpoints or event-based transaction tracking
+                let transactions: [SwiftDashCoreSDK.Transaction] = [] // Placeholder - no transactions fetched
                 let localTransactions = transactions.map { Transaction(from: $0) }
                 try await storage.saveTransactions(localTransactions)
-                logger.info("Synced \(localTransactions.count) transactions for address: \(address)")
+                logger.debug("Transaction sync skipped - SDK constraints (0 transactions synced for address: \(address))")
             } catch {
                 logger.error("Failed to sync transactions for address \(address): \(error)")
             }
