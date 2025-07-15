@@ -242,11 +242,8 @@ struct CreateWalletView: View {
                     dismiss()
                 }
                 
-                // Trigger auto-sync after wallet is persisted
-                // Only sync if the wallet service is properly configured
-                if walletService.modelContext != nil {
-                    await walletService.performAutoSync(for: wallet)
-                }
+                // Auto-sync will be triggered by ContentView.onAppear
+                // to avoid duplicate connection attempts
             } catch {
                 await MainActor.run {
                     errorMessage = error.localizedDescription
@@ -470,10 +467,8 @@ struct ImportWalletView: View {
                 )
                 
                 // Trigger auto-sync for the imported wallet
-                // Only sync if the wallet service is properly configured
-                if walletService.modelContext != nil {
-                    await walletService.performAutoSync(for: wallet)
-                }
+                // Auto-sync will be triggered by ContentView
+                // to avoid duplicate connection attempts
                 
                 await MainActor.run {
                     onComplete(wallet)

@@ -9,8 +9,6 @@ import SwiftDashCoreSDK
 struct DashPayApp: App {
     @StateObject private var unifiedState = UnifiedAppState()
     @State private var shouldResetApp = false
-    @State private var ffiInitializationFailed = false
-    @State private var ffiInitializationError: Error?
     // private let notificationDelegate = NotificationDelegate()
     // private let consoleRedirect = ConsoleRedirect()
     
@@ -30,40 +28,7 @@ struct DashPayApp: App {
     var body: some Scene {
         WindowGroup {
             SwiftUI.Group {
-                if ffiInitializationFailed {
-                    // Show error view when FFI initialization fails
-                    VStack(spacing: 20) {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .font(.system(size: 60))
-                            .foregroundColor(.red)
-                        
-                        Text("Initialization Failed")
-                            .font(.title)
-                            .fontWeight(.bold)
-                        
-                        Text("Failed to initialize the wallet core library. The app cannot start without this critical component.")
-                            .font(.body)
-                            .multilineTextAlignment(.center)
-                            .foregroundColor(.secondary)
-                            .padding(.horizontal, 20)
-                        
-                        if let error = ffiInitializationError {
-                            Text("Error: \(error.localizedDescription)")
-                                .font(.caption)
-                                .foregroundColor(.red)
-                                .padding(.horizontal, 20)
-                                .multilineTextAlignment(.center)
-                        }
-                        
-                        Button("Restart App") {
-                            exit(0)
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .padding(.top, 20)
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(Color(.systemBackground))
-                } else if shouldResetApp {
+                if shouldResetApp {
                     // Show a simple loading view while resetting
                     VStack(spacing: 20) {
                         ProgressView("Resetting app...")
@@ -94,15 +59,8 @@ struct DashPayApp: App {
                             // Initialize notification service
                             // _ = LocalNotificationService.shared
                             
-                            // Initialize FFI first
-                            do {
-                                try await UnifiedFFIInitializer.shared.initialize()
-                            } catch {
-                                print("🔴 Failed to initialize unified FFI library: \(error)")
-                                ffiInitializationFailed = true
-                                ffiInitializationError = error
-                                return
-                            }
+                            // UnifiedFFIInitializer is no longer needed - UnifiedAppState will create the SDK
+                            // Remove the duplicate SDK creation
                             
                             // Add a small delay to ensure UI is ready
                             try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 second
@@ -199,34 +157,51 @@ class UnifiedAppState: ObservableObject {
     
     func initialize() async {
         print("🚀 Starting UnifiedAppState initialization...")
-        // Thread debugging removed - not available in async context
         
-        
-        // Remove SDK creation from here - let WalletService handle it
-        // This matches the example app pattern where SDK is created on demand
-        print("🔧 SDK will be created by WalletService when needed")
-        
-        // Initialize Platform AppState
-        print("🔧 Initializing Platform AppState...")
-        await MainActor.run {
-            platformState.initializeSDK(modelContext: modelContainer.mainContext, existingCoreSDK: nil)
+        do {
+            // Create the Core SDK once here for the entire app
+            print("🔧 Creating Core SDK for the entire app...")
+            
+            // Get default network configuration (testnet for now)
+            let defaultNetwork = DashNetwork.testnet
+            let coreConfig = try SPVConfigurationManager.shared.configuration(for: defaultNetwork)
+            
+            // Create the single SDK instance
+            let coreSdk = try DashSDK(configuration: coreConfig)
+            self.coreSDK = coreSdk
+            print("✅ Core SDK created successfully")
+            
+            // Update unified state with the real SDK
+            await unifiedState.updateCoreSDK(coreSdk)
+            
+            // Initialize Platform AppState with the existing SDK
+            print("🔧 Initializing Platform AppState with existing SDK...")
+            await MainActor.run {
+                platformState.initializeSDK(modelContext: modelContainer.mainContext, existingCoreSDK: coreSdk)
+            }
+            print("✅ Platform AppState initialized")
+            
+            // Configure WalletService to use the existing SDK
+            walletService.setSharedSDK(coreSdk)
+            print("✅ WalletService configured with shared SDK")
+            
+            // Wait a moment for Platform SDK initialization
+            try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 second
+            
+            if let platformWrapper = platformState.platformSDK {
+                self.platformWrapper = platformWrapper
+                print("✅ Got Platform SDK wrapper from Platform AppState")
+                await unifiedState.updatePlatformWrapper(platformWrapper)
+            } else {
+                print("⚠️ Platform SDK not available - continuing with Core SDK only")
+                // Platform SDK is optional for Core wallet testing
+            }
+            
+            print("✅ App initialization complete with single shared SDK")
+        } catch {
+            print("🔴 Failed to initialize SDK: \(error)")
+            self.error = error
         }
-        print("✅ Platform AppState initialized")
-        
-        // Wait a moment for Platform SDK initialization
-        try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 second
-        
-        if let platformWrapper = platformState.platformSDK {
-            self.platformWrapper = platformWrapper
-            print("✅ Got Platform SDK wrapper from Platform AppState")
-            await unifiedState.updatePlatformWrapper(platformWrapper)
-        } else {
-            print("⚠️ Platform SDK not available - continuing with Core SDK only")
-            // Platform SDK is optional for Core wallet testing
-        }
-        
-        // SDK will be created on demand by WalletService
-        print("✅ App initialization complete - SDK will be created when wallet connects")
         
         // Start auto-sync after initialization
         Task {

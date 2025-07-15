@@ -36,16 +36,17 @@ class SPVConfigurationManagerTests: XCTestCase {
         let testnetConfig = try SPVConfigurationManager.shared.configuration(for: .testnet)
         XCTAssertEqual(testnetConfig.network, .testnet)
         XCTAssertEqual(testnetConfig.validationMode, .full)
-        XCTAssertEqual(testnetConfig.maxPeers, 12)
+        // Note: maxPeers is now handled by rust-dashcore SPV client (defaults to 3)
         XCTAssertEqual(testnetConfig.logLevel, "info")
         XCTAssertNotNil(testnetConfig.dataDirectory)
-        XCTAssertTrue(testnetConfig.additionalPeers.contains(NetworkConstants.primaryTestnetPeer))
+        // Note: Peer discovery is now handled automatically by rust-dashcore SPV client
+        // No manual peer configuration needed
         
         // Test mainnet configuration
         let mainnetConfig = try SPVConfigurationManager.shared.configuration(for: .mainnet)
         XCTAssertEqual(mainnetConfig.network, .mainnet)
         XCTAssertEqual(mainnetConfig.validationMode, .full)
-        XCTAssertEqual(mainnetConfig.maxPeers, 12)
+        // Note: maxPeers is now handled by rust-dashcore SPV client (defaults to 3)
     }
     
     func testClearCache() throws {

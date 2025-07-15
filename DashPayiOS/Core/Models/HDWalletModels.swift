@@ -87,8 +87,17 @@ final class HDAccount: @unchecked Sendable {
     @Relationship var wallet: HDWallet?
     @Relationship(deleteRule: .cascade) var balance: LocalBalance?
     @Relationship(deleteRule: .cascade) var addresses: [HDWatchedAddress]
-    // Transaction IDs associated with this account
-    var transactionIds: [String] = []
+    // Transaction IDs associated with this account (stored as comma-separated string)
+    private var transactionIdsString: String = ""
+    
+    var transactionIds: [String] {
+        get {
+            transactionIdsString.isEmpty ? [] : transactionIdsString.split(separator: ",").map(String.init)
+        }
+        set {
+            transactionIdsString = newValue.joined(separator: ",")
+        }
+    }
     
     init(
         accountIndex: UInt32,

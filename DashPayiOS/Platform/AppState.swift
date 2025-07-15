@@ -221,13 +221,9 @@ class AppState: ObservableObject {
                     }
                 }
                 
-                // Step 1.5: Start sync and monitor progress
-                print("🔄 Starting blockchain sync...")
-                if let sdk = coreSDK {
-                    try await startBlockchainSync(sdk: sdk)
-                } else {
-                    print("⚠️ Skipping blockchain sync - Core SDK not available")
-                }
+                // Step 1.5: SDK is now ready but not connected
+                // Connection and sync will happen when WalletService connects a wallet
+                print("✅ Core SDK ready (not connected yet - will connect when wallet is selected)")
                 
                 // Step 2: Initialize Platform SDK with Core context
                 print("🔧 Initializing Platform SDK with Core integration...")
@@ -319,36 +315,10 @@ class AppState: ObservableObject {
     }
     
     
-    private func startBlockchainSync(sdk: DashSDK) async throws {
-        // Connect to the network and start sync
-        try await sdk.connect()
-        print("🌐 Connected to Dash network, sync starting...")
-        
-        // Subscribe to sync progress events
-        sdk.eventPublisher
-            .sink { [weak self] event in
-                Task { @MainActor in
-                    await self?.handleSyncEvent(event)
-                }
-            }
-            .store(in: &cancellables)
-        
-        // Monitor initial sync progress
-        Task {
-            while sdk.syncProgress?.isComplete == false {
-                if let progress = sdk.syncProgress {
-                    await MainActor.run {
-                        print("🔄 Sync progress: \(progress.percentageComplete)% - Headers: \(progress.currentHeight)/\(progress.totalHeight)")
-                    }
-                }
-                try? await Task.sleep(nanoseconds: 2_000_000_000) // Check every 2 seconds
-            }
-            
-            await MainActor.run {
-                print("✅ Blockchain sync completed!")
-            }
-        }
-    }
+    // SDK connection and sync is now handled by WalletService when a wallet is connected
+    // private func startBlockchainSync(sdk: DashSDK) async throws {
+    //     // Removed - sync happens in WalletService.connect()
+    // }
     
     private func handleSyncEvent(_ event: SPVEvent) async {
         switch event {

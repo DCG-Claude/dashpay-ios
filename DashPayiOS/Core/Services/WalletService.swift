@@ -82,6 +82,12 @@ class WalletService: ObservableObject {
         logger.info("✅ WalletService configured with modelContext")
     }
     
+    func setSharedSDK(_ sdk: DashSDK) {
+        logger.info("🔧 WalletService.setSharedSDK() called")
+        connectionService.sdk = sdk
+        logger.info("✅ WalletService configured with shared SDK")
+    }
+    
     /// Setup bindings between WalletService @Published properties and SyncStateService
     private func setupSyncStateBindings() {
         // Bind syncService properties to WalletService @Published properties
@@ -320,11 +326,8 @@ class WalletService: ObservableObject {
     
     // MARK: - Connection & Sync
     
-    /// Known good testnet peers (verified working in rust-dashcore example app)
-    private static let knownTestnetPeers = NetworkConstants.fallbackTestnetPeers
-    
-    /// Known good mainnet peers (verified working in rust-dashcore example app)
-    private static let knownMainnetPeers = NetworkConstants.fallbackMainnetPeers
+    // Note: Peer discovery is now handled automatically by rust-dashcore SPV client
+    // Legacy peer arrays kept for reference but no longer used
     
     // MARK: - Private Connection Helper Methods
     
@@ -371,24 +374,12 @@ class WalletService: ObservableObject {
                 logger.info("   Local testnet peer configured: \(localTestnetPeer)")
             }
         } else {
-            // Use public peers - check if we need to override with known-good peers
-            logger.info("🌐 Using PUBLIC peers for \(wallet.network.rawValue)")
-            if wallet.network == .mainnet && config.additionalPeers.isEmpty {
-                // Use our known-good mainnet peers if config doesn't have any
-                config.additionalPeers = Self.knownMainnetPeers
-                logger.info("   Applied known mainnet peers: \(config.additionalPeers.count) peers")
-            } else if wallet.network == .testnet && config.additionalPeers.count < 2 {
-                // Discover testnet peers using DNS seeds with fallback to hardcoded peers
-                config.additionalPeers = await NetworkConstants.discoverTestnetPeers()
-                config.maxPeers = 12
-                logger.info("   Applied testnet peers: \(config.additionalPeers.count) peers")
-            }
+            // Use automatic peer discovery from rust-dashcore SPV client
+            logger.info("🌐 Using AUTOMATIC peer discovery for \(wallet.network.rawValue)")
+            logger.info("   SPV client will handle DNS seed resolution and peer management")
             
-            // Log configured peers
-            logger.info("   Configured peers:")
-            for peer in config.additionalPeers {
-                logger.info("     • \(peer)")
-            }
+            // Clear any existing peers to let SPV client handle discovery
+            config.additionalPeers = []
         }
         
         logger.info("📝 Configuration settings:")
@@ -404,6 +395,14 @@ class WalletService: ObservableObject {
     
     private func initializeSDK(with config: SPVClientConfiguration) async throws {
         logger.info("📡 Initializing SDK components...")
+        
+        // Check if SDK already exists (set by UnifiedAppState)
+        if connectionService.sdk != nil {
+            logger.info("✅ Using existing shared SDK from UnifiedAppState")
+            return
+        }
+        
+        logger.info("⚠️ No shared SDK found, creating new SDK instance...")
         logger.info("   Thread before MainActor: \(Thread.isMainThread ? "Main" : "Background")")
         
         do {
@@ -443,6 +442,14 @@ class WalletService: ObservableObject {
             guard let sdk = sdk else {
                 logger.error("❌ SDK is nil, cannot connect")
                 throw WalletError.notConnected
+            }
+            
+            // Check if already connected
+            if sdk.isConnected {
+                logger.info("✅ SDK is already connected, skipping connection")
+                connectionService.setConnected(true)
+                connectionService.setSDK(sdk)
+                return
             }
             
             logger.info("🔌 Connecting via SDK...")
@@ -624,6 +631,30 @@ class WalletService: ObservableObject {
         connectionService.reset()
         syncService.reset()
         watchAddressService.reset()
+    }
+    
+    /// Enable checkpoint sync by clearing SPV data
+    /// This forces the SPV client to start fresh and automatically use the latest checkpoint
+    /// For testnet, this will sync from height 1088640 instead of genesis (height 0)
+    func enableCheckpointSync() async throws {
+        guard let wallet = activeWallet else {
+            throw WalletError.noActiveWallet
+        }
+        
+        logger.info("🏁 Enabling checkpoint sync for \(wallet.network.rawValue)")
+        
+        // Disconnect if connected
+        if isConnected {
+            logger.info("🔌 Disconnecting wallet before clearing data...")
+            await disconnect()
+        }
+        
+        // Clear SPV data to enable checkpoint sync
+        try SPVConfigurationManager.shared.clearSPVDataForCheckpointSync(network: wallet.network)
+        
+        logger.info("✅ Checkpoint sync enabled. Next sync will start from latest checkpoint.")
+        logger.info("📍 Testnet checkpoint: height 1088640")
+        logger.info("📍 Mainnet checkpoint: height 1100000")
     }
     
     func startSync() async throws {
