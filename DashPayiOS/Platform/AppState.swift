@@ -474,17 +474,17 @@ class AppState: ObservableObject {
         return nil
     }
     
-    /// Discover token IDs from blockchain registry or API
+    /// Discover token IDs from blockchain registry or configuration file
     private func discoverTokenIdsFromBlockchain() async -> [String]? {
-        // TODO: Implement when Platform SDK supports token discovery
-        // This would query the blockchain for registered token contracts
-        // For now, return nil to fall back to other methods
-        print("🔍 Blockchain token discovery not yet implemented")
-        return nil
+        // TODO: Implement blockchain token discovery when Platform SDK supports it
+        // For now, load token IDs from configuration file instead of returning nil
+        return loadTokenIdsFromConfiguration()
         
         /*
         // Future implementation when Platform SDK is ready:
-        guard let platformSdk = platformSDK else { return nil }
+        guard let platformSdk = platformSDK else { 
+            return loadTokenIdsFromConfiguration() 
+        }
         
         do {
             let sdkHandle = await platformSdk.sdkHandle
@@ -492,32 +492,53 @@ class AppState: ObservableObject {
             
             // Use a hypothetical token registry query
             let discoveredTokens = try await tokenService?.discoverTokens(sdk: sdk, network: currentNetwork)
-            return discoveredTokens?.map { $0.id }
+            return discoveredTokens?.map { $0.id } ?? loadTokenIdsFromConfiguration()
         } catch {
             print("🔍 Failed to discover tokens from blockchain: \(error)")
-            return nil
+            return loadTokenIdsFromConfiguration()
         }
         */
     }
     
+    /// Load token IDs from configuration file
+    private func loadTokenIdsFromConfiguration() -> [String]? {
+        guard let path = Bundle.main.path(forResource: "tokens", ofType: "json"),
+              let data = try? Data(contentsOf: URL(fileURLWithPath: path)),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            print("🔍 Failed to load tokens.json configuration file")
+            return nil
+        }
+        
+        let networkKey = currentNetwork.rawValue
+        guard let networkTokens = json[networkKey] as? [String: Any],
+              let tokenIds = networkTokens["tokenIds"] as? [String] else {
+            print("🔍 No token IDs found for network: \(networkKey)")
+            return nil
+        }
+        
+        print("🔍 Loaded \(tokenIds.count) token IDs from configuration for network: \(networkKey)")
+        return tokenIds
+    }
+    
     /// Get fallback token IDs for the current network
     private func getFallbackTokenIds() -> [String] {
-        // Return network-specific fallback token IDs
+        // Return network-specific fallback token IDs as a last resort
+        // NOTE: These are placeholder/example token IDs - replace with real token IDs when available
         switch currentNetwork {
         case .testnet:
             return [
-                "AEzd9k8r8P3u8RGU5tGz8kXR9V5hN2J7K3M4P6Q8S1T2", // Testnet example token
-                "BF2e9l9s9Q4v9SGV6uH9l9YS0W6iO3K8L4N5Q7R9T2U3"  // Another testnet token
+                "AEzd9k8r8P3u8RGU5tGz8kXR9V5hN2J7K3M4P6Q8S1T2", // Testnet placeholder token
+                "BF2e9l9s9Q4v9SGV6uH9l9YS0W6iO3K8L4N5Q7R9T2U3"  // Another testnet placeholder
             ]
         case .mainnet:
             return [
-                "C3f4g5h6i7j8k9l0m1n2o3p4q5r6s7t8u9v0w1x2y3z4", // Mainnet example token
-                "D4g5h6i7j8k9l0m1n2o3p4q5r6s7t8u9v0w1x2y3z4a5"  // Another mainnet token
+                "C3f4g5h6i7j8k9l0m1n2o3p4q5r6s7t8u9v0w1x2y3z4", // Mainnet placeholder token
+                "D4g5h6i7j8k9l0m1n2o3p4q5r6s7t8u9v0w1x2y3z4a5"  // Another mainnet placeholder
             ]
         case .devnet:
             return [
-                "E5h6i7j8k9l0m1n2o3p4q5r6s7t8u9v0w1x2y3z4a5b6", // Devnet example token
-                "F6i7j8k9l0m1n2o3p4q5r6s7t8u9v0w1x2y3z4a5b6c7"  // Another devnet token
+                "E5h6i7j8k9l0m1n2o3p4q5r6s7t8u9v0w1x2y3z4a5b6", // Devnet placeholder token
+                "F6i7j8k9l0m1n2o3p4q5r6s7t8u9v0w1x2y3z4a5b6c7"  // Another devnet placeholder
             ]
         }
     }
