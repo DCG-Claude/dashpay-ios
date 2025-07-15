@@ -66,20 +66,33 @@ public struct SDK {
 
 public struct IdentitiesAPI {
     public func fetchBalances(ids: [Data]) throws -> [Data: UInt64] {
-        // Mock implementation
+        // TODO: DEVELOPMENT STUB - Replace with real Platform SDK integration
+        // This method currently returns mock data for development purposes only.
+        // When Platform SDK integration is complete, this should call:
+        // - dash_sdk_get_identity_balance() or equivalent FFI function
+        // - Handle proper error cases and network timeouts
+        // - Return actual blockchain balances instead of random values
+        print("⚠️ fetchBalances: Using mock data - replace with Platform SDK integration")
         return ids.reduce(into: [:]) { result, id in
             result[id] = UInt64.random(in: 0...1000000)
         }
     }
     
     public func get(id: String) throws -> SDKIdentity? {
-        // Mock implementation - convert string ID to Data and create a mock identity
+        // TODO: DEVELOPMENT STUB - Replace with real Platform SDK integration
+        // This method currently returns mock data for development purposes only.
+        // When Platform SDK integration is complete, this should call:
+        // - dash_sdk_get_identity() or equivalent FFI function
+        // - Fetch real identity data from the blockchain
+        // - Handle identity not found cases properly
+        print("⚠️ get(id:): Using mock data - replace with Platform SDK integration")
+        
         guard let idData = Data(hexString: id) ?? Data.identifier(fromBase58: id),
               idData.count == 32 else {
             throw SDKError.invalidParameter("Invalid identity ID format")
         }
         
-        // Return a mock identity
+        // Return a mock identity - THIS IS NOT REAL DATA
         return SDKIdentity(
             id: idData,
             balance: UInt64.random(in: 0...1000000),

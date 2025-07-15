@@ -112,7 +112,7 @@ struct TransactionDetailView: View {
                     // Actions
                     VStack(spacing: 12) {
                         Button(action: {
-                            UIPasteboard.general.string = transaction.txid
+                            Clipboard.copy(transaction.txid)
                             isCopied = true
                             DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
                                 isCopied = false
