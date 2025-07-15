@@ -44,10 +44,19 @@ class WatchAddressService: ObservableObject {
     @Published var pendingWatchCount: Int = 0
     @Published var watchVerificationStatus: WatchVerificationStatus = .unknown
     
+    /// Configurable timer interval for watch verification (default: 60 seconds)
+    var watchVerificationInterval: TimeInterval = 60.0
+    
     private let logger = Logger(subsystem: "com.dash.wallet", category: "WatchAddressService")
     private var pendingWatchAddresses: [String: [(address: String, error: Error)]] = [:]
     private var watchVerificationTimer: Timer?
     private var currentVerificationTask: Task<Void, Never>?
+    
+    /// Deinitializer to ensure proper cleanup of timer and tasks
+    deinit {
+        watchVerificationTimer?.invalidate()
+        currentVerificationTask?.cancel()
+    }
     
     /// Handle failed watch addresses
     func handleFailedWatchAddresses(_ failures: [(address: String, error: Error)], accountId: String) {
@@ -86,8 +95,8 @@ class WatchAddressService: ObservableObject {
     
     /// Start watch verification timer
     func startWatchVerification(verificationHandler: @escaping () async -> Void) {
-        logger.info("⏰ Starting watch verification timer")
-        watchVerificationTimer = Timer.scheduledTimer(withTimeInterval: 60.0, repeats: true) { [weak self] _ in
+        logger.info("⏰ Starting watch verification timer with interval: \(watchVerificationInterval)s")
+        watchVerificationTimer = Timer.scheduledTimer(withTimeInterval: watchVerificationInterval, repeats: true) { [weak self] _ in
             // Cancel any previous verification task before starting a new one
             self?.currentVerificationTask?.cancel()
             
