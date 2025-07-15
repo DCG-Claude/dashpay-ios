@@ -468,7 +468,10 @@ struct ImportWalletView: View {
             
             // Trigger auto-sync for the imported wallet
             Task {
-                await walletService.performAutoSync(for: wallet)
+                // Only sync if the wallet service is properly configured
+                if walletService.modelContext != nil {
+                    await walletService.performAutoSync(for: wallet)
+                }
             }
             
             onComplete(wallet)

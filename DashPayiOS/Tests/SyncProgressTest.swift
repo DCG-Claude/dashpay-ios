@@ -1,144 +1,188 @@
 import XCTest
-import SwiftDashSDK
 @testable import DashPayiOS
 
-/// Test suite for Core SDK sync progress functionality
 class SyncProgressTest: XCTestCase {
+    var sdk: DashSDK!
     
-    override func setUp() {
-        super.setUp()
-        // Initialize the unified SDK
-        let result = dash_unified_sdk_init()
-        XCTAssertEqual(result, 0, "Unified SDK initialization should succeed")
+    override func setUp() async throws {
+        try await super.setUp()
+        
+        // Create testnet configuration with fallback peers
+        let config = try SPVConfigurationManager.shared.configuration(for: .testnet)
+        sdk = try DashSDK(configuration: config)
     }
     
-    /// Test Core SDK sync progress functionality
-    func testCoreSDKSyncProgress() throws {
-        print("\n🧪 Testing Core SDK Sync Progress\n")
+    override func tearDown() async throws {
+        try? await sdk?.disconnect()
+        sdk = nil
+        try await super.tearDown()
+    }
+    
+    func testSyncProgressStream() async throws {
+        // Connect to network
+        try await sdk.connect()
         
-        let client = dash_core_sdk_create_client_testnet()
-        XCTAssertNotNil(client, "Client should be created")
+        // Test sync progress stream
+        var progressUpdates: [DetailedSyncProgress] = []
+        let expectation = XCTestExpectation(description: "Sync progress updates")
         
-        guard let client = client else { return }
-        defer { dash_core_sdk_destroy_client(client) }
-        
-        // Start the client
-        let startResult = dash_core_sdk_start(client)
-        print("Start result: \(startResult)")
-        
-        // Get sync progress
-        if let progressPtr = dash_core_sdk_get_sync_progress(client) {
-            let progress = progressPtr.pointee
-            print("✅ Sync Progress:")
-            print("   Current Height: \(progress.current_height)")
-            print("   Total Height: \(progress.total_height)")
-            print("   Connected Peers: \(progress.connected_peers)")
-            print("   Percentage: \(progress.percentage)%")
-            
-            XCTAssertGreaterThanOrEqual(progress.percentage, 0.0, "Percentage should be non-negative")
-            XCTAssertLessThanOrEqual(progress.percentage, 100.0, "Percentage should not exceed 100")
-        } else {
-            print("❌ Failed to get sync progress")
+        // Start collecting progress updates
+        Task {
+            for await progress in sdk.syncProgressStream() {
+                print("📊 Progress Update:")
+                print("   Stage: \(progress.stage.description)")
+                print("   Percentage: \(progress.formattedPercentage)")
+                print("   Speed: \(progress.formattedSpeed)")
+                print("   Peers: \(progress.connectedPeers)")
+                print("   Current Height: \(progress.currentHeight)")
+                print("   Total Height: \(progress.totalHeight)")
+                
+                progressUpdates.append(progress)
+                
+                // Fulfill expectation after getting at least one real update
+                if progressUpdates.count >= 1 && progress.percentage > 0 {
+                    expectation.fulfill()
+                    break
+                }
+                
+                // Stop after complete
+                if progress.stage == .complete {
+                    break
+                }
+            }
         }
         
-        // Stop the client
-        let stopResult = dash_core_sdk_stop(client)
-        print("Stop result: \(stopResult)")
+        // Wait for progress updates
+        await fulfillment(of: [expectation], timeout: 30.0)
+        
+        // Verify we got real progress updates
+        XCTAssertFalse(progressUpdates.isEmpty, "Should have received progress updates")
+        
+        if let firstProgress = progressUpdates.first {
+            XCTAssertGreaterThan(firstProgress.totalHeight, 0, "Total height should be positive")
+            XCTAssertGreaterThanOrEqual(firstProgress.connectedPeers, 0, "Should have peer count")
+            XCTAssertFalse(firstProgress.stageMessage.isEmpty, "Should have stage message")
+        }
     }
     
-    /// Test Core SDK stats functionality
-    func testCoreSDKStats() throws {
-        print("\n🧪 Testing Core SDK Stats\n")
+    func testFFISyncWithProgress() async throws {
+        // Connect to network
+        try await sdk.connect()
         
-        let client = dash_core_sdk_create_client_testnet()
-        XCTAssertNotNil(client, "Client should be created")
-        
-        guard let client = client else { return }
-        defer { dash_core_sdk_destroy_client(client) }
-        
-        // Start the client
-        let startResult = dash_core_sdk_start(client)
-        print("Start result: \(startResult)")
-        
-        // Get stats
-        if let statsPtr = dash_core_sdk_get_stats(client) {
-            let stats = statsPtr.pointee
-            print("✅ Core SDK Stats:")
-            print("   Connected Peers: \(stats.connected_peers)")
-            print("   Best Height: \(stats.best_height)")
-            print("   Synced Height: \(stats.synced_height)")
-            print("   Is Syncing: \(stats.is_syncing)")
-            
-            XCTAssertGreaterThanOrEqual(stats.connected_peers, 0, "Connected peers should be non-negative")
-            XCTAssertGreaterThanOrEqual(stats.best_height, 0, "Best height should be non-negative")
-            XCTAssertGreaterThanOrEqual(stats.synced_height, 0, "Synced height should be non-negative")
-        } else {
-            print("❌ Failed to get stats")
+        // Get the SPV client directly
+        let client = sdk.client
+        guard client.isConnected, let ffiClient = client.ffiClient else {
+            XCTFail("Client not connected")
+            return
         }
         
-        // Stop the client
-        let stopResult = dash_core_sdk_stop(client)
-        print("Stop result: \(stopResult)")
-    }
-    
-    /// Test Core SDK balance functionality
-    func testCoreSDKBalance() throws {
-        print("\n🧪 Testing Core SDK Balance\n")
+        let progressExpectation = XCTestExpectation(description: "FFI sync progress")
+        let completionExpectation = XCTestExpectation(description: "FFI sync completion")
         
-        let client = dash_core_sdk_create_client_testnet()
-        XCTAssertNotNil(client, "Client should be created")
+        var progressCount = 0
         
-        guard let client = client else { return }
-        defer { dash_core_sdk_destroy_client(client) }
+        // Create callback holder
+        let callbackHolder = DetailedCallbackHolder(
+            progressCallback: { progress in
+                if let detailedProgress = progress as? DetailedSyncProgress {
+                    progressCount += 1
+                    print("🔄 FFI Progress #\(progressCount):")
+                    print("   Stage: \(detailedProgress.stage)")
+                    print("   Progress: \(detailedProgress.formattedPercentage)")
+                    print("   Height: \(detailedProgress.currentHeight)/\(detailedProgress.totalHeight)")
+                    
+                    if progressCount >= 1 {
+                        progressExpectation.fulfill()
+                    }
+                }
+            },
+            completionCallback: { success, error in
+                print("✅ FFI Sync completed - Success: \(success), Error: \(error ?? "none")")
+                completionExpectation.fulfill()
+            }
+        )
         
-        // Start the client
-        let startResult = dash_core_sdk_start(client)
-        print("Start result: \(startResult)")
+        let userData = Unmanaged.passRetained(callbackHolder).toOpaque()
         
-        // Get total balance
-        if let balancePtr = dash_core_sdk_get_total_balance(client) {
-            let balance = balancePtr.pointee
-            print("✅ Core SDK Balance:")
-            print("   Confirmed: \(balance.confirmed)")
-            print("   Pending: \(balance.pending)")
-            print("   Total: \(balance.confirmed + balance.pending)")
-            
-            XCTAssertGreaterThanOrEqual(balance.confirmed, 0, "Confirmed balance should be non-negative")
-            XCTAssertGreaterThanOrEqual(balance.pending, 0, "Pending balance should be non-negative")
-        } else {
-            print("❌ Failed to get balance")
+        // Start sync with FFI
+        let result = dash_spv_ffi_client_sync_to_tip_with_progress(
+            ffiClient,
+            detailedSyncProgressCallback,
+            detailedSyncCompletionCallback,
+            userData
+        )
+        
+        if result != 0 {
+            Unmanaged<DetailedCallbackHolder>.fromOpaque(userData).release()
+            XCTFail("Failed to start FFI sync: \(FFIBridge.getLastError() ?? "Unknown error")")
+            return
         }
         
-        // Stop the client
-        let stopResult = dash_core_sdk_stop(client)
-        print("Stop result: \(stopResult)")
+        // Wait for at least one progress update
+        await fulfillment(of: [progressExpectation], timeout: 30.0)
+        
+        XCTAssertGreaterThan(progressCount, 0, "Should have received progress updates")
     }
+}
+
+// MARK: - Helper Classes (copied from SPVClient for testing)
+
+private class DetailedCallbackHolder {
+    let progressCallback: (@Sendable (Any) -> Void)?
+    let completionCallback: (@Sendable (Bool, String?) -> Void)?
     
-    /// Test address watching functionality
-    func testAddressWatching() throws {
-        print("\n🧪 Testing Address Watching\n")
-        
-        let client = dash_core_sdk_create_client_testnet()
-        XCTAssertNotNil(client, "Client should be created")
-        
-        guard let client = client else { return }
-        defer { dash_core_sdk_destroy_client(client) }
-        
-        // Start the client
-        let startResult = dash_core_sdk_start(client)
-        print("Start result: \(startResult)")
-        
-        // Test watching an address
-        let testAddress = "yP8A3cbdxRtLRduy5mXDsBnJtMzHWs6ZXr" // Example testnet address
-        let watchResult = dash_core_sdk_watch_address(client, testAddress)
-        print("Watch address result: \(watchResult)")
-        
-        // Test unwatching the address
-        let unwatchResult = dash_core_sdk_unwatch_address(client, testAddress)
-        print("Unwatch address result: \(unwatchResult)")
-        
-        // Stop the client
-        let stopResult = dash_core_sdk_stop(client)
-        print("Stop result: \(stopResult)")
+    init(progressCallback: (@Sendable (Any) -> Void)? = nil,
+         completionCallback: (@Sendable (Bool, String?) -> Void)? = nil) {
+        self.progressCallback = progressCallback
+        self.completionCallback = completionCallback
     }
+}
+
+// Callback functions for FFI
+private let detailedSyncProgressCallback: @convention(c) (UnsafePointer<FFIDetailedSyncProgress>?, UnsafeMutableRawPointer?) -> Void = { ffiProgress, userData in
+    guard let userData = userData,
+          let ffiProgress = ffiProgress else { return }
+    
+    let holder = Unmanaged<DetailedCallbackHolder>.fromOpaque(userData).takeUnretainedValue()
+    
+    // Convert FFI progress to Swift DetailedSyncProgress
+    let progress = ffiProgress.pointee
+    let stage: SyncStage = {
+        switch progress.stage {
+        case .Connecting: return .connecting
+        case .QueryingHeight: return .queryingHeight
+        case .Downloading: return .downloading
+        case .Validating: return .validating
+        case .Storing: return .storing
+        case .Complete: return .complete
+        case .Failed: return .failed
+        default: return .downloading
+        }
+    }()
+    
+    let stageMessage = String(cString: progress.stage_message.ptr)
+    
+    let detailedProgress = DetailedSyncProgress(
+        currentHeight: progress.current_height,
+        totalHeight: progress.total_height,
+        percentage: progress.percentage,
+        headersPerSecond: progress.headers_per_second,
+        estimatedSecondsRemaining: progress.estimated_seconds_remaining,
+        stage: stage,
+        stageMessage: stageMessage,
+        connectedPeers: progress.connected_peers,
+        totalHeadersProcessed: progress.total_headers,
+        syncStartTimestamp: Date(timeIntervalSince1970: TimeInterval(progress.sync_start_timestamp))
+    )
+    
+    holder.progressCallback?(detailedProgress)
+}
+
+private let detailedSyncCompletionCallback: @convention(c) (Bool, UnsafePointer<CChar>?, UnsafeMutableRawPointer?) -> Void = { success, error, userData in
+    guard let userData = userData else { return }
+    let holder = Unmanaged<DetailedCallbackHolder>.fromOpaque(userData).takeUnretainedValue()
+    let err = error.map { String(cString: $0) }
+    holder.completionCallback?(success, err)
+    // Release the holder after completion
+    Unmanaged<DetailedCallbackHolder>.fromOpaque(userData).release()
 }

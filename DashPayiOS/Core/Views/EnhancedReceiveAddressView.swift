@@ -176,6 +176,7 @@ struct EnhancedReceiveAddressView: View {
                     
                     // Action Buttons
                     VStack(spacing: 12) {
+                        #if DEBUG
                         // Test Address Button (for development)
                         if let testAddress = walletService.createTestReceiveAddress() {
                             Button("Create Test Address") {
@@ -183,6 +184,7 @@ struct EnhancedReceiveAddressView: View {
                             }
                             .buttonStyle(.bordered)
                         }
+                        #endif
                         
                         // Generate New Address Button
                         Button("Generate New Address") {
@@ -296,8 +298,8 @@ struct EnhancedReceiveAddressView: View {
     }
     
     private func setupActivityRefresh() {
-        refreshTimer = Timer.scheduledTimer(withTimeInterval: 10.0, repeats: true) { _ in
-            refreshActivity()
+        refreshTimer = Timer.scheduledTimer(withTimeInterval: 10.0, repeats: true) { [weak self] _ in
+            self?.refreshActivity()
         }
     }
     

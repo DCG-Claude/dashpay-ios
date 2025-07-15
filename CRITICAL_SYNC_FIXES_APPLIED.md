@@ -5,9 +5,9 @@ Fixed the blockchain sync issue that was stuck at 0% by replacing test sync with
 
 ## Critical Files Modified
 
-### 1. `/Users/quantum/src/dashpay-ios/DashPayiOS/SwiftDashCoreSDK/Core/SPVClient.swift`
+### 1. `DashPayiOS/SwiftDashCoreSDK/Core/SPVClient.swift`
 
-#### Key Changes:
+#### Key Changes
 1. **Added Rust Logging Initialization**
    ```swift
    // In init()

@@ -15,6 +15,12 @@ class LocalNotificationService: ObservableObject {
     
     private let logger = Logger(subsystem: "com.dash.wallet", category: "LocalNotificationService")
     private let notificationQueue = DispatchQueue(label: "com.dash.wallet.notifications", qos: .background)
+    private let notificationOperationQueue: OperationQueue = {
+        let queue = OperationQueue()
+        queue.name = "com.dash.wallet.notifications.operations"
+        queue.qualityOfService = .background
+        return queue
+    }()
     private var observers: [NSObjectProtocol] = []
     
     private init() {
@@ -77,7 +83,7 @@ class LocalNotificationService: ObservableObject {
         let fundsReceivedObserver = NotificationCenter.default.addObserver(
             forName: NSNotification.Name("FundsReceived"),
             object: nil,
-            queue: OperationQueue()
+            queue: notificationOperationQueue
         ) { [weak self] notification in
             guard let self = self,
                   let userInfo = notification.userInfo,
@@ -105,7 +111,7 @@ class LocalNotificationService: ObservableObject {
         let balanceUpdateObserver = NotificationCenter.default.addObserver(
             forName: NSNotification.Name("BalanceUpdated"),
             object: nil,
-            queue: OperationQueue()
+            queue: notificationOperationQueue
         ) { [weak self] notification in
             guard let self = self,
                   let userInfo = notification.userInfo,

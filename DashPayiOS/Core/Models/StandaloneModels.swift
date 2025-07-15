@@ -1,6 +1,4 @@
 import Foundation
-import SwiftData
-import SwiftDashCoreSDK
 
 // MARK: - Network types
 // Using DashNetwork from SwiftDashCoreSDK to avoid ambiguity

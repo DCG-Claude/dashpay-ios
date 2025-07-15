@@ -154,22 +154,6 @@ struct EnhancedSyncProgressView: View {
         syncError = nil
         
         Task {
-            // Add a timeout check with proper cancellation handling
-            let timeoutTask = Task {
-                try await Task.sleep(nanoseconds: 10_000_000_000) // 10 seconds
-                
-                // Use task cancellation to prevent timeout from overwriting errors
-                if !Task.isCancelled && hasStarted && walletService.syncProgress == nil && walletService.detailedSyncProgress == nil {
-                    await MainActor.run {
-                        // Double-check that no error has been set by main sync operation
-                        if syncError == nil {
-                            syncError = "Sync timed out - no progress received after 10 seconds"
-                            hasStarted = false
-                        }
-                    }
-                }
-            }
-            
             do {
                 print("📱 EnhancedSyncProgressView: Starting sync...")
                 print("   Is connected: \(walletService.isConnected)")
@@ -182,16 +166,31 @@ struct EnhancedSyncProgressView: View {
                     throw NSError(domain: "WalletError", code: 1, userInfo: [NSLocalizedDescriptionKey: "Wallet is not connected"])
                 }
                 
-                try await walletService.startSyncWithCallbacks()
+                // Use TaskGroup to run sync operation and timeout concurrently
+                try await withThrowingTaskGroup(of: Void.self) { group in
+                    // Add sync operation task
+                    group.addTask {
+                        try await self.walletService.startSyncWithCallbacks()
+                    }
+                    
+                    // Add timeout task
+                    group.addTask {
+                        try await Task.sleep(nanoseconds: 10_000_000_000) // 10 seconds
+                        // If we reach here, timeout occurred first
+                        throw NSError(domain: "SyncTimeout", code: 1, userInfo: [NSLocalizedDescriptionKey: "Sync timed out - no progress received after 10 seconds"])
+                    }
+                    
+                    // Wait for first completed task (either sync success or timeout)
+                    try await group.next()
+                    
+                    // Cancel remaining tasks to prevent race conditions
+                    group.cancelAll()
+                }
                 
                 print("✅ EnhancedSyncProgressView: Sync started successfully")
-                // Cancel timeout task to prevent it from overwriting success state
-                timeoutTask.cancel()
             } catch {
                 print("❌ EnhancedSyncProgressView: Sync error: \(error)")
                 print("   Error type: \(type(of: error))")
-                // Cancel timeout task to prevent it from overwriting error state
-                timeoutTask.cancel()
                 
                 await MainActor.run {
                     syncError = "Sync failed: \(error.localizedDescription)"
@@ -391,9 +390,9 @@ struct LegacyProgressContent: View {
     var body: some View {
         VStack(spacing: 20) {
             // Status Icon
-            Image(systemName: statusIcon(for: progress.status))
+            Image(systemName: progress.status.icon)
                 .font(.system(size: 60))
-                .foregroundColor(statusColor(for: progress.status))
+                .foregroundColor(progress.status.color)
                 .symbolEffect(.pulse, isActive: progress.status.isActive)
             
             // Status Text
@@ -431,37 +430,6 @@ struct LegacyProgressContent: View {
         }
     }
     
-    private func statusIcon(for status: SyncStatus) -> String {
-        switch status {
-        case .idle:
-            return "circle"
-        case .connecting:
-            return "network"
-        case .downloadingHeaders:
-            return "arrow.down.circle"
-        case .downloadingFilters:
-            return "line.3.horizontal.decrease.circle"
-        case .scanning:
-            return "magnifyingglass.circle"
-        case .synced:
-            return "checkmark.circle.fill"
-        case .error:
-            return "exclamationmark.triangle.fill"
-        }
-    }
-    
-    private func statusColor(for status: SyncStatus) -> Color {
-        switch status {
-        case .idle:
-            return .gray
-        case .connecting, .downloadingHeaders, .downloadingFilters, .scanning:
-            return .blue
-        case .synced:
-            return .green
-        case .error:
-            return .red
-        }
-    }
 }
 
 // MARK: - Detailed Statistics View

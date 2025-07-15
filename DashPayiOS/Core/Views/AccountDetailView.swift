@@ -315,14 +315,13 @@ struct TransactionsTabView: View {
             // Also check for new transactions from the network
             await walletService.checkForNewTransactions()
             
-            // Temporarily disabled periodic checking to debug
             // Set up periodic check every 10 seconds
-            // checkTimer = Timer.scheduledTimer(withTimeInterval: 10.0, repeats: true) { _ in
-            //     Task {
-            //         await walletService.checkForNewTransactions()
-            //         await loadTransactions()
-            //     }
-            // }
+            checkTimer = Timer.scheduledTimer(withTimeInterval: 10.0, repeats: true) { _ in
+                Task {
+                    await walletService.checkForNewTransactions()
+                    await loadTransactions()
+                }
+            }
         }
         .onDisappear {
             checkTimer?.invalidate()

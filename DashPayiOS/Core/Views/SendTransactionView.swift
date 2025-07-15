@@ -16,8 +16,42 @@ struct SendTransactionView: View {
     @State private var isValidAddress = true
     
     private var amount: UInt64? {
-        guard let dash = Double(amountString) else { return nil }
-        return UInt64(dash * 100_000_000)
+        return convertDashToSatoshis(amountString)
+    }
+    
+    /// Converts a Dash amount string to satoshis using integer-only arithmetic to avoid floating-point precision errors
+    private func convertDashToSatoshis(_ dashString: String) -> UInt64? {
+        let trimmed = dashString.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        
+        let components = trimmed.components(separatedBy: ".")
+        guard components.count <= 2 else { return nil } // Invalid format with multiple decimal points
+        
+        let wholePart = components[0]
+        let fractionalPart = components.count == 2 ? components[1] : ""
+        
+        // Validate that both parts contain only digits
+        guard wholePart.allSatisfy(\.isNumber),
+              fractionalPart.allSatisfy(\.isNumber) else { return nil }
+        
+        // Convert whole part to satoshis
+        guard let wholeNumber = UInt64(wholePart) else { return nil }
+        guard wholeNumber <= UInt64.max / 100_000_000 else { return nil } // Overflow check
+        let wholeSatoshis = wholeNumber * 100_000_000
+        
+        // Convert fractional part to satoshis (pad or truncate to 8 decimal places)
+        var fractionalSatoshis: UInt64 = 0
+        if !fractionalPart.isEmpty {
+            let paddedFractional = fractionalPart.padding(toLength: 8, withPad: "0", startingAt: 0)
+            let truncatedFractional = String(paddedFractional.prefix(8))
+            guard let fractionalNumber = UInt64(truncatedFractional) else { return nil }
+            fractionalSatoshis = fractionalNumber
+        }
+        
+        // Check for overflow when adding whole and fractional parts
+        guard wholeSatoshis <= UInt64.max - fractionalSatoshis else { return nil }
+        
+        return wholeSatoshis + fractionalSatoshis
     }
     
     private var availableBalance: UInt64 {
@@ -188,15 +222,20 @@ struct SendTransactionView: View {
     private func validateAddress() {
         if recipientAddress.isEmpty {
             isValidAddress = true
+            errorMessage = ""
         } else {
-            // Use comprehensive validation that includes length and character checks
-            if let network = walletService.activeWallet?.network {
-                isValidAddress = HDWalletService.isValidAddress(recipientAddress, network: network)
-            } else {
+            // Safely unwrap activeWallet and network
+            guard let activeWallet = walletService.activeWallet,
+                  let network = activeWallet.network else {
                 isValidAddress = false
+                errorMessage = "Wallet not available for address validation"
+                return
             }
+            
+            // Use comprehensive validation that includes length and character checks
+            isValidAddress = HDWalletService.isValidAddress(recipientAddress, network: network)
+            errorMessage = ""
         }
-        errorMessage = ""
     }
     
     private func updateEstimatedFee() {
@@ -219,8 +258,15 @@ struct SendTransactionView: View {
     private func setMaxAmount() {
         // Calculate max amount (balance - estimated fee)
         let maxAmount = availableBalance > estimatedFee ? availableBalance - estimatedFee : 0
-        let dash = Double(maxAmount) / 100_000_000.0
-        amountString = String(format: "%.8f", dash)
+        
+        // Use Decimal arithmetic to preserve precision when converting from satoshis to DASH
+        let satoshisDecimal = Decimal(maxAmount)
+        let satoshisPerDashDecimal = Decimal(100_000_000)
+        let dashDecimal = satoshisDecimal / satoshisPerDashDecimal
+        
+        // Format with 8 decimal places
+        let dashNumber = NSDecimalNumber(decimal: dashDecimal)
+        amountString = String(format: "%.8f", dashNumber.doubleValue)
     }
     
     private func sendTransaction() {

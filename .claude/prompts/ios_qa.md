@@ -28,7 +28,8 @@ Based on the test scenario, perform the required actions:
 
 - Use `mcp__mobile__mobile_list_elements_on_screen` to understand current UI state (prefer this over screenshots for checking state)
 - Use `mcp__mobile__mobile_take_screenshot` ONLY for key moments and documentation
-- Use `mcp__mobile__mobile_click_on_screen_at_coordinates` for tapping elements
+- Use element-based taps when possible: first get element descriptors with `mcp__mobile__mobile_list_elements_on_screen`, then tap using element identifiers (preferred over coordinates for better cross-device compatibility)
+- Use `mcp__mobile__mobile_click_on_screen_at_coordinates` only as fallback when element-based tapping is not available
 - Use `mcp__mobile__mobile_type_keys` for text input
 - Use `mcp__mobile__swipe_on_screen` for navigation gestures
 - Monitor app state changes by repeatedly checking elements on screen
@@ -69,7 +70,11 @@ Return a structured report with:
 # Check current screen
 mcp__mobile__mobile_list_elements_on_screen
 
-# Tap a button at coordinates
+# Preferred: Get elements first, then tap by element identifier
+mcp__mobile__mobile_list_elements_on_screen
+# Then tap using element info (exact method depends on available element descriptors)
+
+# Fallback: Tap a button at coordinates (use only when element-based tapping unavailable)
 mcp__mobile__mobile_click_on_screen_at_coordinates x=180 y=600
 
 # Type text

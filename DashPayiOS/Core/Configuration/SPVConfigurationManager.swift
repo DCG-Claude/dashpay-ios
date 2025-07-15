@@ -12,6 +12,9 @@ public final class SPVConfigurationManager {
     // One configuration per network
     private var configurations: [DashNetwork: SPVClientConfiguration] = [:]
     
+    // Configuration flag to control error handling behavior
+    public var throwOnDirectoryCreationFailure: Bool = false
+    
     // Logger for configuration tracking
     private let logger = Logger(subsystem: "com.dash.wallet", category: "SPVConfigurationManager")
     
@@ -20,14 +23,14 @@ public final class SPVConfigurationManager {
     }
     
     /// Get the standard configuration for a network (creates once, reuses thereafter)
-    public func configuration(for network: DashNetwork) -> SPVClientConfiguration {
+    public func configuration(for network: DashNetwork) throws -> SPVClientConfiguration {
         if let existing = configurations[network] {
             logger.info("♻️ Reusing existing configuration for network: \(network.rawValue)")
             return existing
         }
         
         logger.info("🆕 Creating new configuration for network: \(network.rawValue)")
-        let config = createStandardConfiguration(for: network)
+        let config = try createStandardConfiguration(for: network)
         configurations[network] = config
         logger.info("✅ Configuration cached for network: \(network.rawValue)")
         return config
@@ -55,7 +58,7 @@ public final class SPVConfigurationManager {
     
     // MARK: - Private Configuration Creation
     
-    private func createStandardConfiguration(for network: DashNetwork) -> SPVClientConfiguration {
+    private func createStandardConfiguration(for network: DashNetwork) throws -> SPVClientConfiguration {
         let config: SPVClientConfiguration
         
         // Create base configuration for network
@@ -95,8 +98,14 @@ public final class SPVConfigurationManager {
             } catch {
                 logger.error("❌ Failed to create data directory: \(error.localizedDescription)")
                 logger.error("   Path: \(config.dataDirectory!.path)")
-                // Don't throw here as SPV client might handle missing directory gracefully
-                // But log the error so it's visible for debugging
+                
+                // Conditionally propagate the error based on configuration flag
+                if throwOnDirectoryCreationFailure {
+                    logger.error("🚨 Propagating directory creation error as requested by configuration")
+                    throw error
+                } else {
+                    logger.info("ℹ️ Continuing despite directory creation failure (SPV client may handle gracefully)")
+                }
             }
         }
         

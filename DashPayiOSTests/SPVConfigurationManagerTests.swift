@@ -18,22 +18,22 @@ class SPVConfigurationManagerTests: XCTestCase {
         XCTAssertTrue(instance1 === instance2, "SPVConfigurationManager should be a singleton")
     }
     
-    func testConfigurationCaching() {
+    func testConfigurationCaching() throws {
         // Get configuration for testnet
-        let config1 = SPVConfigurationManager.shared.configuration(for: .testnet)
-        let config2 = SPVConfigurationManager.shared.configuration(for: .testnet)
+        let config1 = try SPVConfigurationManager.shared.configuration(for: .testnet)
+        let config2 = try SPVConfigurationManager.shared.configuration(for: .testnet)
         
         // Verify same instance is returned (cached)
         XCTAssertTrue(config1 === config2, "Configuration should be cached and reused")
         
         // Get configuration for different network
-        let config3 = SPVConfigurationManager.shared.configuration(for: .mainnet)
+        let config3 = try SPVConfigurationManager.shared.configuration(for: .mainnet)
         XCTAssertTrue(config1 !== config3, "Different networks should have different configurations")
     }
     
-    func testConfigurationSettings() {
+    func testConfigurationSettings() throws {
         // Test testnet configuration
-        let testnetConfig = SPVConfigurationManager.shared.configuration(for: .testnet)
+        let testnetConfig = try SPVConfigurationManager.shared.configuration(for: .testnet)
         XCTAssertEqual(testnetConfig.network, .testnet)
         XCTAssertEqual(testnetConfig.validationMode, .full)
         XCTAssertEqual(testnetConfig.maxPeers, 12)
@@ -42,16 +42,16 @@ class SPVConfigurationManagerTests: XCTestCase {
         XCTAssertTrue(testnetConfig.additionalPeers.contains(NetworkConstants.primaryTestnetPeer))
         
         // Test mainnet configuration
-        let mainnetConfig = SPVConfigurationManager.shared.configuration(for: .mainnet)
+        let mainnetConfig = try SPVConfigurationManager.shared.configuration(for: .mainnet)
         XCTAssertEqual(mainnetConfig.network, .mainnet)
         XCTAssertEqual(mainnetConfig.validationMode, .full)
         XCTAssertEqual(mainnetConfig.maxPeers, 12)
     }
     
-    func testClearCache() {
+    func testClearCache() throws {
         // Create configurations
-        _ = SPVConfigurationManager.shared.configuration(for: .testnet)
-        _ = SPVConfigurationManager.shared.configuration(for: .mainnet)
+        _ = try SPVConfigurationManager.shared.configuration(for: .testnet)
+        _ = try SPVConfigurationManager.shared.configuration(for: .mainnet)
         
         // Print diagnostics before clear
         let diagnosticsBefore = SPVConfigurationManager.shared.diagnostics
@@ -65,17 +65,17 @@ class SPVConfigurationManagerTests: XCTestCase {
         print("Diagnostics after clear:\n\(diagnosticsAfter)")
         
         // Get configurations again
-        let config1 = SPVConfigurationManager.shared.configuration(for: .testnet)
-        let config2 = SPVConfigurationManager.shared.configuration(for: .testnet)
+        let config1 = try SPVConfigurationManager.shared.configuration(for: .testnet)
+        let config2 = try SPVConfigurationManager.shared.configuration(for: .testnet)
         
         // Should still be cached after recreation
         XCTAssertTrue(config1 === config2, "Configuration should be cached after clear and recreation")
     }
     
-    func testDiagnostics() {
+    func testDiagnostics() throws {
         // Create some configurations
-        _ = SPVConfigurationManager.shared.configuration(for: .testnet)
-        _ = SPVConfigurationManager.shared.configuration(for: .mainnet)
+        _ = try SPVConfigurationManager.shared.configuration(for: .testnet)
+        _ = try SPVConfigurationManager.shared.configuration(for: .mainnet)
         
         let diagnostics = SPVConfigurationManager.shared.diagnostics
         print("Configuration Manager Diagnostics:\n\(diagnostics)")
@@ -85,12 +85,12 @@ class SPVConfigurationManagerTests: XCTestCase {
         XCTAssertTrue(diagnostics.contains("mainnet: cached"))
     }
     
-    func testMemoryEfficiency() {
+    func testMemoryEfficiency() throws {
         // Create multiple references to same configuration
         var configs: [SPVClientConfiguration] = []
         
         for _ in 0..<10 {
-            configs.append(SPVConfigurationManager.shared.configuration(for: .testnet))
+            configs.append(try SPVConfigurationManager.shared.configuration(for: .testnet))
         }
         
         // All should be the same instance

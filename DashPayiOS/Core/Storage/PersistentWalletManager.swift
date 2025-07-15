@@ -3,6 +3,7 @@ import Combine
 import SwiftData
 import SwiftDashSDK
 import SwiftDashCoreSDK
+import CryptoKit
 import os.log
 
 /// Protocol for UTXO and transaction synchronization
@@ -18,6 +19,11 @@ final class PersistentWalletManager {
     private weak var syncDelegate: UTXOTransactionSyncProtocol?
     private var syncTask: Task<Void, Never>?
     private let logger = Logger(subsystem: "com.dash.wallet", category: "PersistentWalletManager")
+    
+    // HD Wallet context for proper change address derivation
+    private var currentNetwork: DashNetwork = .testnet
+    private var currentAccountXPub: String?
+    private var nextChangeAddressIndex: UInt32 = 0
     
     var watchedAddresses: Set<String> = []
     var totalBalance: SwiftDashCoreSDK.Balance = SwiftDashCoreSDK.Balance(
@@ -48,6 +54,40 @@ final class PersistentWalletManager {
     /// Set the sync delegate for UTXO and transaction synchronization
     func setSyncDelegate(_ syncDelegate: UTXOTransactionSyncProtocol) {
         self.syncDelegate = syncDelegate
+    }
+    
+    /// Configure HD wallet context for proper change address derivation
+    func configureHDWallet(network: DashNetwork, accountXPub: String, nextChangeIndex: UInt32 = 0) {
+        logger.info("Configuring HD wallet context - network: \(network), nextChangeIndex: \(nextChangeIndex)")
+        self.currentNetwork = network
+        self.currentAccountXPub = accountXPub
+        self.nextChangeAddressIndex = nextChangeIndex
+    }
+    
+    /// Derive the next change address from HD wallet internal chain
+    private func deriveNextChangeAddress() throws -> String {
+        guard let xpub = currentAccountXPub else {
+            logger.error("Cannot derive change address: no account xpub configured")
+            throw WalletError.invalidState
+        }
+        
+        do {
+            let changeAddress = try HDWalletService.deriveAddress(
+                xpub: xpub,
+                network: currentNetwork,
+                change: true,  // Use internal/change chain
+                index: nextChangeAddressIndex
+            )
+            
+            // Increment the change index for next use
+            nextChangeAddressIndex += 1
+            
+            logger.info("✅ Derived change address: \(changeAddress) (index: \(nextChangeAddressIndex - 1))")
+            return changeAddress
+        } catch {
+            logger.error("🔴 Failed to derive change address: \(error)")
+            throw WalletError.derivationFailed
+        }
     }
     
     // MARK: - Public Methods
@@ -362,12 +402,21 @@ final class PersistentWalletManager {
         if changeAmount > 546 {
             rawTx.append(contentsOf: withUnsafeBytes(of: changeAmount.littleEndian) { Array($0) })
             
-            // TODO: Implement proper change address derivation instead of using first watched address
-            // This should derive a new address from the HD wallet for better privacy
-            let changeAddress = watchedAddresses.first ?? "default_change_address"
-            if changeAddress == "default_change_address" {
-                logger.warning("Using default change address - proper HD wallet derivation should be implemented")
+            // Derive proper change address from HD wallet internal chain
+            let changeAddress: String
+            do {
+                changeAddress = try deriveNextChangeAddress()
+                logger.info("Using derived change address: \(changeAddress)")
+            } catch {
+                // Fallback to first watched address only if derivation fails
+                logger.warning("Change address derivation failed (\(error)), falling back to first watched address")
+                changeAddress = watchedAddresses.first ?? "default_change_address"
+                if changeAddress == "default_change_address" {
+                    logger.error("No watched addresses available for change output")
+                    throw DashSDKError.transactionCreationFailed("No change address available")
+                }
             }
+            
             let changeScript = try createP2PKHScript(for: changeAddress)
             rawTx.append(UInt8(changeScript.count))
             rawTx.append(changeScript)
@@ -381,8 +430,13 @@ final class PersistentWalletManager {
     
     private func createP2PKHScript(for address: String) throws -> Data {
         // Create Pay-to-Public-Key-Hash script
-        // TODO: This is a simplified implementation - should validate address format and support more script types
         logger.debug("Creating P2PKH script for address: \(address)")
+        
+        // Validate and decode the address to extract pubKeyHash
+        guard let pubKeyHash = try decodeAddressToPubKeyHash(address: address) else {
+            throw DashSDKError.transactionCreationFailed("Invalid address format: \(address)")
+        }
+        
         var script = Data()
         
         // OP_DUP
@@ -391,9 +445,7 @@ final class PersistentWalletManager {
         script.append(0xa9)
         // Push 20 bytes
         script.append(0x14)
-        // 20-byte hash160 of public key (derived from address)
-        // For now, use a placeholder hash
-        let pubKeyHash = Data(repeating: 0x00, count: 20)
+        // 20-byte hash160 of public key (decoded from address)
         script.append(pubKeyHash)
         // OP_EQUALVERIFY
         script.append(0x88)
@@ -401,6 +453,80 @@ final class PersistentWalletManager {
         script.append(0xac)
         
         return script
+    }
+    
+    /// Decode a Dash address to extract the pubKeyHash
+    /// - Parameter address: The Base58-encoded Dash address
+    /// - Returns: The 20-byte pubKeyHash if valid, nil otherwise
+    private func decodeAddressToPubKeyHash(address: String) throws -> Data? {
+        // Validate basic address format
+        guard !address.isEmpty, address.count >= 26, address.count <= 35 else {
+            logger.warning("Address has invalid length: \(address.count)")
+            return nil
+        }
+        
+        // Validate network-specific address prefix
+        let firstChar = address.first!
+        let expectedVersionByte: UInt8
+        
+        switch currentNetwork {
+        case .mainnet:
+            guard firstChar == "X" || firstChar == "7" else {
+                logger.warning("Invalid mainnet address prefix: \(firstChar)")
+                return nil
+            }
+            expectedVersionByte = 0x4c // Dash mainnet P2PKH version
+        case .testnet, .devnet, .regtest:
+            guard firstChar == "y" || firstChar == "8" || firstChar == "9" else {
+                logger.warning("Invalid testnet/devnet address prefix: \(firstChar)")
+                return nil
+            }
+            expectedVersionByte = 0x8c // Dash testnet P2PKH version
+        }
+        
+        // Decode the Base58 address
+        guard let decodedData = address.base58DecodedData else {
+            logger.warning("Failed to decode Base58 address: \(address)")
+            return nil
+        }
+        
+        // Validate decoded data length (1 version byte + 20 pubKeyHash bytes + 4 checksum bytes = 25 total)
+        guard decodedData.count == 25 else {
+            logger.warning("Decoded address has invalid length: \(decodedData.count), expected 25")
+            return nil
+        }
+        
+        // Extract components
+        let versionByte = decodedData[0]
+        let pubKeyHash = decodedData[1..<21]
+        let checksum = decodedData[21..<25]
+        
+        // Verify version byte matches network
+        guard versionByte == expectedVersionByte else {
+            logger.warning("Address version byte mismatch. Expected: \(String(format: "0x%02x", expectedVersionByte)), got: \(String(format: "0x%02x", versionByte))")
+            return nil
+        }
+        
+        // Verify checksum
+        let payload = decodedData[0..<21] // version + pubKeyHash
+        let computedChecksum = try computeDoubleSHA256Checksum(payload)
+        
+        guard checksum.elementsEqual(computedChecksum) else {
+            logger.warning("Address checksum verification failed")
+            return nil
+        }
+        
+        logger.debug("Successfully decoded address pubKeyHash: \(pubKeyHash.hexString)")
+        return Data(pubKeyHash)
+    }
+    
+    /// Compute double SHA256 checksum for address validation
+    /// - Parameter data: The payload data (version + pubKeyHash)
+    /// - Returns: First 4 bytes of SHA256(SHA256(data))
+    private func computeDoubleSHA256Checksum(_ data: Data) throws -> Data {
+        let firstHash = SHA256.hash(data: data)
+        let secondHash = SHA256.hash(data: Data(firstHash))
+        return Data(secondHash.prefix(4))
     }
     
     private struct TransactionOutput {
@@ -738,5 +864,14 @@ struct WalletExportData: Codable {
         }
         
         return "Unknown"
+    }
+}
+
+// MARK: - Data Extensions
+
+extension Data {
+    /// Convert Data to hexadecimal string representation
+    var hexString: String {
+        return map { String(format: "%02hhx", $0) }.joined()
     }
 }

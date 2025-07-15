@@ -78,8 +78,8 @@ struct SettingsView: View {
     private func resetAllData() {
         Task {
             do {
-                // Perform heavy I/O operations on background thread
-                let result = try await Task.detached {
+                // Perform modelContext operations on main actor
+                let result = try await MainActor.run {
                     // Delete all SwiftData models
                     try modelContext.delete(model: HDWallet.self)
                     try modelContext.delete(model: HDAccount.self)
@@ -93,10 +93,13 @@ struct SettingsView: View {
                     // Save the context
                     try modelContext.save()
                     
+                    return "All data has been reset. The app will now restart."
+                }
+                
+                // Perform heavy I/O operations on background thread
+                await Task.detached {
                     // Clean up the persistent store
                     ModelContainerHelper.cleanupCorruptStore()
-                    
-                    return "All data has been reset. The app will now restart."
                 }.value
                 
                 // Update UI on main thread

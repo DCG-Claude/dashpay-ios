@@ -22,15 +22,41 @@ fi
 # Navigate to rust-dashcore
 cd "$RUST_DASHCORE_DIR"
 
-# Create a .cargo/config.toml to add the apple feature
-echo -e "${YELLOW}Creating .cargo/config.toml to enable apple feature...${NC}"
+# Set dynamic SDK paths using xcrun for better portability
+echo -e "${YELLOW}Setting dynamic SDK paths...${NC}"
+export IPHONESIMULATOR_SDK_PATH=$(xcrun --sdk iphonesimulator --show-sdk-path)
+export IPHONEOS_SDK_PATH=$(xcrun --sdk iphoneos --show-sdk-path)
+echo "iOS Simulator SDK: $IPHONESIMULATOR_SDK_PATH"
+echo "iOS Device SDK: $IPHONEOS_SDK_PATH"
+
+# Create a .cargo/config.toml to add the apple feature and dynamic SDK paths
+echo -e "${YELLOW}Creating .cargo/config.toml to enable apple feature with dynamic SDK paths...${NC}"
 mkdir -p .cargo
-cat > .cargo/config.toml << 'EOF'
+cat > .cargo/config.toml << EOF
 [target.'cfg(any(target_os = "ios", target_os = "macos"))']
 rustflags = ["--cfg", "feature=\"apple\""]
 
+[target.aarch64-apple-ios-sim]
+linker = "clang"
+rustflags = [
+    "-C", "link-arg=-target",
+    "-C", "link-arg=aarch64-apple-ios14.0-simulator",
+    "-C", "link-arg=-isysroot",
+    "-C", "link-arg=${IPHONESIMULATOR_SDK_PATH}",
+]
+
+[target.aarch64-apple-ios]
+linker = "clang"
+rustflags = [
+    "-C", "link-arg=-target",
+    "-C", "link-arg=aarch64-apple-ios14.0",
+    "-C", "link-arg=-isysroot",
+    "-C", "link-arg=${IPHONEOS_SDK_PATH}",
+]
+
 [env]
 CARGO_FEATURE_APPLE = "1"
+IPHONEOS_DEPLOYMENT_TARGET = "14.0"
 EOF
 
 # Install iOS targets

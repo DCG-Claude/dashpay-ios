@@ -198,6 +198,7 @@ enum WalletError: LocalizedError {
     case noActiveWallet
     case noAccounts
     case connectionFailed
+    case invalidAddress(String)
     case fileSystemError(String)
     
     var errorDescription: String? {
@@ -225,7 +226,9 @@ enum WalletError: LocalizedError {
         case .noAccounts:
             return "No accounts available"
         case .connectionFailed:
-            return "Connection failed"
+            return "Failed to connect to Dash network"
+        case .invalidAddress(let message):
+            return "Invalid address: \(message)"
         case .fileSystemError(let message):
             return "File system error: \(message)"
         }

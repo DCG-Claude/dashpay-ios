@@ -14,25 +14,58 @@ public class SPVClientFactory {
         case auto // Automatically choose based on FFI availability
     }
     
-    // Configuration cache - populated on main actor
-    private static var configurationCache: [DashNetwork: SPVClientConfiguration] = [:]
-    private static let cacheLock = NSLock()
+    // Cached configuration instances for different networks
+    private static let testnetConfiguration: SPVClientConfiguration = {
+        do {
+            return try SPVConfigurationManager.shared.configuration(for: .testnet)
+        } catch {
+            logger.error("Failed to create testnet configuration: \(error)")
+            fatalError("Critical error: Unable to create testnet configuration - \(error)")
+        }
+    }()
+    
+    private static let mainnetConfiguration: SPVClientConfiguration = {
+        do {
+            return try SPVConfigurationManager.shared.configuration(for: .mainnet)
+        } catch {
+            logger.error("Failed to create mainnet configuration: \(error)")
+            fatalError("Critical error: Unable to create mainnet configuration - \(error)")
+        }
+    }()
+    
+    private static let devnetConfiguration: SPVClientConfiguration = {
+        do {
+            return try SPVConfigurationManager.shared.configuration(for: .devnet)
+        } catch {
+            logger.error("Failed to create devnet configuration: \(error)")
+            fatalError("Critical error: Unable to create devnet configuration - \(error)")
+        }
+    }()
+    
+    private static let regtestConfiguration: SPVClientConfiguration = {
+        do {
+            return try SPVConfigurationManager.shared.configuration(for: .regtest)
+        } catch {
+            logger.error("Failed to create regtest configuration: \(error)")
+            fatalError("Critical error: Unable to create regtest configuration - \(error)")
+        }
+    }()
     
     /// Get cached configuration for a specific network
     /// - Parameter network: The network type
     /// - Returns: Cached configuration instance
     @MainActor
     private static func getCachedConfiguration(for network: DashNetwork) -> SPVClientConfiguration {
-        cacheLock.lock()
-        defer { cacheLock.unlock() }
-        
-        if let cached = configurationCache[network] {
-            return cached
+        switch network {
+        case .testnet:
+            return testnetConfiguration
+        case .mainnet:
+            return mainnetConfiguration
+        case .devnet:
+            return devnetConfiguration
+        case .regtest:
+            return regtestConfiguration
         }
-        
-        let config = SPVConfigurationManager.shared.configuration(for: network)
-        configurationCache[network] = config
-        return config
     }
     
     /// Create an SPV client instance with cached configuration
