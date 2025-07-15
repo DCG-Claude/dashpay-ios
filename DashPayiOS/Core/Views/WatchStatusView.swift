@@ -44,7 +44,8 @@ struct WatchStatusView: View {
                     .accessibilityAddTraits(.isStaticText)
                 Text("Verification failed: \(error)")
                     .font(.caption)
-                    .lineLimit(1)
+                    .lineLimit(2)
+                    .truncationMode(.tail)
                     .accessibilityLabel("Status: Verification failed with error: \(error)")
             }
         }
@@ -93,7 +94,7 @@ struct WatchErrorsView: View {
                 }
             }
             .padding()
-            .background(Color.red.opacity(0.1))
+            .background(Color.red.opacity(0.3))
             .cornerRadius(8)
         }
     }
