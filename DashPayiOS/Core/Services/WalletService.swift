@@ -719,17 +719,7 @@ class WalletService: ObservableObject {
         try await sdk.syncToTipWithProgress(
             progressCallback: { [weak self] progress in
                 Task { @MainActor in
-                    self?.detailedSyncProgress = progress
-                    
-                    // Convert to legacy SyncProgress
-                    self?.syncProgress = SyncProgress(
-                        currentHeight: progress.currentHeight,
-                        totalHeight: progress.totalHeight,
-                        progress: progress.percentage / 100.0,
-                        status: self?.mapSyncStageToStatus(progress.stage) ?? .connecting,
-                        estimatedTimeRemaining: progress.estimatedSecondsRemaining > 0 ? TimeInterval(progress.estimatedSecondsRemaining) : nil,
-                        message: progress.stageMessage
-                    )
+                    self?.syncService.updateProgress(progress)
                     
                     print("\(progress.stage.icon) \(progress.statusMessage)")
                 }
