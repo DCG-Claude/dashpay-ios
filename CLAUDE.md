@@ -103,9 +103,12 @@ Network types require careful mapping:
 
 #### Network Security
 Info.plist settings for network access:
-- App allows arbitrary loads (`NSAllowsArbitraryLoads: true`)
+- **Debug only**: App allows arbitrary loads (`NSAllowsArbitraryLoads: true`)
+- **Production**: Use domain-specific exceptions instead of NSAllowsArbitraryLoads
 - Local networking enabled for Dash node connections
 - Bonjour services configured for testnet and mainnet
+
+**Important**: `NSAllowsArbitraryLoads: true` should never be enabled in production builds as it disables App Transport Security entirely and will cause App Store rejection. Use domain-specific exceptions or configure it only for Debug builds.
 
 ### Critical Implementation Details
 
