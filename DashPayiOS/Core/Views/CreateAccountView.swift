@@ -1,0 +1,143 @@
+import SwiftUI
+
+struct CreateAccountView: View {
+    @EnvironmentObject private var walletService: WalletService
+    @Environment(\.dismiss) private var dismiss
+    
+    let wallet: HDWallet
+    let onComplete: (HDAccount) -> Void
+    
+    @State private var accountLabel = ""
+    @State private var accountIndex: UInt32 = 1
+    @State private var password = ""
+    @State private var isCreating = false
+    @State private var errorMessage = ""
+    
+    var nextAvailableIndex: UInt32 {
+        let usedIndices = Set(wallet.accounts.map { $0.accountIndex })
+        var index: UInt32 = 0
+        while usedIndices.contains(index) {
+            index += 1
+        }
+        return index
+    }
+    
+    var isValid: Bool {
+        !password.isEmpty && password.count >= 8
+    }
+    
+    var body: some View {
+        NavigationView {
+            Form {
+                Section("Account Details") {
+                    TextField("Account Label (Optional)", text: $accountLabel)
+                        .textFieldStyle(.roundedBorder)
+                    
+                    HStack {
+                        Text("Account Index")
+                        Spacer()
+                        Text("\(accountIndex)")
+                            .monospacedDigit()
+                    }
+                    
+                    Text("Derivation Path: \(derivationPath)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .fontDesign(.monospaced)
+                }
+                
+                Section("Security") {
+                    SecureField("Wallet Password", text: $password)
+                        .textFieldStyle(.roundedBorder)
+                    
+                    if !password.isEmpty && password.count < 8 {
+                        Text("Password must be at least 8 characters")
+                            .font(.caption)
+                            .foregroundColor(.red)
+                    }
+                }
+                
+                if !errorMessage.isEmpty {
+                    Section {
+                        Text(errorMessage)
+                            .foregroundColor(.red)
+                    }
+                }
+            }
+            .navigationTitle("Create Account")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+                
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Create") {
+                        createAccount()
+                    }
+                    .disabled(!isValid || isCreating)
+                }
+            }
+        }
+        #if os(macOS)
+        .frame(width: 450, height: 350)
+        #endif
+        .onAppear {
+            accountIndex = nextAvailableIndex
+        }
+    }
+    
+    private var derivationPath: String {
+        let coinType = HDWalletService.BIP44.coinType(for: wallet.network)
+        return "m/44'/\(coinType)'/\(accountIndex)'"
+    }
+    
+    private func createAccount() {
+        isCreating = true
+        errorMessage = ""
+        
+        Task {
+            do {
+                let label = accountLabel.isEmpty ? "Account #\(accountIndex)" : accountLabel
+                let currentAccountIndex = accountIndex
+                let currentPassword = password
+                
+                // Perform account creation on background thread
+                let account = try await Task.detached(priority: .userInitiated) {
+                    try walletService.createAccount(
+                        for: wallet,
+                        index: currentAccountIndex,
+                        label: label,
+                        password: currentPassword
+                    )
+                }.value
+                
+                // Update UI and data on main thread
+                await MainActor.run {
+                    wallet.accounts.append(account)
+                    
+                    // Save to storage
+                    if let context = walletService.modelContext {
+                        do {
+                            try context.save()
+                        } catch {
+                            errorMessage = "Failed to save account: \(error.localizedDescription)"
+                            isCreating = false
+                            return
+                        }
+                    }
+                    
+                    onComplete(account)
+                    dismiss()
+                }
+                
+            } catch {
+                await MainActor.run {
+                    errorMessage = error.localizedDescription
+                    isCreating = false
+                }
+            }
+        }
+    }
+}

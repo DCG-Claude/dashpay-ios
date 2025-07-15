@@ -1,0 +1,31 @@
+#!/bin/bash
+
+# Simple symbol renaming to avoid conflicts
+# This just copies the files with _renamed suffix for now
+
+echo "Renaming symbols in FFI libraries..."
+
+# For simulator
+if [ -f "DashPayiOS/Libraries/libdash_spv_ffi_sim.a" ]; then
+    cp "DashPayiOS/Libraries/libdash_spv_ffi_sim.a" "DashPayiOS/Libraries/libdash_spv_ffi_sim_renamed.a"
+    echo "✅ Created libdash_spv_ffi_sim_renamed.a"
+fi
+
+# For device
+if [ -f "DashPayiOS/Libraries/libdash_spv_ffi_ios.a" ]; then
+    cp "DashPayiOS/Libraries/libdash_spv_ffi_ios.a" "DashPayiOS/Libraries/libdash_spv_ffi_ios_renamed.a"
+    echo "✅ Created libdash_spv_ffi_ios_renamed.a"
+fi
+
+# For key wallet
+if [ -f "DashPayiOS/Libraries/libkey_wallet_ffi_sim.a" ]; then
+    cp "DashPayiOS/Libraries/libkey_wallet_ffi_sim.a" "DashPayiOS/Libraries/libkey_wallet_ffi_sim_renamed.a"
+    echo "✅ Created libkey_wallet_ffi_sim_renamed.a"
+fi
+
+if [ -f "DashPayiOS/Libraries/libkey_wallet_ffi_ios.a" ]; then
+    cp "DashPayiOS/Libraries/libkey_wallet_ffi_ios.a" "DashPayiOS/Libraries/libkey_wallet_ffi_ios_renamed.a"
+    echo "✅ Created libkey_wallet_ffi_ios_renamed.a"
+fi
+
+echo "✅ Symbol renaming complete"

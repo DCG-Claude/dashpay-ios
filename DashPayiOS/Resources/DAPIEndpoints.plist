@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>TestnetDAPIEndpoints</key>
+    <array>
+        <string>https://seed-1.testnet.networks.dash.org:1443</string>
+        <string>https://seed-2.testnet.networks.dash.org:1443</string>
+        <string>https://seed-3.testnet.networks.dash.org:1443</string>
+        <string>https://seed-4.testnet.networks.dash.org:1443</string>
+        <string>https://seed-5.testnet.networks.dash.org:1443</string>
+    </array>
+    <key>MainnetDAPIEndpoints</key>
+    <array>
+        <string>https://dapi.dash.org:443</string>
+        <string>https://seed-1.evonet.networks.dash.org:1443</string>
+        <string>https://seed-2.evonet.networks.dash.org:1443</string>
+    </array>
+    <key>DevnetDAPIEndpoints</key>
+    <array>
+        <string>http://127.0.0.1:3000</string>
+        <string>http://127.0.0.1:3001</string>
+    </array>
+</dict>
+</plist>

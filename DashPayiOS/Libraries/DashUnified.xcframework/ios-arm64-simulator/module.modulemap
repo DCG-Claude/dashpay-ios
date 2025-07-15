@@ -1,0 +1,4 @@
+module DashUnifiedFFI {
+    header "Headers/dash_unified_ffi.h"
+    export *
+}

@@ -1,0 +1,79 @@
+name: DashPayiOS
+options:
+  bundleIdPrefix: com.dash
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+  
+settings:
+  base:
+    IPHONEOS_DEPLOYMENT_TARGET: "17.0"
+    SWIFT_VERSION: "5.9"
+    LIBRARY_SEARCH_PATHS: 
+      - "$(PROJECT_DIR)/DashPayiOS/Libraries"
+      - "$(PROJECT_DIR)/DashPayiOS/Libraries/DashSDK.xcframework/ios-$(ARCHS)"
+      - "$(PROJECT_DIR)/DashPayiOS/Libraries/DashSDK.xcframework/ios-$(ARCHS)-simulator"
+    FRAMEWORK_SEARCH_PATHS:
+      - "$(PROJECT_DIR)/DashPayiOS/Libraries"
+    SWIFT_INCLUDE_PATHS:
+      - "$(PROJECT_DIR)/DashPayiOS/Libraries"
+      - "$(PROJECT_DIR)/DashPayiOS/Libraries/DashSPVFFI"
+      - "$(PROJECT_DIR)/DashPayiOS/KeyWalletFFI"
+    OTHER_LDFLAGS:
+      - "-lc++"
+      - "-ObjC"
+      
+targets:
+  DashPayiOS:
+    type: application
+    platform: iOS
+    sources:
+      - path: DashPayiOS
+        excludes:
+          - "**/*.md"
+          - "**/Package.swift"
+    dependencies:
+      - framework: DashPayiOS/Libraries/DashSDK.xcframework
+        embed: true
+    settings:
+      base:
+        INFOPLIST_FILE: DashPayiOS/Info.plist
+        PRODUCT_BUNDLE_IDENTIFIER: com.dash.wallet.ios
+        PRODUCT_NAME: DashPay
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: ""
+      configs:
+        Debug:
+          OTHER_LDFLAGS:
+            - "$(inherited)"
+            - "-L$(PROJECT_DIR)/DashPayiOS/Libraries"
+            - "-L$(PROJECT_DIR)/DashPayiOS/Libraries/DashSDK.xcframework/ios-$(ARCHS)-simulator"
+            - "-ldash_spv_ffi_sim_renamed"
+            - "-lkey_wallet_ffi_sim"
+            - "-lrs_sdk_ffi_renamed"
+        Release:
+          OTHER_LDFLAGS:
+            - "$(inherited)"
+            - "-L$(PROJECT_DIR)/DashPayiOS/Libraries"
+            - "-L$(PROJECT_DIR)/DashPayiOS/Libraries/DashSDK.xcframework/ios-$(ARCHS)"
+            - "-ldash_spv_ffi_ios_renamed"
+            - "-lkey_wallet_ffi_ios"
+            - "-lrs_sdk_ffi_renamed"
+        
+  DashPayiOSTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources: 
+      - DashPayiOSTests
+    dependencies:
+      - target: DashPayiOS
+    settings:
+      TEST_HOST: "$(BUILT_PRODUCTS_DIR)/DashPay.app/DashPay"
+      
+  DashPayiOSUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - DashPayiOSUITests
+    dependencies:
+      - target: DashPayiOS
