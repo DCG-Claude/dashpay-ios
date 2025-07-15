@@ -169,26 +169,44 @@ public final class HDWatchedAddress: @unchecked Sendable {
     var lastActive: Date?
     var lastActivityTimestamp: Date? // For tracking recent transaction activity
     var balance: LocalBalance?
-    // Transaction IDs associated with this address (stored as comma-separated string)
-    private var transactionIdsString: String = ""
-    // UTXO outpoints associated with this address (stored as comma-separated string)
-    private var utxoOutpointsString: String = ""
+    // Transaction IDs associated with this address (stored as JSON string)
+    private var transactionIdsData: String = "[]"
+    // UTXO outpoints associated with this address (stored as JSON string)
+    private var utxoOutpointsData: String = "[]"
     
     var transactionIds: [String] {
         get {
-            transactionIdsString.isEmpty ? [] : transactionIdsString.split(separator: ",").map(String.init)
+            guard let data = transactionIdsData.data(using: .utf8),
+                  let array = try? JSONDecoder().decode([String].self, from: data) else {
+                return []
+            }
+            return array
         }
         set {
-            transactionIdsString = newValue.joined(separator: ",")
+            guard let data = try? JSONEncoder().encode(newValue),
+                  let jsonString = String(data: data, encoding: .utf8) else {
+                transactionIdsData = "[]"
+                return
+            }
+            transactionIdsData = jsonString
         }
     }
     
     var utxoOutpoints: [String] {
         get {
-            utxoOutpointsString.isEmpty ? [] : utxoOutpointsString.split(separator: ",").map(String.init)
+            guard let data = utxoOutpointsData.data(using: .utf8),
+                  let array = try? JSONDecoder().decode([String].self, from: data) else {
+                return []
+            }
+            return array
         }
         set {
-            utxoOutpointsString = newValue.joined(separator: ",")
+            guard let data = try? JSONEncoder().encode(newValue),
+                  let jsonString = String(data: data, encoding: .utf8) else {
+                utxoOutpointsData = "[]"
+                return
+            }
+            utxoOutpointsData = jsonString
         }
     }
     
