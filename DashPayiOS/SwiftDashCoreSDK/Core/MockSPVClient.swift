@@ -1,6 +1,7 @@
 #if DEBUG
 import Foundation
 import Combine
+import SwiftDashSDK
 import SwiftDashCoreSDK
 
 /// Mock SPV Client for testing without FFI dependencies
@@ -357,6 +358,12 @@ extension MockSPVClient {
 
 // MARK: - SyncProgressStream Support
 
+// MARK: - SPVClientProtocol Conformance
+
+extension MockSPVClient: SPVClientProtocol {
+    // broadcastTransaction is already implemented above
+}
+
 extension MockSPVClient {
     public struct SyncProgressStream: AsyncSequence {
         public typealias Element = DetailedSyncProgress
@@ -423,7 +430,7 @@ extension MockSPVClient {
                 let speeds: [Double] = [0.0, 500.0, 1500.0, 800.0, 200.0]
                 let remainingTimes: [UInt32] = [120, 100, 45, 20, 5]
                 
-                let stageIndex = min(progressStage, stages.count - 1)
+                let stageIndex = Swift.min(progressStage, stages.count - 1)
                 let currentStage = stages[stageIndex]
                 let currentPercentage = percentages[stageIndex]
                 let currentHeight = heights[stageIndex]

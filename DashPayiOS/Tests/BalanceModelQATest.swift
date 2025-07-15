@@ -1,7 +1,7 @@
 import XCTest
 import SwiftData
 @testable import DashPay
-import SwiftDashCoreSDK
+import SwiftDashSDK
 
 /// QA Test Suite for Balance Model Implementation
 /// Tests all critical paths and edge cases after Balance model fixes

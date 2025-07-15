@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import SwiftDashSDK
 import SwiftDashCoreSDK
 import os
 
@@ -13,37 +14,25 @@ public class SPVClientFactory {
         case auto // Automatically choose based on FFI availability
     }
     
-    // Cached configuration instances for different networks
-    private static let testnetConfiguration: SPVClientConfiguration = {
-        return SPVConfigurationManager.shared.configuration(for: .testnet)
-    }()
-    
-    private static let mainnetConfiguration: SPVClientConfiguration = {
-        return SPVConfigurationManager.shared.configuration(for: .mainnet)
-    }()
-    
-    private static let devnetConfiguration: SPVClientConfiguration = {
-        return SPVConfigurationManager.shared.configuration(for: .devnet)
-    }()
-    
-    private static let regtestConfiguration: SPVClientConfiguration = {
-        return SPVConfigurationManager.shared.configuration(for: .regtest)
-    }()
+    // Configuration cache - populated on main actor
+    private static var configurationCache: [DashNetwork: SPVClientConfiguration] = [:]
+    private static let cacheLock = NSLock()
     
     /// Get cached configuration for a specific network
     /// - Parameter network: The network type
     /// - Returns: Cached configuration instance
+    @MainActor
     private static func getCachedConfiguration(for network: DashNetwork) -> SPVClientConfiguration {
-        switch network {
-        case .testnet:
-            return testnetConfiguration
-        case .mainnet:
-            return mainnetConfiguration
-        case .devnet:
-            return devnetConfiguration
-        case .regtest:
-            return regtestConfiguration
+        cacheLock.lock()
+        defer { cacheLock.unlock() }
+        
+        if let cached = configurationCache[network] {
+            return cached
         }
+        
+        let config = SPVConfigurationManager.shared.configuration(for: network)
+        configurationCache[network] = config
+        return config
     }
     
     /// Create an SPV client instance with cached configuration
@@ -51,6 +40,7 @@ public class SPVClientFactory {
     ///   - network: The network type to create a client for
     ///   - type: The type of client to create
     /// - Returns: An SPV client instance (either real or mock)
+    @MainActor
     public static func createClient(
         for network: DashNetwork,
         type: ClientType = .auto
@@ -71,7 +61,7 @@ public class SPVClientFactory {
     ) -> SPVClientProtocol {
         switch type {
         case .real:
-            let client = SwiftDashCoreSDK.SPVClient(configuration: configuration)
+            let client = SPVClient(configuration: configuration)
             return SPVClientWrapper(client)
             
         case .mock:
@@ -80,7 +70,7 @@ public class SPVClientFactory {
             #else
             // In production builds, always use real SPVClient even if mock was requested
             logger.warning("Mock client requested in production build, using real client instead")
-            let client = SwiftDashCoreSDK.SPVClient(configuration: configuration)
+            let client = SPVClient(configuration: configuration)
             return SPVClientWrapper(client)
             #endif
             
@@ -92,7 +82,7 @@ public class SPVClientFactory {
                 return MockSPVClient(configuration: configuration)
             } else {
                 logger.info("Creating real SPVClient for debug environment")
-                let client = SwiftDashCoreSDK.SPVClient(configuration: configuration)
+                let client = SPVClient(configuration: configuration)
                 return SPVClientWrapper(client)
             }
             #else
@@ -103,7 +93,7 @@ public class SPVClientFactory {
             // No need to check or initialize here
             logger.info("Using unified FFI (initialized at app startup)")
             
-            let client = SwiftDashCoreSDK.SPVClient(configuration: configuration)
+            let client = SPVClient(configuration: configuration)
             return SPVClientWrapper(client)
             #endif
         }
@@ -121,9 +111,9 @@ public class SPVClientFactory {
 public protocol SPVClientProtocol: AnyObject {
     // Connection
     var isConnected: Bool { get }
-    var syncProgress: SwiftDashCoreSDK.SyncProgress? { get }
-    var stats: SwiftDashCoreSDK.SPVStats? { get }
-    var eventPublisher: AnyPublisher<SwiftDashCoreSDK.SPVEvent, Never> { get }
+    var syncProgress: SyncProgress? { get }
+    var stats: SPVStats? { get }
+    var eventPublisher: AnyPublisher<SPVEvent, Never> { get }
     
     func start() async throws
     func connect() async throws
@@ -131,31 +121,33 @@ public protocol SPVClientProtocol: AnyObject {
     func disconnect()
     
     // Sync
-    func syncToTip() async throws -> AsyncThrowingStream<SwiftDashCoreSDK.SyncProgress, Error>
+    func syncToTip() async throws -> AsyncThrowingStream<SyncProgress, Error>
     func startSync() async throws
     func stopSync()
-    func getCurrentSyncProgress() -> SwiftDashCoreSDK.SyncProgress?
+    func getCurrentSyncProgress() -> SyncProgress?
     
     // Watch items
-    func addWatchItem(type: SwiftDashCoreSDK.WatchItemType, data: String) async throws
-    func removeWatchItem(type: SwiftDashCoreSDK.WatchItemType, data: String) async throws
+    func addWatchItem(type: WatchItemType, data: String) async throws
+    func removeWatchItem(type: WatchItemType, data: String) async throws
     
     // Balance
-    func getAddressBalance(_ address: String) async throws -> SwiftDashCoreSDK.Balance
-    func getTotalBalance() async throws -> SwiftDashCoreSDK.Balance
-    func getBalanceWithMempool() async throws -> SwiftDashCoreSDK.Balance
+    func getAddressBalance(_ address: String) async throws -> Balance
+    func getTotalBalance() async throws -> Balance
+    func getBalanceWithMempool() async throws -> Balance
     
     // Transactions
     func broadcastTransaction(_ txHex: String) async throws
-    func getTransactions(for address: String, limit: Int) async throws -> [SwiftDashCoreSDK.Transaction]
+    // Commented out - Transaction type is internal to SwiftDashCoreSDK
+    // func getTransactions(for address: String, limit: Int) async throws -> [Transaction]
     
     // UTXOs
-    func getUTXOs() async throws -> [SwiftDashCoreSDK.UTXO]
-    func getUTXOs(for address: String) async throws -> [SwiftDashCoreSDK.UTXO]
+    // Commented out - UTXO type is internal to SwiftDashCoreSDK  
+    // func getUTXOs() async throws -> [UTXO]
+    // func getUTXOs(for address: String) async throws -> [UTXO]
     
     // Mempool
-    func enableMempoolTracking(strategy: SwiftDashCoreSDK.MempoolStrategy) async throws
-    func getMempoolBalance(for address: String) async throws -> SwiftDashCoreSDK.MempoolBalance
+    func enableMempoolTracking(strategy: MempoolStrategy) async throws
+    func getMempoolBalance(for address: String) async throws -> MempoolBalance
     func getMempoolTransactionCount() async throws -> Int
     
     // Other
@@ -168,14 +160,14 @@ public protocol SPVClientProtocol: AnyObject {
 // Wrapper to make SDK's SPVClient conform to our protocol
 class SPVClientWrapper: SPVClientProtocol {
     private static let logger = Logger(subsystem: "com.dash.wallet.ios", category: "SPVClientWrapper")
-    private let client: SwiftDashCoreSDK.SPVClient
+    private let client: SPVClient
     
     var isConnected: Bool { client.isConnected }
-    var syncProgress: SwiftDashCoreSDK.SyncProgress? { client.syncProgress }
-    var stats: SwiftDashCoreSDK.SPVStats? { client.stats }
-    var eventPublisher: AnyPublisher<SwiftDashCoreSDK.SPVEvent, Never> { client.eventPublisher }
+    var syncProgress: SyncProgress? { client.syncProgress }
+    var stats: SPVStats? { client.stats }
+    var eventPublisher: AnyPublisher<SPVEvent, Never> { client.eventPublisher }
     
-    init(_ client: SwiftDashCoreSDK.SPVClient) {
+    init(_ client: SPVClient) {
         self.client = client
     }
     
@@ -200,7 +192,7 @@ class SPVClientWrapper: SPVClientProtocol {
         Self.logger.info("disconnect() called - SPVClient manages connection internally")
     }
     
-    func syncToTip() async throws -> AsyncThrowingStream<SwiftDashCoreSDK.SyncProgress, Error> {
+    func syncToTip() async throws -> AsyncThrowingStream<SyncProgress, Error> {
         // Not directly available in SPVClient
         fatalError("syncToTip not implemented in wrapper")
     }
@@ -215,27 +207,27 @@ class SPVClientWrapper: SPVClientProtocol {
         Self.logger.info("stopSync() called - SPVClient manages sync internally")
     }
     
-    func getCurrentSyncProgress() -> SwiftDashCoreSDK.SyncProgress? {
+    func getCurrentSyncProgress() -> SyncProgress? {
         return syncProgress
     }
     
-    func addWatchItem(type: SwiftDashCoreSDK.WatchItemType, data: String) async throws {
+    func addWatchItem(type: WatchItemType, data: String) async throws {
         try await client.addWatchItem(type: type, data: data)
     }
     
-    func removeWatchItem(type: SwiftDashCoreSDK.WatchItemType, data: String) async throws {
+    func removeWatchItem(type: WatchItemType, data: String) async throws {
         try await client.removeWatchItem(type: type, data: data)
     }
     
-    func getAddressBalance(_ address: String) async throws -> SwiftDashCoreSDK.Balance {
+    func getAddressBalance(_ address: String) async throws -> Balance {
         try await client.getAddressBalance(address)
     }
     
-    func getTotalBalance() async throws -> SwiftDashCoreSDK.Balance {
+    func getTotalBalance() async throws -> Balance {
         try await client.getTotalBalance()
     }
     
-    func getBalanceWithMempool() async throws -> SwiftDashCoreSDK.Balance {
+    func getBalanceWithMempool() async throws -> Balance {
         try await client.getBalanceWithMempool()
     }
     
@@ -243,23 +235,24 @@ class SPVClientWrapper: SPVClientProtocol {
         try await client.broadcastTransaction(txHex)
     }
     
-    func getTransactions(for address: String, limit: Int = 100) async throws -> [SwiftDashCoreSDK.Transaction] {
-        try await client.getTransactions(for: address, limit: limit)
-    }
+    // Commented out - Transaction/UTXO types are internal to SwiftDashCoreSDK
+    // func getTransactions(for address: String, limit: Int = 100) async throws -> [Transaction] {
+    //     try await client.getTransactions(for: address, limit: limit)
+    // }
+    // 
+    // func getUTXOs() async throws -> [UTXO] {
+    //     try await client.getUTXOs()
+    // }
+    // 
+    // func getUTXOs(for address: String) async throws -> [UTXO] {
+    //     try await client.getUTXOs(for: address)
+    // }
     
-    func getUTXOs() async throws -> [SwiftDashCoreSDK.UTXO] {
-        try await client.getUTXOs()
-    }
-    
-    func getUTXOs(for address: String) async throws -> [SwiftDashCoreSDK.UTXO] {
-        try await client.getUTXOs(for: address)
-    }
-    
-    func enableMempoolTracking(strategy: SwiftDashCoreSDK.MempoolStrategy) async throws {
+    func enableMempoolTracking(strategy: MempoolStrategy) async throws {
         try await client.enableMempoolTracking(strategy: strategy)
     }
     
-    func getMempoolBalance(for address: String) async throws -> SwiftDashCoreSDK.MempoolBalance {
+    func getMempoolBalance(for address: String) async throws -> MempoolBalance {
         try await client.getMempoolBalance(for: address)
     }
     
@@ -284,10 +277,7 @@ class SPVClientWrapper: SPVClientProtocol {
     }
 }
 
-#if DEBUG
-// Make MockSPVClient conform to the protocol
-extension MockSPVClient: SPVClientProtocol {}
-#endif
+// MockSPVClient conformance is handled in custom_sdk_files/SPVClientFactory.swift
 
 /// Environment configuration for SPV
 public struct SPVEnvironment {

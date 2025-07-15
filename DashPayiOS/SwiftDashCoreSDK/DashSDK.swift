@@ -1,24 +1,25 @@
 import Foundation
 import Combine
 import SwiftData
+import SwiftDashSDK
 import SwiftDashCoreSDK
 
 @Observable
 public final class DashSDK: UTXOTransactionSyncProtocol {
-    private let client: SwiftDashCoreSDK.SPVClient
-    private let wallet: PersistentWalletManager
+    private let client: SPVClient
+    private var wallet: PersistentWalletManager!
     // Storage is not needed in this wrapper - wallet manager has its own storage
-    private let configuration: SwiftDashCoreSDK.SPVClientConfiguration
+    private let configuration: SPVClientConfiguration
     
     public var isConnected: Bool {
         client.isConnected
     }
     
-    public var syncProgress: SwiftDashCoreSDK.SyncProgress? {
+    public var syncProgress: SyncProgress? {
         client.syncProgress
     }
     
-    public var stats: SwiftDashCoreSDK.SPVStats? {
+    public var stats: SPVStats? {
         client.stats
     }
     
@@ -26,21 +27,21 @@ public final class DashSDK: UTXOTransactionSyncProtocol {
         wallet.watchedAddresses
     }
     
-    public var totalBalance: SwiftDashCoreSDK.Balance {
+    public var totalBalance: Balance {
         wallet.totalBalance
     }
     
-    public var eventPublisher: AnyPublisher<SwiftDashCoreSDK.SPVEvent, Never> {
+    public var eventPublisher: AnyPublisher<SPVEvent, Never> {
         client.eventPublisher
     }
     
     // Platform integration property
-    public var spvClient: SwiftDashCoreSDK.SPVClient {
+    public var spvClient: SPVClient {
         client
     }
     
     @MainActor
-    public init(configuration: SwiftDashCoreSDK.SPVClientConfiguration = .default) throws {
+    public init(configuration: SPVClientConfiguration = .default) throws {
         print("🔵 DashSDK.init() starting...")
         print("🔵 Configuration: \(configuration)")
         print("🔵 Network: \(configuration.network.name)")
@@ -60,7 +61,7 @@ public final class DashSDK: UTXOTransactionSyncProtocol {
         // No need to create a separate StorageManager here
         
         print("🔵 Creating SPVClient with network: \(configuration.network.name)...")
-        self.client = SwiftDashCoreSDK.SPVClient(configuration: configuration)
+        self.client = SPVClient(configuration: configuration)
         print("✅ SPVClient created (using unified FFI)")
         
         print("🔵 Creating PersistentWalletManager...")
@@ -113,7 +114,7 @@ public final class DashSDK: UTXOTransactionSyncProtocol {
     // MARK: - Enhanced Sync Operations
     
     public func syncToTipWithProgress(
-        progressCallback: (@Sendable (DetailedSyncProgress) -> Void)? = nil,
+        progressCallback: (@Sendable (SwiftDashCoreSDK.DetailedSyncProgress) -> Void)? = nil,
         completionCallback: (@Sendable (Bool, String?) -> Void)? = nil
     ) async throws {
         try await client.syncToTipWithProgress(
@@ -190,7 +191,12 @@ public final class DashSDK: UTXOTransactionSyncProtocol {
         return try await wallet.getTransactions(for: address, limit: limit)
     }
     
-    public func getUTXOs() async throws -> [SwiftDashCoreSDK.UTXO] {
+    // Protocol requirement without limit parameter
+    public func getTransactions(for address: String) async throws -> [SwiftDashCoreSDK.Transaction] {
+        return try await wallet.getTransactions(for: address, limit: 100)
+    }
+    
+    public func getUTXOs() async throws -> [UTXO] {
         return try await wallet.getUTXOs()
     }
     
