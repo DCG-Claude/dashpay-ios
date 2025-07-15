@@ -17,6 +17,10 @@ public enum WatchVerificationStatus {
 class WalletService: ObservableObject {
     static let shared = WalletService()
     
+    // Address generation configuration constants
+    private static let defaultInitialReceiveAddressCount = 5
+    private static let defaultInitialChangeAddressCount = 1
+    
     @Published var activeWallet: HDWallet?
     @Published var activeAccount: HDAccount?
     
@@ -107,9 +111,9 @@ class WalletService: ObservableObject {
             account: accountIndex
         )
         
-        // Generate initial addresses (5 receive, 1 change)
-        let initialReceiveCount = 5
-        let initialChangeCount = 1
+        // Generate initial addresses using configured constants
+        let initialReceiveCount = Self.defaultInitialReceiveAddressCount
+        let initialChangeCount = Self.defaultInitialChangeAddressCount
         var addresses: [(address: String, index: UInt32, isChange: Bool, path: String, label: String)] = []
         
         // Generate receive addresses
