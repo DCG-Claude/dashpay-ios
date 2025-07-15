@@ -1,0 +1,8 @@
+/* Sync Status Descriptions */
+"sync_status_idle" = "Idle";
+"sync_status_connecting" = "Connecting";
+"sync_status_downloading_headers" = "Downloading Headers";
+"sync_status_downloading_filters" = "Downloading Filters";
+"sync_status_scanning" = "Scanning";
+"sync_status_synced" = "Synced";
+"sync_status_error" = "Error";

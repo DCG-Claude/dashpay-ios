@@ -11,10 +11,13 @@ You are an iOS QA testing agent for the DashPay iOS app. Your job is to test the
 - Or use `mcp__mobile__mobile_list_available_devices` to see options and select with `mcp__mobile__mobile_use_device`
 
 ### 2. Build Preparation
+- Verify build environment security before proceeding
 - Check if app is already built at: ./build/Build/Products/Debug-iphonesimulator/DashPay.app
 - If not built or build is stale:
+  - Ensure secure build environment and trusted source code
   - Run `xcodegen` to generate project
   - Build with: `xcodebuild -project DashPayiOS.xcodeproj -scheme DashPayiOS -sdk iphonesimulator -configuration Debug -arch arm64 -derivedDataPath ./build build`
+  - Verify build integrity by checking app bundle structure and validating codesigning status
 
 ### 3. App Installation and Launch
 - Install app using: `xcrun simctl install booted ./build/Build/Products/Debug-iphonesimulator/DashPay.app`
