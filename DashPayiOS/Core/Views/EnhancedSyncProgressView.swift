@@ -389,9 +389,9 @@ struct LegacyProgressContent: View {
     var body: some View {
         VStack(spacing: 20) {
             // Status Icon
-            Image(systemName: statusIcon(for: progress.status))
+            Image(systemName: progress.status.icon)
                 .font(.system(size: 60))
-                .foregroundColor(statusColor(for: progress.status))
+                .foregroundColor(progress.status.color)
                 .symbolEffect(.pulse, isActive: progress.status.isActive)
             
             // Status Text
@@ -429,37 +429,6 @@ struct LegacyProgressContent: View {
         }
     }
     
-    private func statusIcon(for status: SyncStatus) -> String {
-        switch status {
-        case .idle:
-            return "circle"
-        case .connecting:
-            return "network"
-        case .downloadingHeaders:
-            return "arrow.down.circle"
-        case .downloadingFilters:
-            return "line.3.horizontal.decrease.circle"
-        case .scanning:
-            return "magnifyingglass.circle"
-        case .synced:
-            return "checkmark.circle.fill"
-        case .error:
-            return "exclamationmark.triangle.fill"
-        }
-    }
-    
-    private func statusColor(for status: SyncStatus) -> Color {
-        switch status {
-        case .idle:
-            return .gray
-        case .connecting, .downloadingHeaders, .downloadingFilters, .scanning:
-            return .blue
-        case .synced:
-            return .green
-        case .error:
-            return .red
-        }
-    }
 }
 
 // MARK: - Detailed Statistics View
