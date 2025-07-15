@@ -71,8 +71,13 @@ class AddressManagementService: ObservableObject {
             sdk: sdk
         )
         
-        try? modelContext?.save()
-        logger.info("✅ Address generation completed")
+        do {
+            try modelContext?.save()
+            logger.info("✅ Address generation completed")
+        } catch {
+            logger.error("❌ Failed to save addresses to model context: \(error)")
+            throw error
+        }
     }
     
     /// Generate a new address for an account
