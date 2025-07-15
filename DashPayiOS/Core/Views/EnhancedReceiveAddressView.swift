@@ -286,7 +286,10 @@ struct EnhancedReceiveAddressView: View {
     }
     
     private func hasRecentActivity(for address: HDWatchedAddress) -> Bool {
-        let (hasRecent, _) = walletService.getRecentActivityForAddress(address.address)
+        let (hasRecent, lastActivityTime) = walletService.getRecentActivityForAddress(address.address)
+        // Note: lastActivityTime is available but not currently used in this view
+        // Consider displaying activity timestamps in future iterations
+        _ = lastActivityTime
         return hasRecent
     }
     

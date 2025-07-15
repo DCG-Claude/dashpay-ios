@@ -18,11 +18,19 @@ extension SyncStatus {
         case .idle:
             return "circle"
         case .connecting:
-            return "network"
+            if #available(iOS 13.0, *) {
+                return "network"
+            } else {
+                return "wifi"
+            }
         case .downloadingHeaders:
             return "arrow.down.circle"
         case .downloadingFilters:
-            return "line.3.horizontal.decrease.circle"
+            if #available(iOS 15.0, *) {
+                return "line.3.horizontal.decrease.circle"
+            } else {
+                return "slider.horizontal.below.rectangle"
+            }
         case .scanning:
             return "magnifyingglass.circle"
         case .synced:
@@ -48,19 +56,19 @@ extension SyncStatus {
     var description: String {
         switch self {
         case .idle:
-            return "Idle"
+            return NSLocalizedString("sync_status_idle", comment: "Sync status when idle")
         case .connecting:
-            return "Connecting"
+            return NSLocalizedString("sync_status_connecting", comment: "Sync status when connecting")
         case .downloadingHeaders:
-            return "Downloading Headers"
+            return NSLocalizedString("sync_status_downloading_headers", comment: "Sync status when downloading headers")
         case .downloadingFilters:
-            return "Downloading Filters"
+            return NSLocalizedString("sync_status_downloading_filters", comment: "Sync status when downloading filters")
         case .scanning:
-            return "Scanning"
+            return NSLocalizedString("sync_status_scanning", comment: "Sync status when scanning")
         case .synced:
-            return "Synced"
+            return NSLocalizedString("sync_status_synced", comment: "Sync status when synced")
         case .error:
-            return "Error"
+            return NSLocalizedString("sync_status_error", comment: "Sync status when error occurred")
         }
     }
     

@@ -246,16 +246,25 @@ struct SendTransactionView: View {
         
         Task {
             do {
-                // Mock fee estimation based on typical transaction size - would use sdk?.estimateFee in production
-                // Estimate for typical transaction: 1 input + 2 outputs (recipient + change)
-                let baseSize = 10 // Version (4) + Input count (1) + Output count (1) + Lock time (4)
-                let inputSize = 1 * 148 // Average input size with signature
-                let outputSize = 2 * 34 // Average output size (P2PKH)
-                let estimatedTxSize = baseSize + inputSize + outputSize
+                guard let sdk = walletService.sdk,
+                      let recipientAddress = recipientAddress else {
+                    estimatedFee = 0
+                    return
+                }
                 
-                estimatedFee = UInt64(estimatedTxSize) * feeRate / 1000
+                let fee = try await sdk.estimateFee(
+                    to: recipientAddress,
+                    amount: amount,
+                    feeRate: feeRate
+                )
+                
+                await MainActor.run {
+                    estimatedFee = fee
+                }
             } catch {
-                estimatedFee = 0
+                await MainActor.run {
+                    estimatedFee = 0
+                }
                 print("Failed to estimate fee: \(error)")
             }
         }
@@ -276,7 +285,9 @@ struct SendTransactionView: View {
     }
     
     private func sendTransaction() {
-        guard let amount = amount, isValid else { return }
+        guard let amount = amount, 
+              let recipientAddress = recipientAddress,
+              isValid else { return }
         
         isSending = true
         errorMessage = ""
@@ -287,21 +298,30 @@ struct SendTransactionView: View {
                     throw WalletError.notConnected
                 }
                 
-                // Mock transaction - would use sdk.sendTransaction in production
-                let txid = UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased()
+                let txid = try await sdk.sendTransaction(
+                    to: recipientAddress,
+                    amount: amount,
+                    feeRate: feeRate
+                )
                 
-                successTxid = txid
-                
-                // Clear form after success
-                DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                    dismiss()
+                await MainActor.run {
+                    successTxid = txid
+                    
+                    // Clear form after success
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                        dismiss()
+                    }
                 }
                 
             } catch {
-                errorMessage = error.localizedDescription
+                await MainActor.run {
+                    errorMessage = error.localizedDescription
+                }
             }
             
-            isSending = false
+            await MainActor.run {
+                isSending = false
+            }
         }
     }
     
