@@ -176,17 +176,6 @@ struct AccountHeaderView: View {
                 MempoolStatusView(count: walletService.mempoolTransactionCount)
             }
             
-            // Watch Status - Removed during simplification
-            // WatchStatusView(status: walletService.watchVerificationStatus)
-            
-            // Watch Errors - Removed during simplification
-            // if !walletService.watchAddressErrors.isEmpty || walletService.pendingWatchCount > 0 {
-            //     WatchErrorsView(
-            //         errors: walletService.watchAddressErrors,
-            //         pendingCount: walletService.pendingWatchCount
-            //     )
-            // }
-            
             // Action Buttons
             HStack(spacing: 16) {
                 Button(action: onReceive) {
