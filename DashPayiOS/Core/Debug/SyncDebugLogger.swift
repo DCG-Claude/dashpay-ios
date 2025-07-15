@@ -2,7 +2,7 @@ import Foundation
 import os.log
 import SwiftDashSDK
 import SwiftDashCoreSDK
-// import Compression - removed, using Foundation's Data compression
+import Compression
 
 /// Debug logger for sync connection issues
 public class SyncDebugLogger {
@@ -336,21 +336,45 @@ extension SyncDebugLogger {
         }
     }
     
-    /// Compress a log file using Apple's Compression framework
+    /// Compress a log file using Apple's Compression framework with gzip
     private static func compressLogFile(_ url: URL) -> URL? {
         let compressedURL = url.appendingPathExtension("gz")
         
         do {
             let data = try Data(contentsOf: url)
-            // For now, just save uncompressed. iOS 13+ has NSData compression methods
-            // but they're not available on Data directly. We'll save uncompressed for now.
-            let compressedData = data
+            
+            // Perform actual gzip compression using Compression framework
+            let compressedData = try data.withUnsafeBytes { bytes in
+                guard let sourceBytes = bytes.bindMemory(to: UInt8.self).baseAddress else {
+                    throw CompressionError.compressionFailed
+                }
+                
+                let buffer = UnsafeMutablePointer<UInt8>.allocate(capacity: data.count)
+                defer { buffer.deallocate() }
+                
+                let compressedSize = compression_encode_buffer(
+                    buffer, data.count,
+                    sourceBytes, data.count,
+                    nil, COMPRESSION_ZLIB
+                )
+                
+                guard compressedSize > 0 else {
+                    throw CompressionError.compressionFailed
+                }
+                
+                return Data(bytes: buffer, count: compressedSize)
+            }
+            
             try compressedData.write(to: compressedURL)
             return compressedURL
         } catch {
             print("Failed to compress log file: \(error)")
             return nil
         }
+    }
+    
+    private enum CompressionError: Error {
+        case compressionFailed
     }
     
     /// Clean up old log files beyond the retention limit
