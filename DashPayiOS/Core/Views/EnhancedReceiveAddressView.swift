@@ -9,8 +9,11 @@ struct EnhancedReceiveAddressView: View {
     @State private var currentAddress: HDWatchedAddress?
     @State private var isCopied = false
     @State private var showNewAddressConfirm = false
+    @State private var showErrorAlert = false
+    @State private var errorMessage = ""
     @State private var recentActivity: [RecentActivity] = []
     @State private var refreshTimer: Timer?
+    @State private var loadActivityTask: Task<Void, Never>?
     
     var body: some View {
         NavigationView {
@@ -232,6 +235,7 @@ struct EnhancedReceiveAddressView: View {
             }
             .onDisappear {
                 refreshTimer?.invalidate()
+                loadActivityTask?.cancel()
             }
         }
         #if os(macOS)
@@ -244,6 +248,11 @@ struct EnhancedReceiveAddressView: View {
             }
         } message: {
             Text("The current address has been used. Generate a new address for better privacy?")
+        }
+        .alert("Error", isPresented: $showErrorAlert) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(errorMessage)
         }
     }
     
@@ -271,7 +280,8 @@ struct EnhancedReceiveAddressView: View {
             currentAddress = newAddress
             loadRecentActivity()
         } catch {
-            print("Error generating address: \(error)")
+            errorMessage = "Failed to generate new address: \(error.localizedDescription)"
+            showErrorAlert = true
         }
     }
     
@@ -310,13 +320,25 @@ struct EnhancedReceiveAddressView: View {
     private func loadRecentActivity() {
         guard let address = currentAddress ?? account.receiveAddress else { return }
         
-        Task {
+        // Cancel any existing loading task to prevent race conditions
+        loadActivityTask?.cancel()
+        
+        loadActivityTask = Task {
             do {
+                // Check if task was cancelled before starting network request
+                guard !Task.isCancelled else { return }
+                
                 // Get transactions for this specific address using the wallet service
                 let transactions = try await walletService.sdk?.getTransactions(for: address.address, limit: 5) ?? []
                 
+                // Check if task was cancelled before updating UI
+                guard !Task.isCancelled else { return }
+                
                 // Map SDK transactions to RecentActivity objects with real transaction details
                 await MainActor.run {
+                    // Final check if task was cancelled before updating state
+                    guard !Task.isCancelled else { return }
+                    
                     recentActivity = transactions.map { transaction in
                         RecentActivity(
                             id: UUID(),
@@ -332,6 +354,9 @@ struct EnhancedReceiveAddressView: View {
                 print("✅ Loaded \(transactions.count) recent transactions for address \(address.address)")
                 
             } catch {
+                // Only handle errors if task wasn't cancelled
+                guard !Task.isCancelled else { return }
+                
                 // Log error appropriately with detailed information
                 print("❌ Error loading recent activity for address \(address.address): \(error)")
                 print("   Error type: \(type(of: error))")
@@ -339,6 +364,7 @@ struct EnhancedReceiveAddressView: View {
                 
                 // Fall back to empty activity on error
                 await MainActor.run {
+                    guard !Task.isCancelled else { return }
                     recentActivity = []
                 }
             }
