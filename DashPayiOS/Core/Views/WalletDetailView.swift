@@ -13,7 +13,6 @@ struct WalletDetailView: View {
     @State private var showCreateAccount = false
     @State private var showSyncProgress = false
     @State private var isConnecting = false
-    @State private var syncWasCompleted = false  // Track if sync finished
     
     var body: some View {
         #if os(iOS)
@@ -63,7 +62,6 @@ struct WalletDetailView: View {
                 if walletService.isConnected && walletService.activeWallet == wallet {
                     // Show sync button when connected
                     Button(action: { 
-                        syncWasCompleted = false
                         showSyncProgress = true 
                     }) {
                         Label("Sync", systemImage: "arrow.triangle.2.circlepath")
@@ -127,7 +125,6 @@ struct WalletDetailView: View {
                 if walletService.isConnected && walletService.activeWallet == wallet {
                     // Show sync button when connected
                     Button(action: { 
-                        syncWasCompleted = false
                         showSyncProgress = true 
                     }) {
                         Label("Sync", systemImage: "arrow.triangle.2.circlepath")
@@ -190,7 +187,7 @@ struct WalletDetailView: View {
         if let progress = newValue {
             // Check if sync just completed
             if progress.status == .synced && oldValue?.status != .synced {
-                syncWasCompleted = true
+                // Sync completed - could add completion logic here if needed
             }
         }
     }
@@ -199,7 +196,7 @@ struct WalletDetailView: View {
         // Also monitor detailed sync progress for completion
         if let progress = newValue, progress.stage == .complete {
             if oldValue?.stage != .complete {
-                syncWasCompleted = true
+                // Detailed sync completed - could add completion logic here if needed
             }
         }
     }
