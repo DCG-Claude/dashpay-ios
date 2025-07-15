@@ -369,6 +369,8 @@ enum WalletError: LocalizedError {
     case invalidAddress(String)
     case fileSystemError(String)
     case aggregateError([Error])
+    case transactionFetchFailed(txid: String, underlyingError: Error)
+    case unknownError
     
     var errorDescription: String? {
         switch self {
@@ -403,6 +405,10 @@ enum WalletError: LocalizedError {
         case .aggregateError(let errors):
             let errorMessages = errors.map { $0.localizedDescription }.joined(separator: "; ")
             return "Multiple errors occurred: \(errorMessages)"
+        case .transactionFetchFailed(let txid, let underlyingError):
+            return "Failed to fetch transaction \(txid): \(underlyingError.localizedDescription)"
+        case .unknownError:
+            return "An unknown error occurred"
         }
     }
 }

@@ -93,19 +93,26 @@ class BalanceTransactionService: ObservableObject {
             let sdkTransactions = try await sdk.getTransactions(for: address.address)
             
             for sdkTx in sdkTransactions {
-                // Check if transaction already exists
+                // Check if transaction already exists with retry logic
                 let txidToCheck = sdkTx.txid
                 let descriptor = FetchDescriptor<Transaction>(
                     predicate: #Predicate { transaction in
                         transaction.txid == txidToCheck
                     }
                 )
+                
                 let existingTransactions: [Transaction]
                 do {
-                    existingTransactions = try context.fetch(descriptor)
+                    existingTransactions = try await fetchWithRetry(
+                        descriptor: descriptor,
+                        context: context,
+                        txid: txidToCheck,
+                        maxRetries: 3
+                    )
                 } catch {
-                    logger.error("❌ Error fetching existing transaction \(txidToCheck): \(error)")
-                    continue // Skip this transaction and move to the next one
+                    logger.error("❌ Failed to fetch existing transaction \(txidToCheck) after retries: \(error)")
+                    // Fail fast - stop processing this address to prevent data inconsistency
+                    throw WalletError.transactionFetchFailed(txid: txidToCheck, underlyingError: error)
                 }
                 
                 if !existingTransactions.isEmpty {
@@ -390,5 +397,38 @@ class BalanceTransactionService: ObservableObject {
         )
         
         return (addressBalances: addressBalances, accountBalance: accountBalance)
+    }
+    
+    /// Helper method to fetch transactions with retry logic for transient failures
+    private func fetchWithRetry(
+        descriptor: FetchDescriptor<Transaction>,
+        context: ModelContext,
+        txid: String,
+        maxRetries: Int = 3
+    ) async throws -> [Transaction] {
+        var lastError: Error?
+        var retryDelay: TimeInterval = 0.1 // Start with 100ms
+        
+        for attempt in 0..<maxRetries {
+            do {
+                let result = try context.fetch(descriptor)
+                if attempt > 0 {
+                    logger.info("✅ Successfully fetched transaction \(txid) on attempt \(attempt + 1)")
+                }
+                return result
+            } catch {
+                lastError = error
+                logger.warning("⚠️ Fetch attempt \(attempt + 1)/\(maxRetries) failed for transaction \(txid): \(error)")
+                
+                // Don't delay on the last attempt
+                if attempt < maxRetries - 1 {
+                    try? await Task.sleep(nanoseconds: UInt64(retryDelay * 1_000_000_000))
+                    retryDelay *= 2 // Exponential backoff
+                }
+            }
+        }
+        
+        // All retries failed, throw the last error
+        throw lastError ?? WalletError.unknownError
     }
 }
