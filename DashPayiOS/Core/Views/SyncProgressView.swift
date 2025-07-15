@@ -99,6 +99,7 @@ struct SyncProgressView: View {
                         
                         Button("Start Sync") {
                             Task {
+                                #if DEBUG
                                 // First test if we can get stats
                                 print("🧪 Testing SDK stats before sync...")
                                 if let stats = walletService.sdk?.stats {
@@ -106,6 +107,7 @@ struct SyncProgressView: View {
                                 } else {
                                     print("⚠️ No stats available")
                                 }
+                                #endif
                                 
                                 startSync()
                             }
@@ -150,13 +152,17 @@ struct SyncProgressView: View {
         Task {
             do {
                 try await walletService.startSync()
+                #if DEBUG
                 print("✅ Sync started successfully")
+                #endif
             } catch {
                 await MainActor.run {
                     syncError = error.localizedDescription
                     hasStarted = false // Reset to allow retry
                 }
+                #if DEBUG
                 print("🔴 Failed to start sync: \(error.localizedDescription)")
+                #endif
             }
         }
     }
