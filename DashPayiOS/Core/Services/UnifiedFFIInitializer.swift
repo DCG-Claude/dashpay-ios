@@ -47,7 +47,7 @@ final class UnifiedSDKInitializer: @unchecked Sendable {
         
         do {
             // Create SDK configuration using the configuration manager
-            let config = try SPVConfigurationManager.shared.configuration(for: .testnet)
+            let config = try SPVConfigurationManager.shared.configuration(for: network)
             
             // Create SDK instance - DashSDK handles FFI initialization internally
             self.dashSDK = try DashSDK(configuration: config)
