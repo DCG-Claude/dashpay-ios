@@ -4,6 +4,35 @@ import SwiftDashCoreSDK
 
 // MARK: - HD Wallet
 
+/// Thread-Safety Documentation for HDWallet
+/// 
+/// This class is marked with @unchecked Sendable to bypass Swift's automatic
+/// concurrency safety checks. Thread-safety guarantees:
+///
+/// SAFE OPERATIONS (can be performed from any thread):
+/// - Reading immutable properties after initialization (id, name, network, createdAt, seedHash)
+/// - Reading encryptedSeed (immutable after init, but handle with security considerations)
+/// - Accessing computed properties (displayNetwork, totalBalance)
+///
+/// MAIN ACTOR REQUIRED OPERATIONS:
+/// - All SwiftData model operations (save, insert, delete, relationship updates)
+/// - Modifying lastSynced property
+/// - Adding/removing accounts through the @Relationship
+/// - Any write operations to persisted properties
+///
+/// IMPORTANT CONCURRENCY CONSIDERATIONS:
+/// 1. SwiftData requires all model operations to occur on the @MainActor
+/// 2. The encryptedSeed contains sensitive data and should be handled with appropriate
+///    security measures regardless of thread
+/// 3. The totalBalance computed property aggregates data from related accounts,
+///    ensure accounts relationship is accessed from @MainActor context
+/// 4. When passing HDWallet instances across actor boundaries, ensure immutable
+///    access patterns or proper actor-isolated operations
+///
+/// USAGE GUIDELINES:
+/// - Always perform model persistence operations within @MainActor context
+/// - Use appropriate synchronization when accessing mutable state
+/// - Be cautious with sensitive data (encryptedSeed) across thread boundaries
 @Model
 final class HDWallet: @unchecked Sendable {
     @Attribute(.unique) var id: UUID
@@ -84,7 +113,7 @@ final class HDAccount: @unchecked Sendable {
     var lastUsedInternalIndex: UInt32
     var gapLimit: UInt32
     
-    @Relationship var wallet: HDWallet?
+    @Relationship var wallet: HDWallet
     @Relationship(deleteRule: .cascade) var balance: LocalBalance?
     @Relationship(deleteRule: .cascade) var addresses: [HDWatchedAddress]
     // Transaction IDs associated with this account
@@ -112,7 +141,6 @@ final class HDAccount: @unchecked Sendable {
     }
     
     var derivationPath: String {
-        guard let wallet = wallet else { return "" }
         let coinType: UInt32 = wallet.network == .mainnet ? 5 : 1
         return "m/44'/\(coinType)'/\(accountIndex)'"
     }
@@ -339,8 +367,9 @@ extension HDWatchedAddress {
                 mempoolInstant: newBalance.mempoolInstant,
                 total: newBalance.total
             )
-            // Important: Don't insert separately, just assign to relationship
-            // SwiftData will handle the insertion when the relationship is set
+            // Insert the balance into the context first
+            context.insert(balance)
+            // Then assign to relationship
             self.balance = balance
         }
         try context.save()
