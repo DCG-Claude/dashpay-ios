@@ -68,7 +68,15 @@ final class LocalBalance: @unchecked Sendable {
     }
     
     // Computed properties
+    /// Available balance (confirmed + instantLocked, excluding mempool instant funds)
+    /// This matches the behavior of Dash RPC getbalance command without addlocked parameter
     var available: UInt64 {
+        return confirmed + instantLocked
+    }
+    
+    /// Available balance including instant locked funds when explicitly requested
+    /// Similar to Dash RPC getbalance command with addlocked=true parameter
+    func availableIncludingMempool() -> UInt64 {
         return confirmed + instantLocked + mempoolInstant
     }
     

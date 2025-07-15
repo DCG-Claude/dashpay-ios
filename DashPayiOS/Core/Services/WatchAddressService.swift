@@ -13,13 +13,13 @@ enum WatchAddressError: Error, LocalizedError, Identifiable {
     var id: String {
         switch self {
         case .invalidAddress(let address):
-            return "invalid_\(address.hashValue)"
+            return "invalid_\(address.replacingOccurrences(of: " ", with: "_"))"
         case .networkError(let message):
-            return "network_\(message.hashValue)"
+            return "network_\(message.replacingOccurrences(of: " ", with: "_").prefix(20))"
         case .storageFailure(let message):
-            return "storage_\(message.hashValue)"
+            return "storage_\(message.replacingOccurrences(of: " ", with: "_").prefix(20))"
         case .unknownError(let message):
-            return "unknown_\(message.hashValue)"
+            return "unknown_\(message.replacingOccurrences(of: " ", with: "_").prefix(20))"
         }
     }
     
