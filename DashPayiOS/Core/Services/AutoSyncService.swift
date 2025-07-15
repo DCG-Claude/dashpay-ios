@@ -89,7 +89,14 @@ class AutoSyncService: ObservableObject {
         guard let context = modelContext else { return [] }
         
         let descriptor = FetchDescriptor<HDWallet>()
-        let allWallets = (try? context.fetch(descriptor)) ?? []
+        let allWallets: [HDWallet]
+        
+        do {
+            allWallets = try context.fetch(descriptor)
+        } catch {
+            logger.error("🔴 Failed to fetch wallets for sync check: \(error.localizedDescription)")
+            return []
+        }
         
         return allWallets.filter { wallet in
             // Check if wallet has been synced recently
