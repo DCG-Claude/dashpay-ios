@@ -66,10 +66,14 @@ struct ContractModel: Identifiable, Hashable {
     }
     
     var formattedSchema: String {
-        guard let jsonData = try? JSONSerialization.data(withJSONObject: schema, options: .prettyPrinted),
-              let jsonString = String(data: jsonData, encoding: .utf8) else {
-            return "Invalid schema"
+        do {
+            let jsonData = try JSONSerialization.data(withJSONObject: schema, options: .prettyPrinted)
+            guard let jsonString = String(data: jsonData, encoding: .utf8) else {
+                return "Failed to convert schema data to UTF-8 string"
+            }
+            return jsonString
+        } catch {
+            return "Failed to serialize schema to JSON: \(error.localizedDescription)"
         }
-        return jsonString
     }
 }

@@ -166,25 +166,33 @@ struct EnhancedSyncProgressView: View {
                     throw NSError(domain: "WalletError", code: 1, userInfo: [NSLocalizedDescriptionKey: "Wallet is not connected"])
                 }
                 
-                // Use TaskGroup to run sync operation and timeout concurrently
+                // Use structured concurrency with timeout to prevent race conditions
                 try await withThrowingTaskGroup(of: Void.self) { group in
-                    // Add sync operation task
+                    // Start the sync task
                     group.addTask {
-                        try await self.walletService.startSyncWithCallbacks()
+                        try await withTaskCancellationHandler {
+                            try await self.walletService.startSyncWithCallbacks()
+                        } onCancel: {
+                            print("🟡 Sync task cancelled due to timeout")
+                        }
                     }
                     
-                    // Add timeout task
+                    // Start timeout task that will cancel the group
                     group.addTask {
                         try await Task.sleep(nanoseconds: 10_000_000_000) // 10 seconds
-                        // If we reach here, timeout occurred first
+                        group.cancelAll()
                         throw NSError(domain: "SyncTimeout", code: 1, userInfo: [NSLocalizedDescriptionKey: "Sync timed out - no progress received after 10 seconds"])
                     }
                     
-                    // Wait for first completed task (either sync success or timeout)
-                    try await group.next()
-                    
-                    // Cancel remaining tasks to prevent race conditions
-                    group.cancelAll()
+                    // Wait for the first task to complete and handle the result
+                    do {
+                        try await group.next()
+                        // If we get here, sync completed successfully
+                        group.cancelAll() // Cancel the timeout task
+                    } catch is CancellationError {
+                        // Sync was cancelled, let the timeout error propagate
+                        try await group.next()
+                    }
                 }
                 
                 print("✅ EnhancedSyncProgressView: Sync started successfully")
