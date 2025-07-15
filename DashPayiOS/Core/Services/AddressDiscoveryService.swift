@@ -81,9 +81,10 @@ class AddressDiscoveryService {
                 }
                 
                 let balance = try await sdk.getBalance(for: address)
+                let transactions = try await sdk.getTransactions(for: address)
                 
                 // Check if address has been used (has balance or transactions)
-                let isUsed = balance.total > 0 || balance.confirmed > 0 || balance.pending > 0
+                let isUsed = balance.total > 0 || balance.confirmed > 0 || balance.pending > 0 || !transactions.isEmpty
                 
                 if isUsed {
                     foundUsed = true
