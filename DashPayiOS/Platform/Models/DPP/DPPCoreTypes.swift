@@ -81,100 +81,12 @@ extension Data {
     
     /// Create an Identifier from a base58 string
     static func identifier(fromBase58 base58String: String) -> Identifier? {
-        let alphabet = Array("123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz")
-        let base = alphabet.count
-        
-        var bytes = [UInt8]()
-        var num = [UInt8](repeating: 0, count: 1)
-        
-        for char in base58String {
-            guard let index = alphabet.firstIndex(of: char) else {
-                return nil
-            }
-            
-            // Multiply num by base
-            var carry = 0
-            for i in 0..<num.count {
-                carry = Int(num[i]) * base + carry
-                num[i] = UInt8(carry % 256)
-                carry /= 256
-            }
-            while carry > 0 {
-                num.append(UInt8(carry % 256))
-                carry /= 256
-            }
-            
-            // Add index
-            carry = index
-            for i in 0..<num.count {
-                carry = Int(num[i]) + carry
-                num[i] = UInt8(carry % 256)
-                carry /= 256
-            }
-            while carry > 0 {
-                num.append(UInt8(carry % 256))
-                carry /= 256
-            }
-        }
-        
-        // Handle leading zeros (1s in base58)
-        for char in base58String {
-            if char == "1" {
-                bytes.append(0)
-            } else {
-                break
-            }
-        }
-        
-        // Append the rest in reverse order
-        bytes.append(contentsOf: num.reversed())
-        
-        return Data(bytes)
+        return Data(base58: base58String)
     }
     
     /// Convert to base58 string
     func toBase58String() -> String {
-        let alphabet = Array("123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz")
-        
-        if self.isEmpty {
-            return ""
-        }
-        
-        var bytes = Array(self)
-        var encoded = ""
-        
-        // Count leading zero bytes
-        let zeroCount = bytes.prefix(while: { $0 == 0 }).count
-        
-        // Skip leading zeros for conversion
-        bytes = Array(bytes.dropFirst(zeroCount))
-        
-        if bytes.isEmpty {
-            return String(repeating: "1", count: zeroCount)
-        }
-        
-        // Convert bytes to base58
-        while !bytes.isEmpty && !bytes.allSatisfy({ $0 == 0 }) {
-            var remainder = 0
-            var newBytes = [UInt8]()
-            
-            for byte in bytes {
-                let temp = remainder * 256 + Int(byte)
-                remainder = temp % 58
-                let quotient = temp / 58
-                if !newBytes.isEmpty || quotient > 0 {
-                    newBytes.append(UInt8(quotient))
-                }
-            }
-            
-            bytes = newBytes
-            encoded = String(alphabet[remainder]) + encoded
-        }
-        
-        // Add '1' for each leading zero byte
-        encoded = String(repeating: "1", count: zeroCount) + encoded
-        
-        return encoded
+        return self.base58EncodedString
     }
     
 }
@@ -192,5 +104,89 @@ enum PlatformValue: Codable, Equatable {
     case array([PlatformValue])
     case map([String: PlatformValue])
     
-    // Coding implementation would go here
+    // MARK: - Codable Implementation
+    
+    private enum CodingKeys: String, CodingKey {
+        case type
+        case value
+    }
+    
+    private enum ValueType: String, Codable {
+        case null = "null"
+        case bool = "bool"
+        case integer = "integer"
+        case unsignedInteger = "unsignedInteger"
+        case float = "float"
+        case string = "string"
+        case bytes = "bytes"
+        case array = "array"
+        case map = "map"
+    }
+    
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let type = try container.decode(ValueType.self, forKey: .type)
+        
+        switch type {
+        case .null:
+            self = .null
+        case .bool:
+            let value = try container.decode(Bool.self, forKey: .value)
+            self = .bool(value)
+        case .integer:
+            let value = try container.decode(Int64.self, forKey: .value)
+            self = .integer(value)
+        case .unsignedInteger:
+            let value = try container.decode(UInt64.self, forKey: .value)
+            self = .unsignedInteger(value)
+        case .float:
+            let value = try container.decode(Double.self, forKey: .value)
+            self = .float(value)
+        case .string:
+            let value = try container.decode(String.self, forKey: .value)
+            self = .string(value)
+        case .bytes:
+            let value = try container.decode(Data.self, forKey: .value)
+            self = .bytes(value)
+        case .array:
+            let value = try container.decode([PlatformValue].self, forKey: .value)
+            self = .array(value)
+        case .map:
+            let value = try container.decode([String: PlatformValue].self, forKey: .value)
+            self = .map(value)
+        }
+    }
+    
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        
+        switch self {
+        case .null:
+            try container.encode(ValueType.null, forKey: .type)
+        case .bool(let value):
+            try container.encode(ValueType.bool, forKey: .type)
+            try container.encode(value, forKey: .value)
+        case .integer(let value):
+            try container.encode(ValueType.integer, forKey: .type)
+            try container.encode(value, forKey: .value)
+        case .unsignedInteger(let value):
+            try container.encode(ValueType.unsignedInteger, forKey: .type)
+            try container.encode(value, forKey: .value)
+        case .float(let value):
+            try container.encode(ValueType.float, forKey: .type)
+            try container.encode(value, forKey: .value)
+        case .string(let value):
+            try container.encode(ValueType.string, forKey: .type)
+            try container.encode(value, forKey: .value)
+        case .bytes(let value):
+            try container.encode(ValueType.bytes, forKey: .type)
+            try container.encode(value, forKey: .value)
+        case .array(let value):
+            try container.encode(ValueType.array, forKey: .type)
+            try container.encode(value, forKey: .value)
+        case .map(let value):
+            try container.encode(ValueType.map, forKey: .type)
+            try container.encode(value, forKey: .value)
+        }
+    }
 }
