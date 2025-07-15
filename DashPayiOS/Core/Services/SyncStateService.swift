@@ -45,6 +45,11 @@ class SyncStateService: ObservableObject {
         )
     }
     
+    /// Update sync progress (legacy compatibility)
+    func updateProgress(_ progress: SyncProgress) {
+        syncProgress = progress
+    }
+    
     /// Complete sync operation
     func completeSync() {
         logger.info("✅ Sync completed")
