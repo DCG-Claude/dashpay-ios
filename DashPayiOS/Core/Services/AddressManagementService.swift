@@ -159,7 +159,7 @@ class AddressManagementService: ObservableObject {
         var currentIndex = account.lastUsedExternalIndex + 1
         
         while consecutiveUnused < gapLimit && currentIndex < 1000 {
-            let address = HDWalletService.deriveAddress(
+            let address = try HDWalletService.deriveAddress(
                 xpub: account.extendedPublicKey,
                 network: wallet.network,
                 change: false,
@@ -213,7 +213,7 @@ class AddressManagementService: ObservableObject {
         let changeGapLimit = min(gapLimit, 5) // Limit change addresses
         
         while consecutiveUnused < changeGapLimit && currentIndex < 100 {
-            let address = HDWalletService.deriveAddress(
+            let address = try HDWalletService.deriveAddress(
                 xpub: account.extendedPublicKey,
                 network: wallet.network,
                 change: true,
@@ -265,7 +265,7 @@ class AddressManagementService: ObservableObject {
         index: UInt32
     ) throws -> (address: String, path: String) {
         // Perform heavy cryptographic operations outside of MainActor
-        let address = HDWalletService.deriveAddress(
+        let address = try HDWalletService.deriveAddress(
             xpub: xpub,
             network: network,
             change: change,
@@ -313,7 +313,7 @@ class AddressManagementService: ObservableObject {
         }
         
         // Save internal addresses
-        for (index, address) in internal.enumerated() {
+        for (index, address) in `internal`.enumerated() {
             let path = HDWalletService.BIP44.derivationPath(
                 network: wallet.network,
                 account: account.accountIndex,

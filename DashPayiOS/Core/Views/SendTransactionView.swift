@@ -142,7 +142,7 @@ struct SendTransactionView: View {
                         Text("Normal (1000 sat/KB)").tag(UInt64(1000))
                         Text("Fast (2000 sat/KB)").tag(UInt64(2000))
                     }
-                    .onChange(of: feeRate) { _ in
+                    .onChange(of: feeRate) {
                         updateEstimatedFee()
                     }
                     
@@ -224,13 +224,13 @@ struct SendTransactionView: View {
             isValidAddress = true
             errorMessage = ""
         } else {
-            // Safely unwrap activeWallet and network
-            guard let activeWallet = walletService.activeWallet,
-                  let network = activeWallet.network else {
+            // Safely unwrap activeWallet
+            guard let activeWallet = walletService.activeWallet else {
                 isValidAddress = false
                 errorMessage = "Wallet not available for address validation"
                 return
             }
+            let network = activeWallet.network
             
             // Use comprehensive validation that includes length and character checks
             isValidAddress = HDWalletService.isValidAddress(recipientAddress, network: network)

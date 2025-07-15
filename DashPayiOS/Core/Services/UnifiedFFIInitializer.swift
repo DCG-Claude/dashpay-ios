@@ -23,53 +23,49 @@ enum UnifiedSDKError: LocalizedError {
 }
 
 /// Manages unified SDK initialization and Core SDK integration
-final class UnifiedSDKInitializer {
+@MainActor
+final class UnifiedSDKInitializer: @unchecked Sendable {
     static let shared = UnifiedSDKInitializer()
     private var dashSDK: DashSDK?
     private var isInitialized = false
-    private let queue = DispatchQueue(label: "com.dash.unifiedsdk.initializer", qos: .utility)
     
     private init() {}
     
     deinit {
-        cleanup()
+        // Cleanup will be handled when MainActor releases the instance
+        if isInitialized {
+            dashSDK = nil
+            print("🧹 Unified SDK cleaned up in deinit")
+        }
     }
     
     /// Initialize the unified SDK with configuration
     func initialize(network: DashNetwork = .testnet) async throws {
-        try await withCheckedThrowingContinuation { continuation in
-            queue.async {
-                guard !self.isInitialized else { 
-                    continuation.resume()
-                    return 
-                }
-                
-                do {
-                    // Create SDK configuration using the configuration manager
-                    let config = SPVConfigurationManager.shared.configuration(for: .testnet)
-                    
-                    // Create SDK instance - DashSDK handles FFI initialization internally
-                    self.dashSDK = try DashSDK(configuration: config)
-                    self.isInitialized = true
-                    
-                    print("✅ Unified SDK initialized successfully")
-                    continuation.resume()
-                } catch {
-                    print("❌ Failed to initialize unified SDK: \(error)")
-                    continuation.resume(throwing: UnifiedSDKError.initializationFailed(error.localizedDescription))
-                }
-            }
+        guard !isInitialized else { 
+            return
+        }
+        
+        do {
+            // Create SDK configuration using the configuration manager
+            let config = try SPVConfigurationManager.shared.configuration(for: .testnet)
+            
+            // Create SDK instance - DashSDK handles FFI initialization internally
+            self.dashSDK = try DashSDK(configuration: config)
+            self.isInitialized = true
+            
+            print("✅ Unified SDK initialized successfully")
+        } catch {
+            print("❌ Failed to initialize unified SDK: \(error)")
+            throw UnifiedSDKError.initializationFailed(error.localizedDescription)
         }
     }
     
     /// Get the initialized SDK instance
     func getSDK() throws -> DashSDK {
-        return try queue.sync {
-            guard isInitialized, let sdk = dashSDK else {
-                throw UnifiedSDKError.notInitialized
-            }
-            return sdk
+        guard isInitialized, let sdk = dashSDK else {
+            throw UnifiedSDKError.notInitialized
         }
+        return sdk
     }
     
     /// Connect the SDK to the network
@@ -88,13 +84,11 @@ final class UnifiedSDKInitializer {
     
     /// Cleanup resources and reset initialization state
     func cleanup() {
-        queue.sync {
-            if isInitialized {
-                // SwiftDashCoreSDK handles cleanup internally
-                dashSDK = nil
-                isInitialized = false
-                print("🧹 Unified SDK cleaned up")
-            }
+        if isInitialized {
+            // SwiftDashCoreSDK handles cleanup internally
+            dashSDK = nil
+            isInitialized = false
+            print("🧹 Unified SDK cleaned up")
         }
     }
 }

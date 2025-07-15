@@ -1,6 +1,7 @@
 import SwiftUI
 import Charts
 import SwiftDashSDK
+import SwiftDashCoreSDK
 
 struct UnifiedDashboardView: View {
     @EnvironmentObject var unifiedState: UnifiedStateManager
@@ -474,7 +475,7 @@ struct SyncStatusCard: View {
 // MARK: - Enhanced Sync Status Card
 
 struct EnhancedSyncStatusCard: View {
-    let coreProgress: DetailedSyncProgress?
+    let coreProgress: SwiftDashCoreSDK.DetailedSyncProgress?
     let platformSynced: Bool
     let lastSyncTime: Date
     

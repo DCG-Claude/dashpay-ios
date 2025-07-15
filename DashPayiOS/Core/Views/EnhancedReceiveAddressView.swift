@@ -298,8 +298,8 @@ struct EnhancedReceiveAddressView: View {
     }
     
     private func setupActivityRefresh() {
-        refreshTimer = Timer.scheduledTimer(withTimeInterval: 10.0, repeats: true) { [weak self] _ in
-            self?.refreshActivity()
+        refreshTimer = Timer.scheduledTimer(withTimeInterval: 10.0, repeats: true) { _ in
+            self.refreshActivity()
         }
     }
     

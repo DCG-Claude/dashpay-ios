@@ -16,16 +16,7 @@ struct DashPayApp: App {
     
     init() {
         // Initialize unified FFI library early
-        do {
-            try UnifiedFFIInitializer.shared.initialize()
-        } catch {
-            print("🔴 Failed to initialize unified FFI library: \(error)")
-            // Set state for user-visible error handling
-            DispatchQueue.main.async {
-                self.ffiInitializationFailed = true
-                self.ffiInitializationError = error
-            }
-        }
+        // Note: Errors will be handled during app startup in .task modifier
         
         // Set up notification delegate
         // UNUserNotificationCenter.current().delegate = notificationDelegate
@@ -38,7 +29,7 @@ struct DashPayApp: App {
     
     var body: some Scene {
         WindowGroup {
-            Group {
+            SwiftUI.Group {
                 if ffiInitializationFailed {
                     // Show error view when FFI initialization fails
                     VStack(spacing: 20) {
@@ -102,6 +93,16 @@ struct DashPayApp: App {
                         .task {
                             // Initialize notification service
                             // _ = LocalNotificationService.shared
+                            
+                            // Initialize FFI first
+                            do {
+                                try await UnifiedFFIInitializer.shared.initialize()
+                            } catch {
+                                print("🔴 Failed to initialize unified FFI library: \(error)")
+                                ffiInitializationFailed = true
+                                ffiInitializationError = error
+                                return
+                            }
                             
                             // Add a small delay to ensure UI is ready
                             try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 second

@@ -58,7 +58,7 @@ final class PersistentWalletManager {
     
     /// Configure HD wallet context for proper change address derivation
     func configureHDWallet(network: DashNetwork, accountXPub: String, nextChangeIndex: UInt32 = 0) {
-        logger.info("Configuring HD wallet context - network: \(network), nextChangeIndex: \(nextChangeIndex)")
+        logger.info("Configuring HD wallet context - network: \(network.rawValue), nextChangeIndex: \(nextChangeIndex)")
         self.currentNetwork = network
         self.currentAccountXPub = accountXPub
         self.nextChangeAddressIndex = nextChangeIndex
@@ -82,7 +82,7 @@ final class PersistentWalletManager {
             // Increment the change index for next use
             nextChangeAddressIndex += 1
             
-            logger.info("✅ Derived change address: \(changeAddress) (index: \(nextChangeAddressIndex - 1))")
+            logger.info("✅ Derived change address: \(changeAddress) (index: \(self.nextChangeAddressIndex - 1))")
             return changeAddress
         } catch {
             logger.error("🔴 Failed to derive change address: \(error)")
@@ -413,7 +413,7 @@ final class PersistentWalletManager {
                 changeAddress = watchedAddresses.first ?? "default_change_address"
                 if changeAddress == "default_change_address" {
                     logger.error("No watched addresses available for change output")
-                    throw DashSDKError.transactionCreationFailed("No change address available")
+                    throw DashSDKError.transactionBuildError("No change address available")
                 }
             }
             
@@ -434,7 +434,7 @@ final class PersistentWalletManager {
         
         // Validate and decode the address to extract pubKeyHash
         guard let pubKeyHash = try decodeAddressToPubKeyHash(address: address) else {
-            throw DashSDKError.transactionCreationFailed("Invalid address format: \(address)")
+            throw DashSDKError.invalidAddress("Invalid address format: \(address)")
         }
         
         var script = Data()

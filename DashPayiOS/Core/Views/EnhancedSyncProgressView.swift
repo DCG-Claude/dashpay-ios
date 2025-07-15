@@ -204,7 +204,7 @@ struct EnhancedSyncProgressView: View {
 // MARK: - Detailed Progress Content
 
 struct DetailedProgressContent: View {
-    let progress: DetailedSyncProgress
+    let progress: SwiftDashCoreSDK.DetailedSyncProgress
     
     var body: some View {
         VStack(spacing: 24) {
@@ -385,18 +385,32 @@ struct StartSyncContent: View {
 // MARK: - Legacy Progress Content
 
 struct LegacyProgressContent: View {
-    let progress: SyncProgress
+    let progress: SwiftDashCoreSDK.SyncProgress
+    
+    // Convert SwiftDashCoreSDK.SyncStatus to local SyncStatus
+    private var localStatus: SyncStatus {
+        switch progress.status {
+        case .connecting:
+            return .connecting
+        case .downloadingHeaders:
+            return .downloadingHeaders
+        case .synced:
+            return .synced
+        default:
+            return .idle
+        }
+    }
     
     var body: some View {
         VStack(spacing: 20) {
             // Status Icon
-            Image(systemName: progress.status.icon)
+            Image(systemName: localStatus.icon)
                 .font(.system(size: 60))
-                .foregroundColor(progress.status.color)
-                .symbolEffect(.pulse, isActive: progress.status.isActive)
+                .foregroundColor(localStatus.color)
+                .symbolEffect(.pulse, isActive: localStatus.isActive)
             
             // Status Text
-            Text(progress.status.description)
+            Text(localStatus.description)
                 .font(.title2)
                 .fontWeight(.medium)
             

@@ -227,30 +227,32 @@ struct CreateWalletView: View {
         isCreating = true
         errorMessage = ""
         
-        do {
-            let wallet = try walletService.createWallet(
-                name: walletName,
-                mnemonic: mnemonic,
-                password: password,
-                network: selectedNetwork
-            )
-            
-            // Complete the creation first
-            onComplete(wallet)
-            dismiss()
-            
-            // Trigger auto-sync after wallet is persisted
-            // The createWallet method is synchronous and already saves to SwiftData,
-            // so we can immediately trigger auto-sync without arbitrary delays
-            Task {
+        Task {
+            do {
+                let wallet = try await walletService.createWallet(
+                    name: walletName,
+                    mnemonic: mnemonic,
+                    password: password,
+                    network: selectedNetwork
+                )
+                
+                await MainActor.run {
+                    // Complete the creation first
+                    onComplete(wallet)
+                    dismiss()
+                }
+                
+                // Trigger auto-sync after wallet is persisted
                 // Only sync if the wallet service is properly configured
                 if walletService.modelContext != nil {
                     await walletService.performAutoSync(for: wallet)
                 }
+            } catch {
+                await MainActor.run {
+                    errorMessage = error.localizedDescription
+                    isCreating = false
+                }
             }
-        } catch {
-            errorMessage = error.localizedDescription
-            isCreating = false
         }
     }
 }
@@ -458,27 +460,31 @@ struct ImportWalletView: View {
             return
         }
         
-        do {
-            let wallet = try walletService.createWallet(
-                name: walletName,
-                mnemonic: words,
-                password: password,
-                network: selectedNetwork
-            )
-            
-            // Trigger auto-sync for the imported wallet
-            Task {
+        Task {
+            do {
+                let wallet = try await walletService.createWallet(
+                    name: walletName,
+                    mnemonic: words,
+                    password: password,
+                    network: selectedNetwork
+                )
+                
+                // Trigger auto-sync for the imported wallet
                 // Only sync if the wallet service is properly configured
                 if walletService.modelContext != nil {
                     await walletService.performAutoSync(for: wallet)
                 }
+                
+                await MainActor.run {
+                    onComplete(wallet)
+                    dismiss()
+                }
+            } catch {
+                await MainActor.run {
+                    errorMessage = error.localizedDescription
+                    isImporting = false
+                }
             }
-            
-            onComplete(wallet)
-            dismiss()
-        } catch {
-            errorMessage = error.localizedDescription
-            isImporting = false
         }
     }
 }

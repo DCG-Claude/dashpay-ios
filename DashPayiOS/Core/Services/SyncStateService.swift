@@ -9,7 +9,7 @@ import SwiftDashCoreSDK
 class SyncStateService: ObservableObject {
     @Published var isSyncing: Bool = false
     @Published var syncProgress: SyncProgress?
-    @Published var detailedSyncProgress: DetailedSyncProgress?
+    @Published var detailedSyncProgress: SwiftDashCoreSDK.DetailedSyncProgress?
     
     private let logger = Logger(subsystem: "com.dash.wallet", category: "SyncStateService")
     private var activeSyncTask: Task<Void, Never>?
@@ -43,7 +43,7 @@ class SyncStateService: ObservableObject {
     }
     
     /// Update sync progress
-    func updateProgress(_ progress: DetailedSyncProgress) {
+    func updateProgress(_ progress: SwiftDashCoreSDK.DetailedSyncProgress) {
         detailedSyncProgress = progress
         
         // Convert to legacy SyncProgress for compatibility
@@ -113,7 +113,7 @@ class SyncStateService: ObservableObject {
     }
     
     // Helper to map sync stage to legacy status
-    private func mapSyncStageToStatus(_ stage: SyncStage) -> SwiftDashCoreSDK.SyncStatus {
+    private func mapSyncStageToStatus(_ stage: SwiftDashCoreSDK.SyncStage) -> SwiftDashCoreSDK.SyncStatus {
         switch stage {
         case .connecting:
             return .connecting

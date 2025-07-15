@@ -21,7 +21,7 @@ class WalletLifecycleService: ObservableObject {
         mnemonic: [String],
         password: String,
         network: DashNetwork
-    ) throws -> HDWallet {
+    ) async throws -> HDWallet {
         guard let context = modelContext else {
             throw WalletError.noContext
         }
@@ -53,7 +53,7 @@ class WalletLifecycleService: ObservableObject {
         context.insert(wallet)
         
         // Create default account
-        let account = try createAccount(
+        let account = try await createAccount(
             for: wallet,
             index: 0,
             label: "Primary Account",
@@ -73,7 +73,7 @@ class WalletLifecycleService: ObservableObject {
         index: UInt32,
         label: String,
         password: String
-    ) throws -> HDAccount {
+    ) async throws -> HDAccount {
         logger.info("🏗️ Creating account for wallet: \(wallet.name)")
         
         // Move heavy cryptographic operations to background

@@ -104,7 +104,7 @@ struct CreateAccountView: View {
                 let currentPassword = password
                 
                 // Perform account creation
-                let account = try walletService.createAccount(
+                let account = try await walletService.createAccount(
                     for: wallet,
                     index: currentAccountIndex,
                     label: label,

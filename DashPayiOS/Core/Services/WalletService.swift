@@ -48,7 +48,7 @@ class WalletService: ObservableObject {
     var isConnected: Bool { connectionService.isConnected }
     @Published var isSyncing: Bool = false
     @Published var syncProgress: SyncProgress?
-    @Published var detailedSyncProgress: DetailedSyncProgress?
+    @Published var detailedSyncProgress: SwiftDashCoreSDK.DetailedSyncProgress?
     var watchAddressErrors: [WatchAddressError] { watchAddressService.watchAddressErrors }
     var pendingWatchCount: Int { watchAddressService.pendingWatchCount }
     var watchVerificationStatus: WatchVerificationStatus { watchAddressService.watchVerificationStatus }
@@ -105,8 +105,8 @@ class WalletService: ObservableObject {
         mnemonic: [String],
         password: String,
         network: DashNetwork
-    ) throws -> HDWallet {
-        return try walletLifecycleService.createWallet(
+    ) async throws -> HDWallet {
+        return try await walletLifecycleService.createWallet(
             name: name,
             mnemonic: mnemonic,
             password: password,
@@ -125,20 +125,20 @@ class WalletService: ObservableObject {
         let seed = try HDWalletService.decryptSeed(encryptedSeed, password: password)
         
         // Derive account xpub
-        let xpub = HDWalletService.deriveExtendedPublicKey(
+        let xpub = try HDWalletService.deriveExtendedPublicKey(
             seed: seed,
             network: network,
             account: accountIndex
         )
         
-        // Generate initial addresses using configured constants
-        let initialReceiveCount = Self.defaultInitialReceiveAddressCount
-        let initialChangeCount = Self.defaultInitialChangeAddressCount
+        // Generate initial addresses using configured constants  
+        let initialReceiveCount = 5
+        let initialChangeCount = 1
         var addresses: [(address: String, index: UInt32, isChange: Bool, path: String, label: String)] = []
         
         // Generate receive addresses
         for i in 0..<initialReceiveCount {
-            let address = HDWalletService.deriveAddress(
+            let address = try HDWalletService.deriveAddress(
                 xpub: xpub,
                 network: network,
                 change: false,
@@ -163,7 +163,7 @@ class WalletService: ObservableObject {
         
         // Generate change address
         for i in 0..<initialChangeCount {
-            let address = HDWalletService.deriveAddress(
+            let address = try HDWalletService.deriveAddress(
                 xpub: xpub,
                 network: network,
                 change: true,
@@ -194,8 +194,8 @@ class WalletService: ObservableObject {
         index: UInt32,
         label: String,
         password: String
-    ) throws -> HDAccount {
-        return try walletLifecycleService.createAccount(
+    ) async throws -> HDAccount {
+        return try await walletLifecycleService.createAccount(
             for: wallet,
             index: index,
             label: label,
@@ -328,7 +328,7 @@ class WalletService: ObservableObject {
     
     // MARK: - Private Connection Helper Methods
     
-    private func setupConfiguration(wallet: HDWallet) async throws -> SPVConfiguration {
+    private func setupConfiguration(wallet: HDWallet) async throws -> SPVClientConfiguration {
         logger.info("🔧 Getting SPV configuration from manager...")
         let config = try SPVConfigurationManager.shared.configuration(for: wallet.network)
         logger.info("📁 SPV data directory: \(config.dataDirectory?.path ?? "nil")")
@@ -402,14 +402,14 @@ class WalletService: ObservableObject {
         return config
     }
     
-    private func initializeSDK(with config: SPVConfiguration) async throws {
+    private func initializeSDK(with config: SPVClientConfiguration) async throws {
         logger.info("📡 Initializing SDK components...")
         logger.info("   Thread before MainActor: \(Thread.isMainThread ? "Main" : "Background")")
         
         do {
             // Initialize SDK components on MainActor following rust-dashcore pattern
             // FIX: Create only DashSDK, not separate SPVClient
-            sdk = try await MainActor.run {
+            let createdSDK = try await MainActor.run {
                 logger.info("   Thread in MainActor: \(Thread.isMainThread ? "Main" : "Background")")
                 
                 // Create DashSDK (which includes SPVClient and PersistentWalletManager internally)
@@ -419,6 +419,7 @@ class WalletService: ObservableObject {
                 
                 return dashSDK
             }
+            connectionService.sdk = createdSDK
             logger.info("✅ All SDK components initialized successfully")
             
         } catch {
@@ -656,6 +657,7 @@ class WalletService: ObservableObject {
                     if Task.isCancelled { break }
                     
                     await MainActor.run {
+                        // Use the SDK progress directly
                         self?.syncService.updateProgress(progress)
                     }
                     
@@ -698,7 +700,7 @@ class WalletService: ObservableObject {
             } catch {
                 await MainActor.run {
                     self?.syncService.reset()
-                    logger.error("❌ Sync error: \(error)")
+                    self?.logger.error("❌ Sync error: \(error)")
                 }
             }
         }
@@ -739,6 +741,7 @@ class WalletService: ObservableObject {
         try await sdk.syncToTipWithProgress(
             progressCallback: { [weak self] progress in
                 Task { @MainActor in
+                    // Use the SDK progress directly
                     self?.syncService.updateProgress(progress)
                     
                     print("\(progress.stage.icon) \(progress.statusMessage)")
@@ -800,7 +803,7 @@ class WalletService: ObservableObject {
         index: UInt32
     ) throws -> (address: String, path: String) {
         // Perform heavy cryptographic operations outside of MainActor
-        let address = HDWalletService.deriveAddress(
+        let address = try HDWalletService.deriveAddress(
             xpub: xpub,
             network: network,
             change: change,
@@ -823,7 +826,7 @@ class WalletService: ObservableObject {
         // Watch the new address if SDK is available
         if let sdk = sdk {
             Task {
-                await addressManagementService.watchAddress(watchedAddress.address, label: watchedAddress.label, sdk: sdk)
+                await addressManagementService.watchAddress(watchedAddress.address, label: watchedAddress.label ?? "Watched", sdk: sdk)
             }
         }
         
@@ -985,7 +988,16 @@ class WalletService: ObservableObject {
             handleConnectionStatusChanged(connected)
             
         case .balanceUpdated(let balance):
-            handleBalanceUpdated(balance)
+            // Convert Balance to LocalBalance
+            let localBalance = LocalBalance(
+                confirmed: balance.confirmed,
+                pending: balance.pending,
+                instantLocked: balance.instantLocked,
+                mempool: balance.mempool,
+                mempoolInstant: balance.mempoolInstant ?? 0,
+                total: balance.total
+            )
+            handleBalanceUpdated(localBalance)
             
         case .transactionReceived(let txid, let confirmed, let amount, let addresses, let blockHeight):
             handleTransactionReceived(txid: txid, confirmed: confirmed, amount: amount, addresses: addresses, blockHeight: blockHeight)
@@ -997,7 +1009,7 @@ class WalletService: ObservableObject {
             handleMempoolTransactionConfirmed(txid: txid, blockHeight: blockHeight, confirmations: confirmations)
             
         case .mempoolTransactionRemoved(let txid, let reason):
-            handleMempoolTransactionRemoved(txid: txid, reason: reason)
+            handleMempoolTransactionRemoved(txid: txid, reason: String(describing: reason))
             
         case .syncProgressUpdated(let progress):
             handleSyncProgressUpdated(progress)
@@ -1226,10 +1238,7 @@ class WalletService: ObservableObject {
                 pendingWatchAddresses[account.id.uuidString] = stillFailedAddresses
             }
             
-            // Update pending count
-            await MainActor.run {
-                self.pendingWatchCount = self.pendingWatchAddresses.values.reduce(0) { $0 + $1.count }
-            }
+            // Pending count is automatically updated by watchAddressService
         }
     }
     
@@ -1663,13 +1672,15 @@ class WalletService: ObservableObject {
     // MARK: - Cleanup
     
     /// Cleanup method that invalidates all timers and cancels any ongoing tasks
-    private func cleanup() {
-        // Invalidate all timers
-        autoSyncTimer?.invalidate()
-        autoSyncTimer = nil
-        
-        watchVerificationTimer?.invalidate()
-        watchVerificationTimer = nil
+    nonisolated private func cleanup() {
+        // Invalidate all timers on MainActor
+        Task { @MainActor in
+            autoSyncTimer?.invalidate()
+            autoSyncTimer = nil
+            
+            watchVerificationTimer?.invalidate()
+            watchVerificationTimer = nil
+        }
         
         // Cancel any ongoing tasks
         // Note: Individual Task cancellation would require storing Task references

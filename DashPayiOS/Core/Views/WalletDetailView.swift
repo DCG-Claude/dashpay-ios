@@ -100,8 +100,8 @@ struct WalletDetailView: View {
         .onChange(of: walletService.syncProgress) { oldValue, newValue in
             handleSyncProgressChange(oldValue: oldValue, newValue: newValue)
         }
-        .onChange(of: walletService.detailedSyncProgress) { oldValue, newValue in
-            handleDetailedSyncProgressChange(oldValue: oldValue, newValue: newValue)
+        .onChange(of: walletService.detailedSyncProgress) { newValue in
+            handleDetailedSyncProgressChange(oldValue: nil, newValue: newValue)
         }
         #else
         HSplitView {
@@ -162,8 +162,8 @@ struct WalletDetailView: View {
         .onChange(of: walletService.syncProgress) { oldValue, newValue in
             handleSyncProgressChange(oldValue: oldValue, newValue: newValue)
         }
-        .onChange(of: walletService.detailedSyncProgress) { oldValue, newValue in
-            handleDetailedSyncProgressChange(oldValue: oldValue, newValue: newValue)
+        .onChange(of: walletService.detailedSyncProgress) { newValue in
+            handleDetailedSyncProgressChange(oldValue: nil, newValue: newValue)
         }
         #endif
     }
@@ -195,7 +195,7 @@ struct WalletDetailView: View {
         }
     }
     
-    private func handleDetailedSyncProgressChange(oldValue: DetailedSyncProgress?, newValue: DetailedSyncProgress?) {
+    private func handleDetailedSyncProgressChange(oldValue: SwiftDashCoreSDK.DetailedSyncProgress?, newValue: SwiftDashCoreSDK.DetailedSyncProgress?) {
         // Also monitor detailed sync progress for completion
         if let progress = newValue, progress.stage == .complete {
             if oldValue?.stage != .complete {
