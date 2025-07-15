@@ -188,7 +188,7 @@ struct TransactionStatusHeader: View {
 // MARK: - Transaction Amount Section
 
 struct TransactionAmountSection: View {
-    let transaction: SwiftDashCoreSDK.Transaction
+    let transaction: DashPay.Transaction
     
     var body: some View {
         VStack(spacing: 16) {
@@ -200,13 +200,13 @@ struct TransactionAmountSection: View {
                 .font(.system(size: 36, weight: .medium, design: .monospaced))
                 .foregroundColor(transaction.amount >= 0 ? .green : .red)
             
-            if transaction.fee > 0 {
+            if let fee = transaction.fee, fee > 0 {
                 VStack(spacing: 4) {
                     Text("Network Fee")
                         .font(.caption)
                         .foregroundColor(.secondary)
                     
-                    Text(formatFee(transaction.fee))
+                    Text(formatFee(fee))
                         .font(.system(.body, design: .monospaced))
                         .foregroundColor(.secondary)
                 }
@@ -230,7 +230,7 @@ struct TransactionAmountSection: View {
 // MARK: - Transaction Details Section
 
 struct TransactionDetailsSection: View {
-    let transaction: SwiftDashCoreSDK.Transaction
+    let transaction: DashPay.Transaction
     
     private static let timestampFormatter: DateFormatter = {
         let formatter = DateFormatter()
@@ -253,12 +253,8 @@ struct TransactionDetailsSection: View {
                 }
                 
                 TransactionDetailRow(label: "Timestamp", value: formatTimestamp(transaction.timestamp))
-                TransactionDetailRow(label: "Size", value: "\(transaction.size) bytes")
-                TransactionDetailRow(label: "Version", value: "\(transaction.version)")
-                
-                if let address = transaction.watchedAddress?.address {
-                    TransactionDetailRow(label: "Address", value: address, isMono: true)
-                }
+                TransactionDetailRow(label: "Size", value: "\(transaction.size ?? 0) bytes")
+                TransactionDetailRow(label: "Version", value: "\(transaction.version ?? 0)")
             }
         }
     }
@@ -271,7 +267,7 @@ struct TransactionDetailsSection: View {
 // MARK: - Transaction Technical Section
 
 struct TransactionTechnicalSection: View {
-    let transaction: SwiftDashCoreSDK.Transaction
+    let transaction: DashPay.Transaction
     @Binding var showRawData: Bool
     
     var body: some View {
@@ -301,7 +297,7 @@ struct TransactionTechnicalSection: View {
                 
                 if showRawData {
                     ScrollView(.horizontal, showsIndicators: true) {
-                        Text(transaction.raw.isEmpty ? "No raw data available" : transaction.raw.hexEncodedString())
+                        Text((transaction.raw?.isEmpty ?? true) ? "No raw data available" : (transaction.raw?.hexEncodedString() ?? "No raw data available"))
                             .font(.system(.caption, design: .monospaced))
                             .padding()
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -317,7 +313,7 @@ struct TransactionTechnicalSection: View {
 // MARK: - Transaction Actions Section
 
 struct TransactionActionsSection: View {
-    let transaction: SwiftDashCoreSDK.Transaction
+    let transaction: DashPay.Transaction
     @Binding var isCopied: Bool
     let currentNetwork: DashNetwork
     
