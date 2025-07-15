@@ -1,0 +1,2 @@
+# Replace account.balance? with account.balance! where we know it exists
+# Or use optional chaining properly

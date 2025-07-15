@@ -1,0 +1,55 @@
+diff --git a/dash-spv/src/network/mod.rs b/dash-spv/src/network/mod.rs
+index 1234567..abcdefg 100644
+--- a/dash-spv/src/network/mod.rs
++++ b/dash-spv/src/network/mod.rs
+@@ -51,7 +51,7 @@ pub trait NetworkManager: Send + Sync {
+     fn is_connected(&self) -> bool;
+ 
+     /// Get the number of connected peers.
+-    fn peer_count(&self) -> usize;
++    async fn peer_count(&self) -> usize;
+ 
+     /// Get information about connected peers.
+     fn peer_info(&self) -> Vec<PeerInfo>;
+@@ -203,7 +203,7 @@ impl NetworkManager for MockNetworkManager {
+         self.connected.load(Ordering::Relaxed)
+     }
+ 
+-    fn peer_count(&self) -> usize {
++    async fn peer_count(&self) -> usize {
+         if self.is_connected() {
+             1
+         } else {
+diff --git a/dash-spv/src/network/multi_peer.rs b/dash-spv/src/network/multi_peer.rs
+index 2345678..bcdefgh 100644
+--- a/dash-spv/src/network/multi_peer.rs
++++ b/dash-spv/src/network/multi_peer.rs
+@@ -1077,11 +1077,8 @@ impl NetworkManager for MultiPeerManager {
+         count > 0
+     }
+ 
+-    fn peer_count(&self) -> usize {
+-        let pool = self.pool.clone();
+-        tokio::task::block_in_place(move || {
+-            tokio::runtime::Handle::current().block_on(pool.connection_count())
+-        })
++    async fn peer_count(&self) -> usize {
++        self.pool.connection_count().await
+     }
+ 
+     fn peer_info(&self) -> Vec<PeerInfo> {
+diff --git a/dash-spv/src/client/mod.rs b/dash-spv/src/client/mod.rs
+index 3456789..cdefghi 100644
+--- a/dash-spv/src/client/mod.rs
++++ b/dash-spv/src/client/mod.rs
+@@ -2759,8 +2759,8 @@ impl DashSpvClient {
+         let mut stats = display.stats().await?;
+         
+         // Add real-time peer count and heights
+-        stats.connected_peers = self.network.peer_count() as u32;
+-        stats.total_peers = self.network.peer_count() as u32; // TODO: Track total discovered peers
++        stats.connected_peers = self.network.peer_count().await as u32;
++        stats.total_peers = self.network.peer_count().await as u32; // TODO: Track total discovered peers
+         
+         // Get current heights from storage
+         if let Ok(Some(header_height)) = self.storage.get_tip_height().await {
