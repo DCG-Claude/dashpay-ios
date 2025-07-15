@@ -34,11 +34,14 @@ class BalanceTransactionService: ObservableObject {
             throw WalletError.noContext
         }
         
+        var updateErrors: [Error] = []
+        
         for (address, balance) in balanceData.addressBalances {
             do {
                 try address.updateBalanceSafely(from: balance, in: context)
             } catch {
                 logger.error("Failed to update address balance for \(address.address): \(error)")
+                updateErrors.append(error)
             }
         }
         
@@ -47,10 +50,21 @@ class BalanceTransactionService: ObservableObject {
             try account.updateBalanceSafely(from: balanceData.accountBalance, in: context)
         } catch {
             logger.error("Failed to update account balance: \(error)")
+            updateErrors.append(error)
         }
         
         // Save to persistence
-        try? context.save()
+        do {
+            try context.save()
+        } catch {
+            logger.error("Failed to save context: \(error)")
+            updateErrors.append(error)
+        }
+        
+        // If any errors were collected, throw an aggregate error
+        if !updateErrors.isEmpty {
+            throw WalletError.aggregateError(updateErrors)
+        }
         
         // Log balance change using the updated account balance
         let currentTotal = account.balance?.total ?? 0
