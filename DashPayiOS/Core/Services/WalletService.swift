@@ -46,9 +46,9 @@ class WalletService: ObservableObject {
     
     // Expose service properties for backward compatibility
     var isConnected: Bool { connectionService.isConnected }
-    var isSyncing: Bool { syncService.isSyncing }
-    var syncProgress: SyncProgress? { syncService.syncProgress }
-    var detailedSyncProgress: DetailedSyncProgress? { syncService.detailedSyncProgress }
+    @Published var isSyncing: Bool = false
+    @Published var syncProgress: SyncProgress?
+    @Published var detailedSyncProgress: DetailedSyncProgress?
     var watchAddressErrors: [WatchAddressError] { watchAddressService.watchAddressErrors }
     var pendingWatchCount: Int { watchAddressService.pendingWatchCount }
     var watchVerificationStatus: WatchVerificationStatus { watchAddressService.watchVerificationStatus }
@@ -75,7 +75,27 @@ class WalletService: ObservableObject {
         walletLifecycleService.configure(modelContext: modelContext)
         addressManagementService.configure(modelContext: modelContext)
         balanceTransactionService.configure(modelContext: modelContext)
+        
+        // Setup bindings between WalletService and SyncStateService properties
+        setupSyncStateBindings()
+        
         logger.info("✅ WalletService configured with modelContext")
+    }
+    
+    /// Setup bindings between WalletService @Published properties and SyncStateService
+    private func setupSyncStateBindings() {
+        // Bind syncService properties to WalletService @Published properties
+        syncService.$isSyncing
+            .receive(on: DispatchQueue.main)
+            .assign(to: &$isSyncing)
+        
+        syncService.$syncProgress
+            .receive(on: DispatchQueue.main)
+            .assign(to: &$syncProgress)
+        
+        syncService.$detailedSyncProgress
+            .receive(on: DispatchQueue.main)
+            .assign(to: &$detailedSyncProgress)
     }
     
     // MARK: - Wallet Management
