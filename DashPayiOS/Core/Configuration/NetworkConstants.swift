@@ -89,40 +89,54 @@ enum NetworkConstants {
         return Array(Set(resolvedPeers))
     }
     
-    /// Resolves a single DNS seed to IP addresses
+    /// Resolves a single DNS seed to IP addresses using proper DNS resolution
     private static func resolveDNSSeed(_ seed: String, port: Int) async -> [String] {
         return await withCheckedContinuation { continuation in
-            let host = NWEndpoint.Host(seed)
-            let parameters = NWParameters.tcp
-            parameters.includePeerToPeer = false
+            var hints = addrinfo()
+            hints.ai_family = AF_UNSPEC  // Allow both IPv4 and IPv6
+            hints.ai_socktype = SOCK_STREAM
+            hints.ai_protocol = IPPROTO_TCP
             
-            let connection = NWConnection(host: host, port: NWEndpoint.Port(integerLiteral: UInt16(port)), using: parameters)
-            
-            // Use a timeout for DNS resolution
-            DispatchQueue.global().asyncAfter(deadline: .now() + 5.0) {
-                connection.cancel()
-                continuation.resume(returning: [])
-            }
-            
-            connection.stateUpdateHandler = { state in
-                switch state {
-                case .ready:
-                    if case .hostPort(let resolvedHost, _) = connection.endpoint {
-                        let peerAddress = "\(resolvedHost):\(port)"
-                        connection.cancel()
-                        continuation.resume(returning: [peerAddress])
-                    } else {
-                        connection.cancel()
-                        continuation.resume(returning: [])
-                    }
-                case .failed(_), .cancelled:
+            DispatchQueue.global().async {
+                var result: UnsafeMutablePointer<addrinfo>?
+                let status = getaddrinfo(seed, "\(port)", &hints, &result)
+                
+                guard status == 0, let addrList = result else {
                     continuation.resume(returning: [])
-                default:
-                    break
+                    return
                 }
+                
+                var resolvedAddresses: [String] = []
+                var current = addrList
+                
+                while current != nil {
+                    defer { current = current?.pointee.ai_next }
+                    
+                    guard let addr = current?.pointee.ai_addr else { continue }
+                    
+                    var hostname = [CChar](repeating: 0, count: Int(NI_MAXHOST))
+                    var service = [CChar](repeating: 0, count: Int(NI_MAXSERV))
+                    
+                    let result = getnameinfo(
+                        addr,
+                        current!.pointee.ai_addrlen,
+                        &hostname,
+                        socklen_t(hostname.count),
+                        &service,
+                        socklen_t(service.count),
+                        NI_NUMERICHOST | NI_NUMERICSERV
+                    )
+                    
+                    if result == 0 {
+                        let ipAddress = String(cString: hostname)
+                        let peerAddress = "\(ipAddress):\(port)"
+                        resolvedAddresses.append(peerAddress)
+                    }
+                }
+                
+                freeaddrinfo(addrList)
+                continuation.resume(returning: resolvedAddresses)
             }
-            
-            connection.start(queue: .global())
         }
     }
 }
