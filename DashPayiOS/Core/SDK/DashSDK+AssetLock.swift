@@ -34,6 +34,10 @@ enum DashSDKAssetLockError: LocalizedError {
 extension DashSDK {
     
     /// Create an asset lock transaction using public API only
+    /// 
+    /// - Warning: The returned Transaction will have empty raw data and zero size 
+    ///   because the public API does not provide access to raw transaction bytes.
+    ///   Use `createAssetLockTransactionResult` for accurate size estimation.
     public func createAssetLockTransactionWithValidation(amount: UInt64) async throws -> SwiftDashCoreSDK.Transaction {
         print("🔒 Creating asset lock transaction for \(amount) satoshis using public API")
         
@@ -67,9 +71,9 @@ extension DashSDK {
         print("✅ Asset lock transaction created: \(txid)")
         
         // Create and return SwiftDashCoreSDK.Transaction using public API data
-        // Note: Raw transaction data is not available from the sendTransaction public API
-        // The size is estimated based on typical asset lock transaction characteristics
-        let estimatedTransactionSize: UInt32 = 250 // Typical asset lock transaction size
+        // IMPORTANT LIMITATION: The public API does not provide raw transaction data
+        // Therefore, this transaction will have empty raw data and zero size
+        // For accurate size estimation, use AssetLockTransactionResult instead
         let transaction = SwiftDashCoreSDK.Transaction(
             txid: txid,
             height: nil,
@@ -78,8 +82,8 @@ extension DashSDK {
             fee: estimatedFee,
             confirmations: 0,
             isInstantLocked: false,
-            raw: Data(), // Empty: raw data not available from public API
-            size: estimatedTransactionSize,
+            raw: Data(), // LIMITATION: Raw data unavailable from public API
+            size: 0, // LIMITATION: Actual size unavailable from public API
             version: 3 // Asset lock transactions use version 3
         )
         
@@ -87,20 +91,24 @@ extension DashSDK {
     }
     
     /// Create an asset lock transaction result using public API only
+    /// 
+    /// - Note: The result will contain empty rawTransaction data since the public API
+    ///   does not provide raw transaction bytes. Size estimation is used instead.
     public func createAssetLockTransactionResult(
         amount: UInt64,
         feeRate: UInt64 = 2000
     ) async throws -> AssetLockTransactionResult {
         let transaction = try await createAssetLockTransactionWithValidation(amount: amount)
         
-        // Create result with transaction data
-        // Note: rawTransaction is empty because the public API doesn't provide raw transaction bytes
+        // Create result with transaction data from public API
+        // LIMITATION: rawTransaction will be empty because public API doesn't provide raw bytes
+        // Size estimation will be used instead of actual transaction size
         let result = AssetLockTransactionResult(
             txid: transaction.txid,
-            rawTransaction: transaction.raw, // Empty: not available from public API
+            rawTransaction: transaction.raw, // LIMITATION: Empty - not available from public API
             amount: amount,
             fee: transaction.fee,
-            selectedUTXOs: [] // UTXO selection handled internally by public API
+            selectedUTXOs: [] // LIMITATION: UTXO selection handled internally by public API
         )
         
         return result
@@ -203,6 +211,10 @@ extension DashSDK {
 
 // MARK: - Asset Lock Transaction Result
 
+/// Result of an asset lock transaction creation
+/// 
+/// - Note: When created via public API, `rawTransaction` will be empty since the API
+///   does not provide raw transaction bytes. The `size` property will use estimation.
 public struct AssetLockTransactionResult {
     public let txid: String
     public let rawTransaction: Data
@@ -211,8 +223,18 @@ public struct AssetLockTransactionResult {
     public let selectedUTXOs: [UTXO]
     
     public var size: Int {
-        // Return actual size if raw transaction data is available, otherwise use estimated size
-        return rawTransaction.count > 0 ? rawTransaction.count : 250 // Estimated size for asset lock transactions
+        // Return actual size if raw transaction data is available
+        if rawTransaction.count > 0 {
+            return rawTransaction.count
+        }
+        
+        // When raw data is unavailable, estimate size based on typical asset lock transaction structure:
+        // - Base transaction: ~80 bytes
+        // - Input (P2PKH): ~148 bytes
+        // - Output (asset lock P2SH): ~32 bytes  
+        // - Output (change P2PKH): ~34 bytes
+        // Total estimated: ~294 bytes (rounded to 300 for safety margin)
+        return 300
     }
     
     public var feeRate: UInt64 {
