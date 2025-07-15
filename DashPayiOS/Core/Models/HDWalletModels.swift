@@ -5,7 +5,7 @@ import SwiftDashCoreSDK
 // MARK: - HD Wallet
 
 @Model
-final class HDWallet {
+final class HDWallet: @unchecked Sendable {
     @Attribute(.unique) var id: UUID
     var name: String
     var network: DashNetwork
@@ -74,7 +74,7 @@ final class HDWallet {
 // MARK: - HD Account (BIP44)
 
 @Model
-final class HDAccount {
+final class HDAccount: @unchecked Sendable {
     @Attribute(.unique) var id: UUID
     var accountIndex: UInt32
     var label: String
@@ -134,7 +134,7 @@ final class HDAccount {
 // MARK: - HD Watched Address
 
 @Model
-public final class HDWatchedAddress {
+public final class HDWatchedAddress: @unchecked Sendable {
     @Attribute(.unique) var address: String
     var label: String?
     var createdAt: Date
@@ -208,7 +208,7 @@ public final class HDWatchedAddress {
 // MARK: - Sync State
 
 @Model
-final class SyncState {
+final class SyncState: @unchecked Sendable {
     @Attribute(.unique) var walletId: UUID
     var currentHeight: UInt32
     var totalHeight: UInt32

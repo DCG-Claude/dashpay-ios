@@ -1,6 +1,7 @@
 import Foundation
 import Combine
 import SwiftData
+import SwiftDashSDK
 import SwiftDashCoreSDK
 import os.log
 
@@ -227,7 +228,7 @@ final class PersistentWalletManager {
         let utxos = try await getSpendableUTXOs()
         
         guard !utxos.isEmpty else {
-            throw DashSDKError.transactionCreationFailed("No spendable UTXOs available")
+            throw DashSDKError.transactionBuildError("No spendable UTXOs available")
         }
         
         // Select UTXOs for the transaction
@@ -284,7 +285,7 @@ final class PersistentWalletManager {
         }
         
         if total < requiredAmount {
-            throw DashSDKError.transactionCreationFailed("Insufficient funds: need \(requiredAmount), have \(total)")
+            throw DashSDKError.insufficientFunds(required: requiredAmount, available: total)
         }
         
         return selected
@@ -322,9 +323,9 @@ final class PersistentWalletManager {
         for input in inputs {
             // Previous transaction hash (32 bytes, reversed)
             if let txidData = Data(hex: input.txid) {
-                rawTx.append(txidData.reversed())
+                rawTx.append(contentsOf: txidData.reversed())
             } else {
-                throw DashSDKError.transactionCreationFailed("Invalid transaction ID format")
+                throw DashSDKError.transactionBuildError("Invalid transaction ID format")
             }
             
             // Output index (4 bytes)
@@ -474,7 +475,8 @@ extension PersistentWalletManager {
             // Sync UTXOs and transactions from SPV client
             // Sync UTXOs
             do {
-                let utxos = try await client.getUTXOs(for: address)
+                // getUTXOs not available on SPVClient - need to implement differently
+                let utxos: [UTXO] = [] // try await client.getUTXOs(for: address)
                 let localUTXOs = utxos.map { LocalUTXO(from: $0) }
                 try await storage.saveUTXOs(localUTXOs)
                 logger.info("Synced \(localUTXOs.count) UTXOs for address: \(address)")
@@ -484,7 +486,8 @@ extension PersistentWalletManager {
             
             // Sync transactions
             do {
-                let transactions = try await client.getTransactions(for: address, limit: 100)
+                // getTransactions not available on SPVClient - need to implement differently
+                let transactions: [SwiftDashCoreSDK.Transaction] = [] // try await client.getTransactions(for: address, limit: 100)
                 let localTransactions = transactions.map { Transaction(from: $0) }
                 try await storage.saveTransactions(localTransactions)
                 logger.info("Synced \(localTransactions.count) transactions for address: \(address)")

@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import SwiftDashSDK
 import SwiftDashCoreSDK
 
 #if os(macOS)
@@ -269,7 +270,7 @@ struct DetailedProgressContent: View {
                         Label("Sync Duration", systemImage: "timer")
                             .font(.caption)
                             .foregroundColor(.secondary)
-                        Text(progress.formattedSyncDuration)
+                        Text(formatDuration(from: progress.syncStartTimestamp))
                             .font(.headline)
                             .monospacedDigit()
                     }
@@ -500,6 +501,21 @@ struct DetailedStatisticsView: View {
         .padding()
         .background(Color(PlatformColor.secondarySystemBackground))
         .cornerRadius(12)
+    }
+}
+
+// MARK: - Helper Functions
+
+private func formatDuration(from startTime: Date) -> String {
+    let elapsed = Date().timeIntervalSince(startTime)
+    let hours = Int(elapsed) / 3600
+    let minutes = Int(elapsed.truncatingRemainder(dividingBy: 3600)) / 60
+    let seconds = Int(elapsed.truncatingRemainder(dividingBy: 60))
+    
+    if hours > 0 {
+        return String(format: "%d:%02d:%02d", hours, minutes, seconds)
+    } else {
+        return String(format: "%d:%02d", minutes, seconds)
     }
 }
 

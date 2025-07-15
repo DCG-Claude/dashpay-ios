@@ -102,7 +102,8 @@ actor DAPIEndpointManager {
                 network: network,
                 configuredEndpoints: configuredResults,
                 fallbackEndpoints: fallbackResults,
-                timestamp: Date()
+                timestamp: Date(),
+                configurationError: nil
             )
         } catch {
             print("🔴 Failed to generate connectivity report: \(error)")

@@ -1,6 +1,7 @@
 import Foundation
 import Combine
 import os.log
+import SwiftDashSDK
 import SwiftDashCoreSDK
 
 /// Service responsible for managing connection state and related functionality

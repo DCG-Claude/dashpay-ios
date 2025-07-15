@@ -2,6 +2,7 @@ import Foundation
 import Combine
 import SwiftData
 import UserNotifications
+import SwiftDashSDK
 import SwiftDashCoreSDK
 
 /// Manages unified state across Core and Platform layers
@@ -11,7 +12,7 @@ class UnifiedStateManager: ObservableObject {
     
     @Published private(set) var unifiedBalance = UnifiedBalance()
     @Published private(set) var wallets: [Wallet] = []
-    @Published internal(set) var identities: [Identity] = []
+    @Published var identities: [Identity] = []
     // Removed duplicate sync tracking - use WalletService.detailedSyncProgress instead
     @Published private(set) var isPlatformSynced = false
     @Published private(set) var isLoading = false
@@ -41,7 +42,8 @@ class UnifiedStateManager: ObservableObject {
                 if let platformWrapper = platformWrapper {
                     let assetLockBridge = await AssetLockBridge(
                         coreSDK: coreSDK,
-                        platformSDK: platformWrapper
+                        platformSDK: platformWrapper,
+                        walletService: WalletService.shared
                     )
                     self.assetLockBridge = assetLockBridge
                     
@@ -85,7 +87,8 @@ class UnifiedStateManager: ObservableObject {
             self.platformWrapper = wrapper
             self.assetLockBridge = await AssetLockBridge(
                 coreSDK: coreSDK,
-                platformSDK: wrapper
+                platformSDK: wrapper,
+                walletService: WalletService.shared
             )
             
             // Update initialization state
@@ -108,7 +111,8 @@ class UnifiedStateManager: ObservableObject {
             if let platformWrapper = platformWrapper {
                 self.assetLockBridge = await AssetLockBridge(
                     coreSDK: sdk,
-                    platformSDK: platformWrapper
+                    platformSDK: platformWrapper,
+                    walletService: WalletService.shared
                 )
             }
             
@@ -260,7 +264,7 @@ class UnifiedStateManager: ObservableObject {
             identities.append(identity)
             
             // Step 5: Update balances
-            let actualFee = assetLock.transaction.fee ?? 250_000 // Use actual fee or estimate
+            let actualFee = UInt64(assetLock.transaction.fee) // Use actual fee
             updateCoreBalance(wallet.balance - amount - UInt64(actualFee))
             updatePlatformCredits(identity.balance)
             
@@ -480,9 +484,10 @@ class UnifiedStateManager: ObservableObject {
             
             // Update platform balances
             for (identityId, balance) in result.platformBalances {
-                if let index = identities.firstIndex(where: { $0.id == identityId }) {
+                if let index = identities.firstIndex(where: { $0.idString == identityId }) {
                     identities[index] = Identity(
-                        id: identityId,
+                        id: identities[index].id,
+                        publicKeys: identities[index].publicKeys,
                         balance: balance,
                         revision: identities[index].revision
                     )
@@ -598,7 +603,7 @@ class UnifiedStateManager: ObservableObject {
                     print("   Block: \(height)")
                 }
                 
-            case .mempoolTransactionAdded(let txid, let amount, let addresses):
+            case .mempoolTransactionAdded(let txid, let _, let addresses):
                 print("🏊 Mempool transaction added: \(txid)")
                 
             case .mempoolTransactionConfirmed(let txid, let blockHeight, let confirmations):

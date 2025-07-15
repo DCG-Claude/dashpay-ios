@@ -1,4 +1,5 @@
 import Foundation
+import SwiftData
 
 /// Comprehensive document service for Platform document CRUD operations
 @MainActor
@@ -8,6 +9,25 @@ class DocumentService: ObservableObject {
     
     @Published var isLoading = false
     @Published var error: DocumentServiceError?
+    
+    // MARK: - Preview Helpers
+    
+    static func createPreviewFallback() -> DocumentService {
+        // Create a minimal fallback service for SwiftUI previews when all else fails
+        let platformSDK = PlatformSDKWrapper.createPreviewInstance()
+        
+        // Create a minimal data manager with empty context
+        do {
+            let schema = Schema([])
+            let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+            let container = try ModelContainer(for: schema, configurations: [config])
+            let dataManager = DataManager(modelContext: container.mainContext)
+            return DocumentService(platformSDK: platformSDK, dataManager: dataManager)
+        } catch {
+            // Ultimate fallback - this should never happen but prevents crashes
+            fatalError("Could not create preview fallback DocumentService: \(error)")
+        }
+    }
     
     init(platformSDK: PlatformSDKWrapper, dataManager: DataManager) {
         self.platformSDK = platformSDK
@@ -40,7 +60,7 @@ class DocumentService: ObservableObject {
             let dataManager = DataManager(modelContext: container.mainContext)
             
             // Create a minimal PlatformSDKWrapper for testnet
-            let platformSDK = try PlatformSDKWrapper(network: .testnet)
+            let platformSDK = PlatformSDKWrapper.createPreviewInstance()
             
             return DocumentService(platformSDK: platformSDK, dataManager: dataManager)
         } catch {
@@ -308,11 +328,15 @@ class DocumentService: ObservableObject {
         defer { isLoading = false }
         
         do {
-            // Use the enhanced Platform SDK method
-            let platformDocuments = try await platformSDK.fetchDocumentsByType(
+            // Use search documents with type filter
+            let query = DocumentQuery()
+                .addPropertyFilter(property: "$type", value: documentType)
+                .limit(limit)
+            
+            let platformDocuments = try await platformSDK.searchDocuments(
                 contractId: contractId,
                 documentType: documentType,
-                limit: limit
+                query: query.toDictionary()
             )
             
             // Convert to DocumentModels
@@ -346,12 +370,16 @@ class DocumentService: ObservableObject {
         defer { isLoading = false }
         
         do {
-            // Use the enhanced Platform SDK method
-            let platformDocuments = try await platformSDK.fetchDocumentsByOwner(
+            // Use search documents with owner filter
+            let query = DocumentQuery()
+                .addPropertyFilter(property: "$ownerId", value: ownerId)
+                .addPropertyFilter(property: "$type", value: documentType)
+                .limit(limit)
+            
+            let platformDocuments = try await platformSDK.searchDocuments(
                 contractId: contractId,
                 documentType: documentType,
-                ownerId: ownerId,
-                limit: limit
+                query: query.toDictionary()
             )
             
             // Convert to DocumentModels
@@ -643,6 +671,30 @@ class DocumentQuery {
     func offset(_ offset: Int) -> DocumentQuery {
         self.offset = offset
         return self
+    }
+    
+    func toDictionary() -> [String: Any] {
+        var dict: [String: Any] = [:]
+        
+        // Add property filters
+        for filter in propertyFilters {
+            dict[filter.property] = filter.value
+        }
+        
+        // Add sorting
+        if let sortBy = sortBy {
+            dict["orderBy"] = [
+                [sortBy, sortOrder == .ascending ? "asc" : "desc"]
+            ]
+        }
+        
+        // Add pagination
+        dict["limit"] = limit
+        if offset > 0 {
+            dict["startAt"] = offset
+        }
+        
+        return dict
     }
 }
 

@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import SwiftDashSDK
 import SwiftDashCoreSDK
 
 /// Block explorer configuration for different networks
@@ -26,16 +27,16 @@ struct BlockExplorerConfig {
 }
 
 struct TransactionDetailView: View {
-    let transaction: SwiftDashCoreSDK.Transaction
+    let transaction: DashPay.Transaction
     @State private var showRawData = false
     @State private var isCopied = false
     @Environment(\.dismiss) private var dismiss
     
     // Access the current network from the app state
     // This can be injected or passed as a parameter when creating the view
-    var currentNetwork: DashNetwork
+    let currentNetwork: DashNetwork
     
-    init(transaction: SwiftDashCoreSDK.Transaction, currentNetwork: DashNetwork = .testnet) {
+    init(transaction: Transaction, currentNetwork: DashNetwork = .testnet) {
         self.transaction = transaction
         self.currentNetwork = currentNetwork
     }
@@ -45,19 +46,89 @@ struct TransactionDetailView: View {
             ScrollView {
                 VStack(spacing: 20) {
                     // Transaction Status Header
-                    TransactionStatusHeader(transaction: transaction)
-                    
-                    // Amount Section
-                    TransactionAmountSection(transaction: transaction)
+                    // TODO: Convert local Transaction to SwiftDashCoreSDK.Transaction
+                    // For now, show basic info
+                    VStack {
+                        HStack {
+                            Image(systemName: transaction.isInstantLocked ? "lock.fill" : "clock")
+                                .foregroundColor(transaction.isInstantLocked ? .green : .orange)
+                            Text(transaction.isInstantLocked ? "Instant Locked" : "Pending")
+                                .font(.headline)
+                        }
+                        .padding()
+                        .background(Color.gray.opacity(0.1))
+                        .cornerRadius(10)
+                        
+                        VStack(spacing: 10) {
+                            Text(transaction.amount > 0 ? "Received" : "Sent")
+                                .font(.title2)
+                                .fontWeight(.bold)
+                            
+                            Text(DashFormatting.formatDash(UInt64(abs(transaction.amount))))
+                                .font(.largeTitle)
+                                .fontWeight(.bold)
+                                .foregroundColor(transaction.amount > 0 ? .green : .red)
+                            
+                            Text("DASH")
+                                .font(.title3)
+                                .foregroundColor(.secondary)
+                        }
+                        .padding()
+                    }
                     
                     // Transaction Details
-                    TransactionDetailsSection(transaction: transaction)
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Transaction ID:")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Text(transaction.txid)
+                            .font(.body)
+                            .textSelection(.enabled)
+                        
+                        Text("Created:")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Text(transaction.timestamp.formatted())
+                            .font(.body)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding()
+                    .background(Color(.systemGray6))
+                    .cornerRadius(10)
                     
-                    // Technical Information
-                    TransactionTechnicalSection(transaction: transaction, showRawData: $showRawData)
+                    // Technical Information (simplified)
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Block Height:")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Text("\(transaction.height ?? 0)")
+                            .font(.body)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding()
+                    .background(Color(.systemGray6))
+                    .cornerRadius(10)
                     
                     // Actions
-                    TransactionActionsSection(transaction: transaction, isCopied: $isCopied, currentNetwork: currentNetwork)
+                    VStack(spacing: 12) {
+                        Button(action: {
+                            UIPasteboard.general.string = transaction.txid
+                            isCopied = true
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                                isCopied = false
+                            }
+                        }) {
+                            HStack {
+                                Image(systemName: isCopied ? "checkmark" : "doc.on.doc")
+                                Text(isCopied ? "Copied!" : "Copy Transaction ID")
+                            }
+                            .foregroundColor(.white)
+                            .padding()
+                            .background(Color.blue)
+                            .cornerRadius(10)
+                        }
+                    }
+                    .padding()
                 }
                 .padding()
             }
@@ -368,7 +439,9 @@ extension Data {
 
 
 #Preview {
-    let transaction = SwiftDashCoreSDK.Transaction(
+    // Create a mock transaction for preview
+    // Note: In a real app, this would come from SwiftData with proper relationships
+    let transaction = Transaction(
         txid: "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
         height: 850000,
         timestamp: Date(),
@@ -378,8 +451,7 @@ extension Data {
         isInstantLocked: true,
         raw: Data(),
         size: 250,
-        version: 1,
-        watchedAddress: nil
+        version: 1
     )
     
     TransactionDetailView(transaction: transaction, currentNetwork: .testnet)

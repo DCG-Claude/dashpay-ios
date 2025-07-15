@@ -1,4 +1,5 @@
 import Foundation
+import SwiftDashSDK
 
 /// Platform FFI specific errors
 enum PlatformFFIError: LocalizedError {

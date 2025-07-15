@@ -5,7 +5,7 @@ import SwiftDashCoreSDK
 // Local Balance model for DashPayiOS
 // This is separate from SwiftDashCoreSDK.Balance to avoid SwiftData conflicts
 @Model
-final class LocalBalance {
+final class LocalBalance: @unchecked Sendable {
     var confirmed: UInt64
     var pending: UInt64
     var instantLocked: UInt64

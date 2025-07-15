@@ -1,5 +1,6 @@
 import Foundation
 import SwiftData
+import SwiftDashSDK
 import SwiftDashCoreSDK
 import SQLite3
 
@@ -394,6 +395,7 @@ struct ModelContainerHelper {
     }
     
     /// Check if the current store needs migration
+    @MainActor
     static func needsMigration(for container: ModelContainer) -> Bool {
         // Check if migration is needed by comparing stored schema version
         // with current WalletSchemaV1 version

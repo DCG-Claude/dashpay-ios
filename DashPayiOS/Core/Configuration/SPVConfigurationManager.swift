@@ -1,5 +1,6 @@
 import Foundation
 import os.log
+import SwiftDashSDK
 import SwiftDashCoreSDK
 
 /// Singleton manager for SPVClientConfiguration instances

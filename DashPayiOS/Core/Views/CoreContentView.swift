@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import SwiftDashSDK
 import SwiftDashCoreSDK
 
 struct CoreContentView: View {
@@ -216,7 +217,7 @@ struct WalletRowView: View {
                         .font(.caption2)
                         .foregroundColor(.blue)
                 } else {
-                    Text(wallet.totalBalance?.formattedTotal ?? "0.00000000 DASH")
+                    Text(wallet.totalBalance.formattedTotal)
                         .font(.caption)
                         .monospacedDigit()
                         .foregroundColor(.secondary)

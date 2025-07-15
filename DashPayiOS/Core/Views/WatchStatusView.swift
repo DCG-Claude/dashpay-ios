@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftDashCoreSDK
+import SwiftDashSDK
 
 struct WatchStatusView: View {
     let status: WatchVerificationStatus

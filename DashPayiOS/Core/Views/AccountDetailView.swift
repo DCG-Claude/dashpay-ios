@@ -1,6 +1,6 @@
 import SwiftUI
 import SwiftData
-import SwiftDashCoreSDK
+import SwiftDashSDK
 
 struct AccountDetailView: View {
     @EnvironmentObject private var walletService: WalletService
@@ -261,13 +261,13 @@ struct BalanceComponent: View {
 struct TransactionsTabView: View {
     let account: HDAccount
     @State private var searchText = ""
-    @State private var transactions: [SwiftDashCoreSDK.Transaction] = []
+    @State private var transactions: [Transaction] = []
     @State private var isLoading = true
     @State private var checkTimer: Timer?
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject private var walletService: WalletService
     
-    var filteredTransactions: [SwiftDashCoreSDK.Transaction] {
+    var filteredTransactions: [Transaction] {
         if searchText.isEmpty {
             return transactions
         } else {
@@ -343,7 +343,25 @@ struct TransactionsTabView: View {
     
     private func loadTransactions() async {
         isLoading = true
-        transactions = await walletService.fetchTransactionsForAccount(account)
+        let sdkTransactions = await walletService.fetchTransactionsForAccount(account)
+        
+        // Convert SDK transactions to our local Transaction model
+        transactions = sdkTransactions.compactMap { sdkTx in
+            // Create a local transaction from SDK transaction
+            Transaction(
+                txid: sdkTx.txid,
+                height: sdkTx.height,
+                timestamp: sdkTx.timestamp,
+                amount: sdkTx.amount,
+                fee: sdkTx.fee,
+                confirmations: sdkTx.confirmations,
+                isInstantLocked: sdkTx.isInstantLocked,
+                raw: sdkTx.raw,
+                size: sdkTx.size,
+                version: sdkTx.version
+            )
+        }
+        
         isLoading = false
     }
 }
@@ -354,6 +372,8 @@ struct AddressesTabView: View {
     @EnvironmentObject private var walletService: WalletService
     let account: HDAccount
     @State private var showingExternal = true
+    @State private var addressGenerationError: String?
+    @State private var showAddressGenerationError = false
     
     var addresses: [HDWatchedAddress] {
         showingExternal ? account.externalAddresses : account.internalAddresses
@@ -392,6 +412,13 @@ struct AddressesTabView: View {
                 .padding()
             }
         }
+        .alert("Address Generation Error", isPresented: $showAddressGenerationError) {
+            Button("OK") {
+                showAddressGenerationError = false
+            }
+        } message: {
+            Text(addressGenerationError ?? "Unknown error")
+        }
     }
     
     private func generateNewAddress() {
@@ -416,7 +443,7 @@ struct UTXOsTabView: View {
     let account: HDAccount
     @Environment(\.modelContext) private var modelContext
     
-    var utxos: [SwiftDashCoreSDK.UTXO] {
+    var utxos: [LocalUTXO] {
         // TODO: Implement UTXO fetching from SDK
         // UTXO is not a SwiftData model, need to fetch from SDK
         return []
@@ -489,7 +516,7 @@ struct AccountEmptyStateView: View {
 // MARK: - Row Views
 
 struct TransactionRowView: View {
-    let transaction: SwiftDashCoreSDK.Transaction
+    let transaction: Transaction
     @State private var showingDetail = false
     
     var body: some View {
@@ -615,7 +642,7 @@ struct AddressRowView: View {
 }
 
 struct UTXORowView: View {
-    let utxo: SwiftDashCoreSDK.UTXO
+    let utxo: LocalUTXO
     
     var body: some View {
         HStack {
@@ -637,7 +664,7 @@ struct UTXORowView: View {
             Spacer()
             
             VStack(alignment: .trailing, spacing: 4) {
-                Text(utxo.formattedValue)
+                Text(utxo.displayValue)
                     .font(.system(.body, design: .monospaced))
                 
                 if utxo.isInstantLocked {

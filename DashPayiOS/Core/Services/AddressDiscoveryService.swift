@@ -1,4 +1,5 @@
 import Foundation
+import SwiftDashSDK
 import SwiftDashCoreSDK
 
 // MARK: - Address Discovery Service
@@ -62,7 +63,7 @@ class AddressDiscoveryService {
                 throw WalletError.derivationFailed
             }
             
-            let batchAddresses = HDWalletService.deriveAddresses(
+            let batchAddresses = try HDWalletService.deriveAddresses(
                 xpub: xpub,
                 network: network,
                 change: change,

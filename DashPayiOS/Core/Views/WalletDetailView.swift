@@ -1,7 +1,8 @@
 import SwiftUI
 import SwiftData
-import SwiftDashCoreSDK
+import SwiftDashSDK
 import DashSPVFFI
+import SwiftDashCoreSDK
 
 struct WalletDetailView: View {
     @EnvironmentObject private var walletService: WalletService

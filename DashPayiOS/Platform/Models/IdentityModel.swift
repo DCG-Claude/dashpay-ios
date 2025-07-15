@@ -43,7 +43,7 @@ struct IdentityModel: Identifiable, Equatable, Hashable {
     
     /// Get the identity ID as a hex string
     var idString: String {
-        id.toHexString()
+        (id as Data).toHexString()
     }
     
     init(id: Data, balance: UInt64 = 0, isLocal: Bool = true, alias: String? = nil, type: IdentityType = .user, privateKeys: [String] = [], votingPrivateKey: String? = nil, ownerPrivateKey: String? = nil, payoutPrivateKey: String? = nil, dppIdentity: DPPIdentity? = nil, publicKeys: [IdentityPublicKey] = []) {

@@ -13,12 +13,30 @@ class NetworkMonitor: ObservableObject {
         // Set initial network status based on current path
         let currentPath = monitor.currentPath
         self.isConnected = currentPath.status == .satisfied
-        self.connectionType = currentPath.usedInterfaceType
+        // Get connection type from available interfaces
+        if currentPath.usesInterfaceType(.wifi) {
+            self.connectionType = .wifi
+        } else if currentPath.usesInterfaceType(.cellular) {
+            self.connectionType = .cellular
+        } else if currentPath.usesInterfaceType(.wiredEthernet) {
+            self.connectionType = .wiredEthernet
+        } else {
+            self.connectionType = .other
+        }
         
         monitor.pathUpdateHandler = { [weak self] path in
             Task { @MainActor in
                 self?.isConnected = path.status == .satisfied
-                self?.connectionType = path.usedInterfaceType
+                // Get connection type from available interfaces
+                if path.usesInterfaceType(.wifi) {
+                    self?.connectionType = .wifi
+                } else if path.usesInterfaceType(.cellular) {
+                    self?.connectionType = .cellular
+                } else if path.usesInterfaceType(.wiredEthernet) {
+                    self?.connectionType = .wiredEthernet
+                } else {
+                    self?.connectionType = .other
+                }
             }
         }
         monitor.start(queue: queue)

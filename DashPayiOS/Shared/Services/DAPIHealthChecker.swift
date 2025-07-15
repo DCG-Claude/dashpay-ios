@@ -166,8 +166,9 @@ actor DAPIHealthChecker {
             for endpoint in endpoints {
                 group.addTask {
                     await semaphore.wait()
-                    defer { semaphore.signal() }
-                    return await self.checkEndpointHealth(endpoint)
+                    let result = await self.checkEndpointHealth(endpoint)
+                    await semaphore.signal()
+                    return result
                 }
             }
             
@@ -240,33 +241,3 @@ enum DAPIHealthError: LocalizedError {
     }
 }
 
-// MARK: - AsyncSemaphore Helper
-
-/// Simple async semaphore implementation
-actor AsyncSemaphore {
-    private var count: Int
-    private var waiters: [CheckedContinuation<Void, Never>] = []
-    
-    init(value: Int) {
-        self.count = value
-    }
-    
-    func wait() async {
-        count -= 1
-        if count >= 0 {
-            return
-        }
-        
-        await withCheckedContinuation { continuation in
-            waiters.append(continuation)
-        }
-    }
-    
-    func signal() {
-        count += 1
-        if !waiters.isEmpty {
-            let waiter = waiters.removeFirst()
-            waiter.resume()
-        }
-    }
-}

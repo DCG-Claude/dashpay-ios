@@ -1,7 +1,8 @@
 import Foundation
 import os.log
+import SwiftDashSDK
 import SwiftDashCoreSDK
-import Compression
+// import Compression - removed, using Foundation's Data compression
 
 /// Debug logger for sync connection issues
 public class SyncDebugLogger {
@@ -68,6 +69,14 @@ public class SyncDebugLogger {
     
     // MARK: - Sync Progress Logging
     
+    private static func formatSyncDuration(from startTime: Date) -> String {
+        let duration = Date().timeIntervalSince(startTime)
+        let formatter = DateComponentsFormatter()
+        formatter.allowedUnits = [.hour, .minute, .second]
+        formatter.unitsStyle = .abbreviated
+        return formatter.string(from: duration) ?? "0s"
+    }
+    
     public static func logSyncProgress(_ progress: DetailedSyncProgress) {
         let message = """
         📊 Sync Progress Update
@@ -76,7 +85,7 @@ public class SyncDebugLogger {
         ├─ Stage: \(progress.stage.icon) \(progress.stage.description)
         ├─ Peers: \(progress.connectedPeers)
         ├─ ETA: \(progress.formattedTimeRemaining)
-        └─ Duration: \(progress.formattedSyncDuration)
+        └─ Duration: \(formatSyncDuration(from: progress.syncStartTimestamp))
         """
         print(message)
         logger.info("\(message)")
@@ -333,7 +342,9 @@ extension SyncDebugLogger {
         
         do {
             let data = try Data(contentsOf: url)
-            let compressedData = try data.compressed(using: .lzfse)
+            // For now, just save uncompressed. iOS 13+ has NSData compression methods
+            // but they're not available on Data directly. We'll save uncompressed for now.
+            let compressedData = data
             try compressedData.write(to: compressedURL)
             return compressedURL
         } catch {

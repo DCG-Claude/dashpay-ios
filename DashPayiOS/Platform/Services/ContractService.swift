@@ -1,4 +1,5 @@
 import Foundation
+import SwiftDashSDK
 
 /// Comprehensive service for managing data contracts on Dash Platform
 @MainActor
@@ -17,32 +18,24 @@ class ContractService {
     func fetchContract(id: String) async throws -> ContractModel {
         print("📄 Fetching contract: \(id)")
         
-        let sdkHandle = await platformSDK.sdkHandle
+        // Stub implementation - PlatformSDKWrapper doesn't have sdkHandle yet
+        // let sdkHandle = await platformSDK.sdkHandle
         
         // Validate contract ID format
         guard isValidContractId(id) else {
             throw ContractError.invalidContractId(id)
         }
         
-        return try await FFIHelpers.asyncFFICall(timeout: 30.0) {
-            return try await withCheckedThrowingContinuation { continuation in
-                Task {
-                    do {
-                        let result = try await self.performContractFetch(sdkHandle: sdkHandle, contractId: id)
-                        continuation.resume(returning: result)
-                    } catch {
-                        continuation.resume(throwing: error)
-                    }
-                }
-            }
-        }
+        // Stub implementation during migration
+        throw ContractError.notImplemented("Contract fetching temporarily disabled during migration")
     }
     
     /// Fetch multiple contracts by their IDs
     func fetchContracts(ids: [String]) async throws -> [ContractModel] {
         print("📄 Fetching \(ids.count) contracts")
         
-        let sdkHandle = await platformSDK.sdkHandle
+        // Stub implementation - PlatformSDKWrapper doesn't have sdkHandle yet
+        // let sdkHandle = await platformSDK.sdkHandle
         
         // Validate all contract IDs
         for id in ids {
@@ -51,18 +44,8 @@ class ContractService {
             }
         }
         
-        return try await FFIHelpers.asyncFFICall(timeout: 60.0) {
-            return try await withCheckedThrowingContinuation { continuation in
-                Task {
-                    do {
-                        let result = try await self.performContractsBatch(sdkHandle: sdkHandle, contractIds: ids)
-                        continuation.resume(returning: result)
-                    } catch {
-                        continuation.resume(throwing: error)
-                    }
-                }
-            }
-        }
+        // Stub implementation during migration
+        throw ContractError.notImplemented("Batch contract fetching temporarily disabled during migration")
     }
     
     /// Get contract history with pagination
@@ -74,30 +57,15 @@ class ContractService {
     ) async throws -> ContractHistoryResult {
         print("📄 Fetching contract history for: \(id)")
         
-        let sdkHandle = await platformSDK.sdkHandle
+        // Stub implementation - PlatformSDKWrapper doesn't have sdkHandle yet
+        // let sdkHandle = await platformSDK.sdkHandle
         
         guard isValidContractId(id) else {
             throw ContractError.invalidContractId(id)
         }
         
-        return try await FFIHelpers.asyncFFICall(timeout: 30.0) {
-            return try await withCheckedThrowingContinuation { continuation in
-                Task {
-                    do {
-                        let result = try await self.performContractHistoryFetch(
-                            sdkHandle: sdkHandle,
-                            contractId: id,
-                            limit: limit,
-                            offset: offset,
-                            startAtMs: startAtMs ?? 0
-                        )
-                        continuation.resume(returning: result)
-                    } catch {
-                        continuation.resume(throwing: error)
-                    }
-                }
-            }
-        }
+        // Stub implementation during migration
+        throw ContractError.notImplemented("Contract history fetching temporarily disabled during migration")
     }
     
     // MARK: - Contract Discovery
@@ -714,6 +682,7 @@ enum ContractError: Error, LocalizedError {
     case invalidResponse(String)
     case parseError(String)
     case validationFailed([ContractValidationIssue])
+    case notImplemented(String)
     
     var errorDescription: String? {
         switch self {
@@ -729,6 +698,8 @@ enum ContractError: Error, LocalizedError {
             return "Parse error: \(message)"
         case .validationFailed(let issues):
             return "Contract validation failed: \(issues.count) issues found"
+        case .notImplemented(let feature):
+            return "Not implemented: \(feature)"
         }
     }
 }

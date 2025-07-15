@@ -1,4 +1,5 @@
 import Foundation
+import SwiftDashSDK
 
 /// Service for handling all token operations using Platform SDK FFI
 /// 
@@ -518,7 +519,7 @@ class TokenService: ObservableObject {
         claimerIdentity: IdentityModel,
         tokenContractId: String,
         tokenPosition: UInt16 = 0,
-        distributionType: DashSDKTokenDistributionType = DashSDKTokenDistributionType.preProgrammed,
+        distributionType: DashSDKTokenDistributionType = DashSDKTokenDistributionType(rawValue: 0),
         publicNote: String? = nil
     ) async throws -> String {
         guard let sdkHandle = sdk.handle else {

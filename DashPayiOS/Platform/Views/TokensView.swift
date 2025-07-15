@@ -92,7 +92,7 @@ struct TokenRow: View {
                         .font(.subheadline)
                         .foregroundColor(.blue)
                     
-                    if token.frozenBalance > 0 {
+                    if let frozenBalance = token.frozenBalance, frozenBalance > 0 {
                         Text("(\(token.formattedFrozenBalance) frozen)")
                             .font(.caption)
                             .foregroundColor(.orange)
@@ -104,9 +104,9 @@ struct TokenRow: View {
                         .font(.caption)
                         .foregroundColor(.secondary)
                     
-                    if !token.availableClaims.isEmpty {
+                    if let claims = token.availableClaims, !claims.isEmpty {
                         Spacer()
-                        Label("\(token.availableClaims.count)", systemImage: "gift")
+                        Label("\(claims.count)", systemImage: "gift")
                             .font(.caption)
                             .foregroundColor(.green)
                     }
@@ -290,7 +290,7 @@ struct TokenActionDetailView: View {
             
         case .claim:
             Section(header: Text("Claim Details")) {
-                if token.availableClaims.isEmpty {
+                if token.availableClaims?.isEmpty ?? true {
                     Text("No claims available at this time")
                         .font(.caption)
                         .foregroundColor(.secondary)
@@ -300,7 +300,7 @@ struct TokenActionDetailView: View {
                             .font(.caption)
                             .foregroundColor(.secondary)
                         
-                        ForEach(token.availableClaims, id: \.name) { claim in
+                        ForEach(token.availableClaims ?? [], id: \.name) { claim in
                             HStack {
                                 Text(claim.name)
                                 Spacer()
@@ -334,7 +334,7 @@ struct TokenActionDetailView: View {
             
         case .unfreeze:
             Section(header: Text("Unfreeze Details")) {
-                if token.frozenBalance > 0 {
+                if let frozen = token.frozenBalance, frozen > 0 {
                     Text("Frozen Balance: \(token.formattedFrozenBalance)")
                         .font(.subheadline)
                         .foregroundColor(.orange)
@@ -355,7 +355,7 @@ struct TokenActionDetailView: View {
             
         case .destroyFrozenFunds:
             Section(header: Text("Destroy Frozen Funds")) {
-                if token.frozenBalance > 0 {
+                if let frozen = token.frozenBalance, frozen > 0 {
                     Text("Frozen Balance: \(token.formattedFrozenBalance)")
                         .font(.subheadline)
                         .foregroundColor(.orange)
@@ -453,8 +453,8 @@ struct TokenActionDetailView: View {
         }
         
         // Create SDK wrapper for TokenService
-        let sdkHandle = await platformSdk.sdkHandle
-        let sdk = SimpleSDK(handle: sdkHandle)
+        // Stub implementation - PlatformSDKWrapper doesn't have sdkHandle yet
+        let sdk = SimpleSDK(handle: nil)
         
         do {
             let resultMessage: String

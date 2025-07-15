@@ -7,10 +7,6 @@ extension Data {
     var sha256Hash: Data {
         return Data(SHA256.hash(data: self))
     }
-    
-    func toHexString() -> String {
-        return map { String(format: "%02hhx", $0) }.joined()
-    }
 }
 
 /// Production-ready signer that uses iOS Keychain for secure key storage

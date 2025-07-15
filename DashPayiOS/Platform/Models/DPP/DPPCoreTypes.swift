@@ -177,10 +177,6 @@ extension Data {
         return encoded
     }
     
-    /// Convert to hex string
-    func toHexString() -> String {
-        return self.map { String(format: "%02x", $0) }.joined()
-    }
 }
 
 // MARK: - Platform Value Type

@@ -6,11 +6,13 @@ options:
   createIntermediateGroups: true
   
 packages:
-  SwiftDashCoreSDK:
-    path: ../rust-dashcore/swift-dash-core-sdk
   SwiftSecp256k1:
     url: https://github.com/21-DOT-DEV/swift-secp256k1.git
     from: 0.21.0
+  SwiftDashCoreSDK:
+    path: ../rust-dashcore/swift-dash-core-sdk
+  SwiftDashSDK:
+    path: ../platform-ios/packages/swift-sdk
   
 settings:
   base:
@@ -41,15 +43,14 @@ targets:
           - "Libraries/backup/**"
           - "Libraries.backup-*/**"
     dependencies:
+      - package: SwiftSecp256k1
+        product: P256K
       - package: SwiftDashCoreSDK
         product: SwiftDashCoreSDK
       - package: SwiftDashCoreSDK
         product: KeyWalletFFISwift
-      - package: SwiftSecp256k1
-        product: P256K
-      - framework: DashPayiOS/Libraries/DashUnified.xcframework
-        embed: true
-        link: true
+      - package: SwiftDashSDK
+        product: SwiftDashSDK
       - sdk: libc++.tbd
       - sdk: libz.tbd
       - sdk: Foundation.framework

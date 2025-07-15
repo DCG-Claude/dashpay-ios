@@ -739,27 +739,37 @@ enum DocumentSortOrder: String, CaseIterable {
 }
 
 #Preview {
-    // Create safe preview dependencies without force unwrapping
-    struct PreviewContainer {
-        static let shared: DocumentService = createFallbackService()
+    @MainActor
+    struct PreviewWrapper: View {
+        var body: some View {
+            EnhancedDocumentsView()
+                .environmentObject(createPreviewAppState())
+                .environmentObject(createPreviewDocumentService())
+        }
         
-        private static func createFallbackService() -> DocumentService {
+        @MainActor
+        private func createPreviewAppState() -> AppState {
+            return AppState()
+        }
+        
+        @MainActor
+        private func createPreviewDocumentService() -> DocumentService {
             // Create minimal in-memory dependencies for preview
             do {
                 let schema = Schema([])
                 let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
                 let container = try ModelContainer(for: schema, configurations: [config])
                 let dataManager = DataManager(modelContext: container.mainContext)
-                let platformSDK = try PlatformSDKWrapper(network: .testnet)
+                
+                // Create PlatformSDKWrapper synchronously for preview
+                let platformSDK = PlatformSDKWrapper.createPreviewInstance()
                 return DocumentService(platformSDK: platformSDK, dataManager: dataManager)
             } catch {
-                // Ultimate fallback for preview - should never happen in practice
-                fatalError("Could not create preview DocumentService: \(error)")
+                // Create fallback DocumentService for preview
+                return DocumentService.createPreviewFallback()
             }
         }
     }
     
-    return EnhancedDocumentsView()
-        .environmentObject(AppState())
-        .environmentObject(PreviewContainer.shared)
+    return PreviewWrapper()
 }

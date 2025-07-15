@@ -460,7 +460,7 @@ struct BalanceIdentityRow: View {
                 .font(.title2)
             
             VStack(alignment: .leading, spacing: 2) {
-                Text(identity.id.prefix(16) + "...")
+                Text(identity.idString.prefix(16) + "...")
                     .font(.subheadline)
                     .fontWeight(.medium)
                 

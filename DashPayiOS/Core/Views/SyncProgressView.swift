@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftDashSDK
 import SwiftDashCoreSDK
 
 // Extensions removed - these properties are now defined in the SDK models themselves

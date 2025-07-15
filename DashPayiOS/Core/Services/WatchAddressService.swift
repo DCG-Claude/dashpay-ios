@@ -1,6 +1,7 @@
 import Foundation
 import Combine
 import os.log
+import SwiftDashCoreSDK
 
 /// Service responsible for managing watch address functionality
 @MainActor
@@ -32,7 +33,7 @@ class WatchAddressService: ObservableObject {
             }
         }
         
-        logger.info("📊 Updated pending watch count: \(pendingWatchCount)")
+        logger.info("📊 Updated pending watch count: \(self.pendingWatchCount)")
     }
     
     /// Remove pending watch addresses for an account
@@ -45,7 +46,7 @@ class WatchAddressService: ObservableObject {
     /// Update watch verification status
     func updateVerificationStatus(_ status: WatchVerificationStatus) {
         watchVerificationStatus = status
-        logger.info("📊 Watch verification status updated: \(status)")
+        logger.info("📊 Watch verification status updated: \(String(describing: status))")
     }
     
     /// Start watch verification timer

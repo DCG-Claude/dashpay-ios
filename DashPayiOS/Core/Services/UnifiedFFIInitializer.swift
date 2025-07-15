@@ -1,33 +1,33 @@
 import Foundation
 import SwiftDashCoreSDK
 
-/// UnifiedFFI specific errors
-enum UnifiedFFIError: LocalizedError {
+/// Unified SDK specific errors
+enum UnifiedSDKError: LocalizedError {
     case notInitialized
-    case registrationFailed(Int32)
-    case initializationFailed(Int32)
-    case invalidHandle
+    case registrationFailed(String)
+    case initializationFailed(String)
+    case invalidConfiguration
     
     var errorDescription: String? {
         switch self {
         case .notInitialized:
-            return "Unified FFI library not initialized"
-        case .registrationFailed(let code):
-            return "Failed to register Core SDK: \(code)"
-        case .initializationFailed(let code):
-            return "Failed to initialize unified FFI library: \(code)"
-        case .invalidHandle:
-            return "Invalid handle provided"
+            return "Unified SDK not initialized"
+        case .registrationFailed(let error):
+            return "Failed to register Core SDK: \(error)"
+        case .initializationFailed(let error):
+            return "Failed to initialize unified SDK: \(error)"
+        case .invalidConfiguration:
+            return "Invalid configuration provided"
         }
     }
 }
 
-/// Manages unified FFI library initialization and callback registration
-final class UnifiedFFIInitializer {
-    static let shared = UnifiedFFIInitializer()
+/// Manages unified SDK initialization and Core SDK integration
+final class UnifiedSDKInitializer {
+    static let shared = UnifiedSDKInitializer()
+    private var dashSDK: DashSDK?
     private var isInitialized = false
-    private var coreSDKHandle: OpaquePointer?
-    private let queue = DispatchQueue(label: "com.dash.unifiedffi.initializer", qos: .utility)
+    private let queue = DispatchQueue(label: "com.dash.unifiedsdk.initializer", qos: .utility)
     
     private init() {}
     
@@ -35,58 +35,70 @@ final class UnifiedFFIInitializer {
         cleanup()
     }
     
-    /// Initialize the unified FFI library
-    func initialize() throws {
-        try queue.sync {
-            guard !isInitialized else { return }
-            
-            // Initialize unified library
-            let result = dash_unified_init()
-            if result == 0 {
-                isInitialized = true
-                print("✅ Unified FFI library initialized successfully")
-            } else {
-                throw UnifiedFFIError.initializationFailed(result)
+    /// Initialize the unified SDK with configuration
+    func initialize(network: DashNetwork = .testnet) async throws {
+        try await withCheckedThrowingContinuation { continuation in
+            queue.async {
+                guard !self.isInitialized else { 
+                    continuation.resume()
+                    return 
+                }
+                
+                do {
+                    // Create SDK configuration using the configuration manager
+                    let config = SPVConfigurationManager.shared.configuration(for: .testnet)
+                    
+                    // Create SDK instance - DashSDK handles FFI initialization internally
+                    self.dashSDK = try DashSDK(configuration: config)
+                    self.isInitialized = true
+                    
+                    print("✅ Unified SDK initialized successfully")
+                    continuation.resume()
+                } catch {
+                    print("❌ Failed to initialize unified SDK: \(error)")
+                    continuation.resume(throwing: UnifiedSDKError.initializationFailed(error.localizedDescription))
+                }
             }
         }
     }
     
-    /// Register Core SDK handle for Platform SDK callbacks
-    func registerCoreSDK(_ handle: OpaquePointer?) throws {
-        try queue.sync {
-            guard isInitialized else {
-                throw UnifiedFFIError.notInitialized
+    /// Get the initialized SDK instance
+    func getSDK() throws -> DashSDK {
+        return try queue.sync {
+            guard isInitialized, let sdk = dashSDK else {
+                throw UnifiedSDKError.notInitialized
             }
-            
-            guard let handle = handle else {
-                throw UnifiedFFIError.invalidHandle
-            }
-            
-            self.coreSDKHandle = handle
-            let result = dash_unified_register_core_sdk_handle(UnsafeMutableRawPointer(handle))
-            if result == 0 {
-                print("✅ Core SDK registered with unified library")
-            } else {
-                throw UnifiedFFIError.registrationFailed(result)
-            }
+            return sdk
         }
+    }
+    
+    /// Connect the SDK to the network
+    func connect() async throws {
+        let sdk = try getSDK()
+        try await sdk.connect()
+        print("✅ SDK connected to network successfully")
+    }
+    
+    /// Disconnect from the network
+    func disconnect() async throws {
+        let sdk = try getSDK()
+        try await sdk.disconnect()
+        print("🔌 SDK disconnected from network")
     }
     
     /// Cleanup resources and reset initialization state
     func cleanup() {
         queue.sync {
             if isInitialized {
-                // Clear the stored handle to prevent memory leak
-                if coreSDKHandle != nil {
-                    print("🧹 Releasing Core SDK handle")
-                    coreSDKHandle = nil
-                }
-                
-                // Note: Add proper cleanup calls here when available in the FFI
-                // For now, we'll just reset the state
+                // SwiftDashCoreSDK handles cleanup internally
+                dashSDK = nil
                 isInitialized = false
-                print("🧹 Unified FFI library cleaned up")
+                print("🧹 Unified SDK cleaned up")
             }
         }
     }
 }
+
+// MARK: - Compatibility Alias
+/// Alias for backwards compatibility with existing code
+typealias UnifiedFFIInitializer = UnifiedSDKInitializer

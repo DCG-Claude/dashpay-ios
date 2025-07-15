@@ -3,7 +3,7 @@ import Foundation
 struct ContractModel: Identifiable, Hashable {
     /// Get the owner ID as a hex string
     var ownerIdString: String {
-        ownerId.toHexString()
+        (ownerId as Data).toHexString()
     }
     
     static func == (lhs: ContractModel, rhs: ContractModel) -> Bool {

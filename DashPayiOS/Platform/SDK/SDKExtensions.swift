@@ -1,4 +1,5 @@
 import Foundation
+import SwiftDashSDK
 import SwiftDashCoreSDK
 
 // Callback types for signing
@@ -115,7 +116,7 @@ private let globalCanSignCallback: IOSCanSignCallback = { identityPublicKeyBytes
 // MARK: - SDK Extensions for the example app
 extension SDK {
     /// Initialize SDK with a custom signer for the example app
-    init(network: FFINetwork, signer: Signer) throws {
+    init(network: DashSDKNetwork, signer: Signer) throws {
         // Store the signer globally for C callbacks
         globalSignerStorage = signer
         

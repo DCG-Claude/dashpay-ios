@@ -224,7 +224,7 @@ struct CrossLayerTransferView: View {
     private func performCoreToIdentityTransfer(_ amountValue: Double) async throws {
         guard let wallet = sourceWallet else { throw TransferError.invalidSource }
         
-        guard let targetIdentity = unifiedState.identities.first(where: { $0.id == targetIdentityId }) else {
+        guard let targetIdentity = unifiedState.identities.first(where: { $0.idString == targetIdentityId }) else {
             throw TransferError.invalidTarget
         }
         
@@ -345,7 +345,7 @@ struct IdentitySelectionView: View {
                 Text("Select identity").tag(nil as Identity?)
                 ForEach(identities, id: \.id) { identity in
                     VStack(alignment: .leading) {
-                        Text(identity.id.prefix(16) + "...")
+                        Text(identity.idString.prefix(16) + "...")
                             .font(.caption)
                         Text("\(identity.balance) credits")
                             .font(.caption2)

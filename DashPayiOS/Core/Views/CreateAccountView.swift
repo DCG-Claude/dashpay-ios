@@ -89,7 +89,7 @@ struct CreateAccountView: View {
     }
     
     private var derivationPath: String {
-        let coinType = HDWalletService.BIP44.coinType(for: wallet.network)
+        let coinType: UInt32 = wallet.network == .mainnet ? 5 : 1
         return "m/44'/\(coinType)'/\(accountIndex)'"
     }
     
@@ -103,15 +103,13 @@ struct CreateAccountView: View {
                 let currentAccountIndex = accountIndex
                 let currentPassword = password
                 
-                // Perform account creation on background thread
-                let account = try await Task.detached(priority: .userInitiated) {
-                    try walletService.createAccount(
-                        for: wallet,
-                        index: currentAccountIndex,
-                        label: label,
-                        password: currentPassword
-                    )
-                }.value
+                // Perform account creation
+                let account = try walletService.createAccount(
+                    for: wallet,
+                    index: currentAccountIndex,
+                    label: label,
+                    password: currentPassword
+                )
                 
                 // Update UI and data on main thread
                 await MainActor.run {

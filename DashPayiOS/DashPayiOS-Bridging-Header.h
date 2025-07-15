@@ -6,10 +6,8 @@
 #ifndef DashPayiOS_Bridging_Header_h
 #define DashPayiOS_Bridging_Header_h
 
-// Import unified header for Core and Platform SDKs
-#import "dash_unified_ffi.h"
-
-// Keep key_wallet_ffi import - it remains separate
-#import "key_wallet_ffiFFI.h"
+// Import SPV and Key Wallet FFI headers from SwiftDashCoreSDK
+#import "dash_spv_ffi.h"
+#import "KeyWalletFFI.h"
 
 #endif /* DashPayiOS_Bridging_Header_h */

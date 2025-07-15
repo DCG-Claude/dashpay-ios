@@ -1,6 +1,6 @@
 import SwiftUI
 import Charts
-import SwiftDashCoreSDK
+import SwiftDashSDK
 
 struct UnifiedDashboardView: View {
     @EnvironmentObject var unifiedState: UnifiedStateManager
@@ -724,7 +724,7 @@ struct IdentityOverviewRow: View {
                 .font(.title3)
             
             VStack(alignment: .leading, spacing: 2) {
-                Text(identity.id.prefix(16) + "...")
+                Text(identity.idString.prefix(16) + "...")
                     .font(.subheadline)
                     .fontWeight(.medium)
                 

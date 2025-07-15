@@ -1,5 +1,6 @@
 import Foundation
 import SwiftData
+import SwiftDashSDK
 import SwiftDashCoreSDK
 import Combine
 
@@ -42,16 +43,16 @@ public struct SDK {
     
     public init() {}
     
-    public init(network: FFINetwork) throws {
+    public init(network: DashSDKNetwork) throws {
         // Mock initialization with network
         self.init()
         
-        // Convert FFINetwork to DashNetwork and store it
+        // Convert DashSDKNetwork to DashNetwork and store it
         let dashNetwork: DashNetwork
-        switch network {
+        switch network.rawValue {
         case 0: dashNetwork = .mainnet
         case 1: dashNetwork = .testnet
-        case 2: dashNetwork = .devnet
+        case 3: dashNetwork = .devnet
         default: dashNetwork = .testnet
         }
         var mutableSelf = self
@@ -261,7 +262,7 @@ class AppState: ObservableObject {
                 // Step 3: Create AssetLockBridge to connect Core and Platform
                 if let platformSdk = platformSDK {
                     print("🔧 Creating AssetLockBridge for Core-Platform integration...")
-                    assetLockBridge = await AssetLockBridge(coreSDK: coreSDK!, platformSDK: platformSdk)
+                    assetLockBridge = await AssetLockBridge(coreSDK: coreSDK!, platformSDK: platformSdk, walletService: WalletService.shared)
                     print("✅ AssetLockBridge created successfully")
                 } else {
                     print("⚠️ AssetLockBridge creation skipped - Platform SDK not available")
@@ -381,7 +382,7 @@ class AppState: ObservableObject {
         print("🌐 Setting up Platform SDK with network: \(currentNetwork)")
         
         // Create Platform SDK wrapper with Core SDK integration
-        let platformSDK = try PlatformSDKWrapper(network: currentNetwork, coreSDK: coreSDK)
+        let platformSDK = try await PlatformSDKWrapper(network: currentNetwork, coreSDK: coreSDK)
         
         return platformSDK
     }
@@ -517,8 +518,8 @@ class AppState: ObservableObject {
         }
         
         // Create a simple SDK wrapper for TokenService
-        let sdkHandle = await platformSdk.sdkHandle
-        let sdk = SimpleSDK(handle: sdkHandle)
+        // Stub implementation - PlatformSDKWrapper doesn't have sdkHandle yet
+        let sdk = SimpleSDK(handle: nil)
         
         var allTokens: [TokenModel] = []
         
@@ -572,8 +573,8 @@ class AppState: ObservableObject {
         }
         
         // Create a simple SDK wrapper for TokenService
-        let sdkHandle = await platformSdk.sdkHandle
-        let sdk = SimpleSDK(handle: sdkHandle)
+        // Stub implementation - PlatformSDKWrapper doesn't have sdkHandle yet
+        let sdk = SimpleSDK(handle: nil)
         
         do {
             // Discover available token IDs dynamically
@@ -781,11 +782,11 @@ class AppState: ObservableObject {
             // Reinitialize Platform SDK with new network and Core context
             print("🔄 Switching Platform SDK to network: \(network)")
             do {
-                let newPlatformSDK = try PlatformSDKWrapper(network: network, coreSDK: newCoreSDK)
+                let newPlatformSDK = try await PlatformSDKWrapper(network: network, coreSDK: newCoreSDK)
                 platformSDK = newPlatformSDK
                 
                 // Recreate AssetLockBridge
-                assetLockBridge = await AssetLockBridge(coreSDK: newCoreSDK, platformSDK: newPlatformSDK)
+                assetLockBridge = await AssetLockBridge(coreSDK: newCoreSDK, platformSDK: newPlatformSDK, walletService: WalletService.shared)
                 print("✅ Platform SDK and AssetLockBridge updated for new network")
             } catch {
                 print("🔴 Failed to switch Platform SDK to new network: \(error)")

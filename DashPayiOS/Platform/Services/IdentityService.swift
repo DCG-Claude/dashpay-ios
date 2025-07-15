@@ -448,12 +448,9 @@ private extension IdentityService {
         let platformIdentity = try await platformSDK.fetchIdentity(id: id)
         
         // Convert Platform Identity to DPPIdentity
-        guard let idData = Data(hexString: platformIdentity.id) else {
-            throw IdentityServiceError.invalidSearchQuery("Invalid identity ID format")
-        }
-        
+        // platformIdentity.id is already Identifier (Data)
         return DPPIdentity(
-            id: idData,
+            id: platformIdentity.id,
             publicKeys: [:], // Would parse from platformIdentity if available
             balance: platformIdentity.balance,
             revision: platformIdentity.revision

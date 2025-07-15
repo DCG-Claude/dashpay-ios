@@ -1,6 +1,6 @@
 import SwiftUI
 import SwiftData
-import SwiftDashCoreSDK
+import SwiftDashSDK
 
 // Core types are defined in SwiftDashCoreSDK/Models/
 // Using the types from there to avoid duplication

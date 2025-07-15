@@ -2,17 +2,6 @@ import SwiftUI
 import SwiftData
 import UIKit
 
-/// Clipboard utility for copying text to the system pasteboard
-struct Clipboard {
-    /// Copies text to the system clipboard using UIPasteboard
-    /// - Parameter string: The text to copy to the clipboard
-    static func copy(_ string: String) {
-        DispatchQueue.main.async {
-            UIPasteboard.general.string = string
-        }
-    }
-}
-
 /// Enhanced document detail view with editing, history, and advanced features
 struct EnhancedDocumentDetailView: View {
     let document: DocumentModel
@@ -36,7 +25,7 @@ struct EnhancedDocumentDetailView: View {
         // Initialize with placeholder values - will be properly injected
         let dummyContainer = try! ModelContainer.inMemoryContainer()
         let dummyDataManager = DataManager(modelContext: dummyContainer.mainContext)
-        let dummyPlatformSDK = try! PlatformSDKWrapper(network: .testnet)
+        let dummyPlatformSDK = PlatformSDKWrapper.createPreviewInstance()
         self._documentService = StateObject(wrappedValue: DocumentService(platformSDK: dummyPlatformSDK, dataManager: dummyDataManager))
     }
     
@@ -110,7 +99,7 @@ struct EnhancedDocumentDetailView: View {
                 }
             }
             .sheet(isPresented: $showEditView) {
-                EnhancedEditDocumentView(document: document)
+                EnhancedEditDocumentView(document: document, documentService: documentService)
                     .environmentObject(appState)
             }
             .sheet(isPresented: $showHistoryView) {

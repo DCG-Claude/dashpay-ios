@@ -2,6 +2,7 @@ import Foundation
 import Combine
 import SwiftData
 import SwiftDashCoreSDK
+import SwiftDashSDK
 
 /// Service that combines transaction history from all layers: Core, Platform, and Tokens
 @MainActor

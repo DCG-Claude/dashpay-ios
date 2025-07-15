@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftDashSDK
 import SwiftDashCoreSDK
 
 struct CreateWalletView: View {

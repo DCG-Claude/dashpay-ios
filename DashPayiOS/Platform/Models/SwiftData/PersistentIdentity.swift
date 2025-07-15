@@ -78,7 +78,7 @@ final class PersistentIdentity {
     
     // MARK: - Computed Properties
     var identityIdString: String {
-        identityId.toHexString()
+        (identityId as Data).toHexString()
     }
     
     var formattedBalance: String {

@@ -75,7 +75,7 @@ actor CrossLayerBridge {
         print("✅ Identity created and funded: \(identity.id) with balance: \(identity.balance)")
         
         return FundingResult(
-            identityId: identity.id,
+            identityId: identity.id.toHexString(),
             amountFunded: amount,
             newBalance: identity.balance,
             transactionId: assetLock.transactionId,
@@ -115,7 +115,7 @@ actor CrossLayerBridge {
         print("⚠️ Withdrawal operation prepared but requires Platform SDK implementation")
         
         return WithdrawResult(
-            identityId: identity.id,
+            identityId: identity.id.toHexString(),
             coreAddress: coreAddress,
             amountWithdrawn: amount,
             transactionId: "withdraw_\(UUID().uuidString)",
@@ -157,7 +157,7 @@ actor CrossLayerBridge {
                 // Fund the source identity from Core wallet
                 let fundingResult = try await fundPlatformIdentity(
                     from: backup.sourceWallet,
-                    identityId: sourceIdentity.id,
+                    identityId: sourceIdentity.id.toHexString(),
                     amount: backup.fundingAmount
                 )
                 
@@ -258,8 +258,8 @@ actor CrossLayerBridge {
             for identity in identities {
                 group.addTask {
                     do {
-                        let updatedIdentity = try await self.platformSDK.fetchIdentity(id: identity.id)
-                        return .success((identity.id, updatedIdentity.balance))
+                        let updatedIdentity = try await self.platformSDK.fetchIdentity(id: identity.id.toHexString())
+                        return .success((identity.id.toHexString(), updatedIdentity.balance))
                     } catch {
                         return .failure(error)
                     }

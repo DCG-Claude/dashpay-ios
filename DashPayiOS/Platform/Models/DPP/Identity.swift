@@ -3,7 +3,7 @@ import Foundation
 // MARK: - Identity Models based on DPP
 
 /// Main Identity structure
-struct DPPIdentity: Identifiable, Codable, Equatable {
+struct DPPIdentity: Identifiable, Codable, Equatable, Hashable {
     let id: Identifier
     let publicKeys: [KeyID: IdentityPublicKey]
     let balance: Credits
@@ -16,7 +16,7 @@ struct DPPIdentity: Identifiable, Codable, Equatable {
     
     /// Get the identity ID as hex
     var idHex: String {
-        id.toHexString()
+        (id as Data).toHexString()
     }
     
     /// Get formatted balance in DASH
@@ -28,7 +28,7 @@ struct DPPIdentity: Identifiable, Codable, Equatable {
 
 // MARK: - Identity Public Key
 
-struct IdentityPublicKey: Codable, Equatable {
+struct IdentityPublicKey: Codable, Equatable, Hashable {
     let id: KeyID
     let purpose: KeyPurpose
     let securityLevel: SecurityLevel
@@ -135,7 +135,7 @@ enum SecurityLevel: UInt8, CaseIterable, Codable, Comparable {
 
 // MARK: - Contract Bounds
 
-enum ContractBounds: Codable, Equatable {
+enum ContractBounds: Codable, Equatable, Hashable {
     case singleContract(id: Identifier)
     case singleContractDocumentType(id: Identifier, documentTypeName: String)
     

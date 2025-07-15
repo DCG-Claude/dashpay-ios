@@ -128,7 +128,7 @@ class WalletService: ObservableObject {
         let seed = try HDWalletService.decryptSeed(encryptedSeed, password: password)
         
         // Derive account xpub
-        let xpub = HDWalletService.deriveExtendedPublicKey(
+        let xpub = try HDWalletService.deriveExtendedPublicKey(
             seed: seed,
             network: network,
             account: accountIndex
@@ -141,14 +141,14 @@ class WalletService: ObservableObject {
         
         // Generate receive addresses
         for i in 0..<initialReceiveCount {
-            let address = HDWalletService.deriveAddress(
+            let address = try HDWalletService.deriveAddress(
                 xpub: xpub,
                 network: network,
                 change: false,
                 index: UInt32(i)
             )
             
-            let path = HDWalletService.BIP44.derivationPath(
+            let path = HDWalletService.derivationPath(
                 network: network,
                 account: accountIndex,
                 change: false,
@@ -166,14 +166,14 @@ class WalletService: ObservableObject {
         
         // Generate change address
         for i in 0..<initialChangeCount {
-            let address = HDWalletService.deriveAddress(
+            let address = try HDWalletService.deriveAddress(
                 xpub: xpub,
                 network: network,
                 change: true,
                 index: UInt32(i)
             )
             
-            let path = HDWalletService.BIP44.derivationPath(
+            let path = HDWalletService.derivationPath(
                 network: network,
                 account: accountIndex,
                 change: true,
@@ -361,7 +361,7 @@ class WalletService: ObservableObject {
     
     // MARK: - Private Connection Helper Methods
     
-    private func setupConfiguration(wallet: HDWallet) throws -> SPVConfiguration {
+    private func setupConfiguration(wallet: HDWallet) throws -> SPVClientConfiguration {
         logger.info("🔧 Getting SPV configuration from manager...")
         let config = SPVConfigurationManager.shared.configuration(for: wallet.network)
         logger.info("📁 SPV data directory: \(config.dataDirectory?.path ?? "nil")")
@@ -423,14 +423,14 @@ class WalletService: ObservableObject {
         return config
     }
     
-    private func initializeSDK(with config: SPVConfiguration) async throws {
+    private func initializeSDK(with config: SPVClientConfiguration) async throws {
         logger.info("📡 Initializing SDK components...")
         logger.info("   Thread before MainActor: \(Thread.isMainThread ? "Main" : "Background")")
         
         do {
             // Initialize SDK components on MainActor following rust-dashcore pattern
             // FIX: Create only DashSDK, not separate SPVClient
-            sdk = try await MainActor.run {
+            let newSDK = try await MainActor.run {
                 logger.info("   Thread in MainActor: \(Thread.isMainThread ? "Main" : "Background")")
                 
                 // Create DashSDK (which includes SPVClient and PersistentWalletManager internally)
@@ -440,6 +440,7 @@ class WalletService: ObservableObject {
                 
                 return dashSDK
             }
+            connectionService.setSDK(newSDK)
             logger.info("✅ All SDK components initialized successfully")
             
         } catch {
@@ -667,17 +668,31 @@ class WalletService: ObservableObject {
                     if Task.isCancelled { break }
                     
                     await MainActor.run {
-                        self?.syncService.updateProgress(progress)
+                        // Convert SDK DetailedSyncProgress to local DetailedSyncProgress
+                        let localProgress = DetailedSyncProgress(
+                            currentHeight: progress.currentHeight,
+                            totalHeight: progress.totalHeight,
+                            percentage: progress.percentage,
+                            headersPerSecond: progress.headersPerSecond,
+                            estimatedSecondsRemaining: UInt32(progress.estimatedSecondsRemaining),
+                            stage: self?.convertSyncStage(progress.stage) ?? .connecting,
+                            stageMessage: progress.stageMessage,
+                            connectedPeers: progress.connectedPeers,
+                            totalHeadersProcessed: progress.totalHeadersProcessed,
+                            syncStartTimestamp: progress.syncStartTimestamp
+                        )
+                        self?.syncService.updateProgress(localProgress)
                         
                         // Convert to legacy SyncProgress for compatibility
-                        self?.syncProgress = SyncProgress(
+                        let legacySyncProgress = SyncProgress(
                             currentHeight: progress.currentHeight,
                             totalHeight: progress.totalHeight,
                             progress: progress.percentage / 100.0,
-                            status: self?.mapSyncStageToStatus(progress.stage) ?? .connecting,
+                            status: self?.mapSyncStageToStatus(self?.convertSyncStage(progress.stage) ?? .connecting) ?? .connecting,
                             estimatedTimeRemaining: progress.estimatedSecondsRemaining > 0 ? TimeInterval(progress.estimatedSecondsRemaining) : nil,
                             message: progress.stageMessage
                         )
+                        self?.syncService.setSyncProgress(legacySyncProgress)
                     }
                     
                     // Log progress every second to avoid spam
@@ -754,29 +769,32 @@ class WalletService: ObservableObject {
         }
         
         print("🔄 Starting callback-based sync for wallet: \(activeWallet?.name ?? "Unknown")")
-        isSyncing = true
+        syncService.startSync(requestId: UUID())
         
         try await sdk.syncToTipWithProgress(
             progressCallback: { [weak self] progress in
                 Task { @MainActor in
-                    self?.detailedSyncProgress = progress
-                    
-                    // Convert to legacy SyncProgress
-                    self?.syncProgress = SyncProgress(
+                    // Convert to local DetailedSyncProgress and update sync service
+                    let localProgress = DetailedSyncProgress(
                         currentHeight: progress.currentHeight,
                         totalHeight: progress.totalHeight,
-                        progress: progress.percentage / 100.0,
-                        status: self?.mapSyncStageToStatus(progress.stage) ?? .connecting,
-                        estimatedTimeRemaining: progress.estimatedSecondsRemaining > 0 ? TimeInterval(progress.estimatedSecondsRemaining) : nil,
-                        message: progress.stageMessage
+                        percentage: progress.percentage,
+                        headersPerSecond: progress.headersPerSecond,
+                        estimatedSecondsRemaining: UInt32(progress.estimatedSecondsRemaining),
+                        stage: self?.convertSyncStage(progress.stage) ?? .connecting,
+                        stageMessage: progress.stageMessage,
+                        connectedPeers: progress.connectedPeers,
+                        totalHeadersProcessed: progress.totalHeadersProcessed,
+                        syncStartTimestamp: progress.syncStartTimestamp
                     )
+                    self?.syncService.updateProgress(localProgress)
                     
                     print("\(progress.stage.icon) \(progress.statusMessage)")
                 }
             },
             completionCallback: { [weak self] success, error in
                 Task { @MainActor in
-                    self?.isSyncing = false
+                    self?.syncService.completeSync()
                     
                     if success {
                         print("✅ Sync completed successfully!")
@@ -792,7 +810,7 @@ class WalletService: ObservableObject {
                         }
                     } else {
                         print("❌ Sync failed: \(error ?? "Unknown error")")
-                        self?.detailedSyncProgress = nil
+                        self?.syncService.completeSync()
                     }
                 }
             }
@@ -843,7 +861,7 @@ class WalletService: ObservableObject {
         var currentIndex = account.lastUsedExternalIndex + 1
         
         while consecutiveUnused < gapLimit && currentIndex < 1000 {
-            let address = HDWalletService.deriveAddress(
+            let address = try HDWalletService.deriveAddress(
                 xpub: account.extendedPublicKey,
                 network: wallet.network,
                 change: false,
@@ -862,7 +880,7 @@ class WalletService: ObservableObject {
             }
             
             // Create watched address
-            let path = HDWalletService.BIP44.derivationPath(
+            let path = HDWalletService.derivationPath(
                 network: wallet.network,
                 account: account.accountIndex,
                 change: false,
@@ -891,7 +909,7 @@ class WalletService: ObservableObject {
         let changeGapLimit = min(gapLimit, 5) // Limit change addresses
         
         while consecutiveUnused < changeGapLimit && currentIndex < 100 {
-            let address = HDWalletService.deriveAddress(
+            let address = try HDWalletService.deriveAddress(
                 xpub: account.extendedPublicKey,
                 network: wallet.network,
                 change: true,
@@ -910,7 +928,7 @@ class WalletService: ObservableObject {
             }
             
             // Create watched address
-            let path = HDWalletService.BIP44.derivationPath(
+            let path = HDWalletService.derivationPath(
                 network: wallet.network,
                 account: account.accountIndex,
                 change: true,
@@ -945,14 +963,14 @@ class WalletService: ObservableObject {
         index: UInt32
     ) throws -> (address: String, path: String) {
         // Perform heavy cryptographic operations outside of MainActor
-        let address = HDWalletService.deriveAddress(
+        let address = try HDWalletService.deriveAddress(
             xpub: xpub,
             network: network,
             change: change,
             index: index
         )
         
-        let path = HDWalletService.BIP44.derivationPath(
+        let path = HDWalletService.derivationPath(
             network: network,
             account: accountIndex,
             change: change,
@@ -1268,7 +1286,8 @@ class WalletService: ObservableObject {
             handleConnectionStatusChanged(connected)
             
         case .balanceUpdated(let balance):
-            handleBalanceUpdated(balance)
+            let localBalance = LocalBalance.from(balance)
+            handleBalanceUpdated(localBalance)
             
         case .transactionReceived(let txid, let confirmed, let amount, let addresses, let blockHeight):
             handleTransactionReceived(txid: txid, confirmed: confirmed, amount: amount, addresses: addresses, blockHeight: blockHeight)
@@ -1280,7 +1299,7 @@ class WalletService: ObservableObject {
             handleMempoolTransactionConfirmed(txid: txid, blockHeight: blockHeight, confirmations: confirmations)
             
         case .mempoolTransactionRemoved(let txid, let reason):
-            handleMempoolTransactionRemoved(txid: txid, reason: reason)
+            handleMempoolTransactionRemoved(txid: txid, reason: String(describing: reason))
             
         case .syncProgressUpdated(let progress):
             handleSyncProgressUpdated(progress)
@@ -1310,9 +1329,8 @@ class WalletService: ObservableObject {
                 try? await updateAccountBalance(account)
                 
                 // Trigger a notification to other parts of the app
-                // Convert SDK balance to local Balance type
-                let localBalance = LocalBalance.from(balance)
-                await notifyBalanceUpdate(localBalance)
+                // We already have a LocalBalance, so no conversion needed
+                await notifyBalanceUpdate(balance)
             }
         }
     }
@@ -1431,7 +1449,7 @@ class WalletService: ObservableObject {
     }
     
     private func handleSyncProgressUpdated(_ progress: SyncProgress) {
-        self.syncProgress = progress
+        syncService.setSyncProgress(progress)
         logger.info("📊 Sync progress: \(progress.percentageComplete)% - \(progress.status.description)")
     }
     
@@ -1487,7 +1505,7 @@ class WalletService: ObservableObject {
         
         // Save external addresses
         for (index, address) in external.enumerated() {
-            let path = HDWalletService.BIP44.derivationPath(
+            let path = HDWalletService.derivationPath(
                 network: wallet.network,
                 account: account.accountIndex,
                 change: false,
@@ -1508,7 +1526,7 @@ class WalletService: ObservableObject {
         
         // Save internal addresses
         for (index, address) in internalAddresses.enumerated() {
-            let path = HDWalletService.BIP44.derivationPath(
+            let path = HDWalletService.derivationPath(
                 network: wallet.network,
                 account: account.accountIndex,
                 change: true,
@@ -1734,9 +1752,10 @@ class WalletService: ObservableObject {
                 pendingWatchAddresses[account.id.uuidString] = stillFailedAddresses
             }
             
-            // Update pending count
+            // Update pending count through watch address service
+            let failedAddresses = stillFailedAddresses.map { (address: $0.address, error: $0.error) }
             await MainActor.run {
-                self.pendingWatchCount = self.pendingWatchAddresses.values.reduce(0) { $0 + $1.count }
+                self.watchAddressService.handleFailedWatchAddresses(failedAddresses, accountId: account.id.uuidString)
             }
         }
     }
@@ -2261,8 +2280,31 @@ class WalletService: ObservableObject {
         // For now, the weak self references will prevent retain cycles
     }
     
+    /// Convert SwiftDashCoreSDK.SyncStage to DashPay.SyncStage
+    private func convertSyncStage(_ sdkStage: SwiftDashCoreSDK.SyncStage) -> SyncStage {
+        switch sdkStage {
+        case .connecting:
+            return .connecting
+        case .queryingHeight:
+            return .queryingHeight
+        case .downloading:
+            return .downloading
+        case .validating:
+            return .validating
+        case .storing:
+            return .storing
+        case .complete:
+            return .complete
+        case .failed:
+            return .failed
+        }
+    }
+    
     deinit {
-        cleanup()
+        // Note: cleanup() cannot be called from deinit because it's @MainActor
+        // The timer references will be automatically cleaned up by ARC
+        autoSyncTimer?.invalidate()
+        watchVerificationTimer?.invalidate()
     }
 }
 

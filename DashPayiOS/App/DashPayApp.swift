@@ -1,11 +1,9 @@
 import SwiftUI
 import SwiftData
 import UserNotifications
+import SwiftDashSDK
 import SwiftDashCoreSDK
 
-extension Notification.Name {
-    static let appShouldReset = Notification.Name("appShouldReset")
-}
 
 @main
 struct DashPayApp: App {
@@ -15,11 +13,13 @@ struct DashPayApp: App {
     // private let consoleRedirect = ConsoleRedirect()
     
     init() {
-        // Initialize unified FFI library early
-        do {
-            try UnifiedFFIInitializer.shared.initialize()
-        } catch {
-            print("🔴 Failed to initialize unified FFI library: \(error)")
+        // Initialize unified FFI library early in a background task
+        Task {
+            do {
+                try await UnifiedFFIInitializer.shared.initialize()
+            } catch {
+                print("🔴 Failed to initialize unified FFI library: \(error)")
+            }
         }
         
         // Set up notification delegate
@@ -28,19 +28,12 @@ struct DashPayApp: App {
         // Start console redirection for debugging
         // consoleRedirect.start()  // DISABLED: Logs now appear in Xcode console
         
-        // Set up notification observer for app reset
-        NotificationCenter.default.addObserver(
-            forName: .appShouldReset,
-            object: nil,
-            queue: .main
-        ) { _ in
-            self.shouldResetApp = true
-        }
+        // Note: Notification observer will be set up later to avoid self capture issues
     }
     
     var body: some Scene {
         WindowGroup {
-            Group {
+            SwiftUI.Group {
                 if shouldResetApp {
                     // Show a simple loading view while resetting
                     VStack(spacing: 20) {
@@ -65,6 +58,9 @@ struct DashPayApp: App {
                         .environmentObject(unifiedState.platformState)
                         .environmentObject(unifiedState.unifiedState)
                         .environment(\.modelContext, unifiedState.modelContainer.mainContext)
+                        .onReceive(NotificationCenter.default.publisher(for: .appShouldReset)) { _ in
+                            shouldResetApp = true
+                        }
                         .task {
                             // Initialize notification service
                             // _ = LocalNotificationService.shared
@@ -163,87 +159,81 @@ class UnifiedAppState: ObservableObject {
     }
     
     func initialize() async {
-        do {
-            print("🚀 Starting UnifiedAppState initialization...")
-            // Thread debugging removed - not available in async context
-            
-            
-            // Remove SDK creation from here - let WalletService handle it
-            // This matches the example app pattern where SDK is created on demand
-            print("🔧 SDK will be created by WalletService when needed")
-            
-            // Initialize Platform AppState
-            print("🔧 Initializing Platform AppState...")
-            await MainActor.run {
-                platformState.initializeSDK(modelContext: modelContainer.mainContext, existingCoreSDK: nil)
-            }
-            print("✅ Platform AppState initialized")
-            
-            // Wait a moment for Platform SDK initialization
-            try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 second
-            
-            if let platformWrapper = platformState.platformSDK {
-                self.platformWrapper = platformWrapper
-                print("✅ Got Platform SDK wrapper from Platform AppState")
-                await unifiedState.updatePlatformWrapper(platformWrapper)
-            } else {
-                print("⚠️ Platform SDK not available - continuing with Core SDK only")
-                // Platform SDK is optional for Core wallet testing
-            }
-            
-            // SDK will be created on demand by WalletService
-            print("✅ App initialization complete - SDK will be created when wallet connects")
-            
-            // Start auto-sync after initialization
-            Task {
-                print("🚀 Starting auto-sync task...")
-                
-                // Network monitor removed during simplification
-                // walletService.networkMonitor = NetworkMonitor()
-                print("✅ Connection simplified - network monitor removed")
-                
-                // Add a delay to ensure SwiftData has loaded wallets
-                print("⏳ Waiting for SwiftData to load wallets...")
-                try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 second delay
-                
-                // INTENTIONALLY DISABLED: Auto-sync and periodic sync features
-                // 
-                // Auto-sync and periodic sync are disabled to provide manual sync control.
-                // This behavioral change allows developers and users to explicitly control when 
-                // synchronization occurs, which is useful for:
-                // - Testing specific sync scenarios without interference
-                // - Debugging sync-related issues in a controlled environment
-                // - Avoiding background sync interference during development
-                // - Giving users explicit control over network usage and battery consumption
-                // - Preventing unexpected sync operations during testing
-                //
-                // RATIONALE: Manual sync control provides better predictability and control
-                // for both development and production use cases. Users can initiate sync
-                // operations when desired through the UI.
-                //
-                // To re-enable automatic sync, uncomment the code blocks below:
-                
-                // Auto-sync (starts sync automatically after initialization)
-                // print("🔄 Calling startAutoSync()...")
-                // await walletService.startAutoSync()
-                // print("✅ startAutoSync() completed")
-                
-                // Periodic sync (sets up recurring background sync)
-                // walletService.setupPeriodicSync()
-                // print("✅ Periodic sync setup completed")
-                
-                // Monitor app lifecycle
-                setupLifecycleObservers()
-                print("✅ Lifecycle observers setup completed")
-            }
-            
-            isInitialized = true
-            print("🎉 UnifiedAppState initialization completed successfully!")
-            
-        } catch {
-            self.error = error
-            print("🔴 UnifiedAppState initialization failed: \(error)")
+        print("🚀 Starting UnifiedAppState initialization...")
+        // Thread debugging removed - not available in async context
+        
+        
+        // Remove SDK creation from here - let WalletService handle it
+        // This matches the example app pattern where SDK is created on demand
+        print("🔧 SDK will be created by WalletService when needed")
+        
+        // Initialize Platform AppState
+        print("🔧 Initializing Platform AppState...")
+        await MainActor.run {
+            platformState.initializeSDK(modelContext: modelContainer.mainContext, existingCoreSDK: nil)
         }
+        print("✅ Platform AppState initialized")
+        
+        // Wait a moment for Platform SDK initialization
+        try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 second
+        
+        if let platformWrapper = platformState.platformSDK {
+            self.platformWrapper = platformWrapper
+            print("✅ Got Platform SDK wrapper from Platform AppState")
+            await unifiedState.updatePlatformWrapper(platformWrapper)
+        } else {
+            print("⚠️ Platform SDK not available - continuing with Core SDK only")
+            // Platform SDK is optional for Core wallet testing
+        }
+        
+        // SDK will be created on demand by WalletService
+        print("✅ App initialization complete - SDK will be created when wallet connects")
+        
+        // Start auto-sync after initialization
+        Task {
+            print("🚀 Starting auto-sync task...")
+            
+            // Network monitor removed during simplification
+            // walletService.networkMonitor = NetworkMonitor()
+            print("✅ Connection simplified - network monitor removed")
+            
+            // Add a delay to ensure SwiftData has loaded wallets
+            print("⏳ Waiting for SwiftData to load wallets...")
+            try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 second delay
+            
+            // INTENTIONALLY DISABLED: Auto-sync and periodic sync features
+            // 
+            // Auto-sync and periodic sync are disabled to provide manual sync control.
+            // This behavioral change allows developers and users to explicitly control when 
+            // synchronization occurs, which is useful for:
+            // - Testing specific sync scenarios without interference
+            // - Debugging sync-related issues in a controlled environment
+            // - Avoiding background sync interference during development
+            // - Giving users explicit control over network usage and battery consumption
+            // - Preventing unexpected sync operations during testing
+            //
+            // RATIONALE: Manual sync control provides better predictability and control
+            // for both development and production use cases. Users can initiate sync
+            // operations when desired through the UI.
+            //
+            // To re-enable automatic sync, uncomment the code blocks below:
+            
+            // Auto-sync (starts sync automatically after initialization)
+            // print("🔄 Calling startAutoSync()...")
+            // await walletService.startAutoSync()
+            // print("✅ startAutoSync() completed")
+            
+            // Periodic sync (sets up recurring background sync)
+            // walletService.setupPeriodicSync()
+            // print("✅ Periodic sync setup completed")
+            
+            // Monitor app lifecycle
+            setupLifecycleObservers()
+            print("✅ Lifecycle observers setup completed")
+        }
+            
+        isInitialized = true
+        print("🎉 UnifiedAppState initialization completed successfully!")
     }
     
     func reset() async {
@@ -270,7 +260,7 @@ class UnifiedAppState: ObservableObject {
         platformState.documents = []
         
         // Reset unified state
-        unifiedState.isInitialized = false
+        // unifiedState.isInitialized = false  // Read-only property - will be reset during reinitialization
         
         print("🔄 UnifiedAppState reset completed")
     }

@@ -1,6 +1,7 @@
 import Foundation
 import Combine
 import os.log
+import SwiftDashSDK
 import SwiftDashCoreSDK
 
 /// Service responsible for managing sync state and progress
@@ -20,7 +21,18 @@ class SyncStateService: ObservableObject {
         guard let progress = detailedSyncProgress else {
             return [:]
         }
-        return progress.statistics
+        // Create statistics from available properties
+        var stats: [String: String] = [:]
+        stats["Current Height"] = "\(progress.currentHeight)"
+        stats["Total Height"] = "\(progress.totalHeight)"
+        stats["Progress"] = progress.formattedPercentage
+        stats["Speed"] = progress.formattedSpeed
+        stats["Stage"] = progress.stage.description
+        stats["Connected Peers"] = "\(progress.connectedPeers)"
+        if progress.estimatedSecondsRemaining > 0 {
+            stats["ETA"] = progress.formattedTimeRemaining
+        }
+        return stats
     }
     
     /// Start sync operation
@@ -80,6 +92,11 @@ class SyncStateService: ObservableObject {
     /// Get current sync request ID
     func getCurrentSyncRequestId() -> UUID? {
         return syncRequestId
+    }
+    
+    /// Set sync progress directly (for legacy compatibility)
+    func setSyncProgress(_ progress: SyncProgress) {
+        syncProgress = progress
     }
     
     /// Reset sync state

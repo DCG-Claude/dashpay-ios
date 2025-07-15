@@ -14,7 +14,7 @@ func exampleFetchBalances(sdk: SDK) async throws {
     
     // Process results
     for (idData, balance) in balances {
-        let idHex = idData.toHexString()
+        let idHex = (idData as Data).toHexString()
         print("Identity \(idHex) has balance: \(balance)")
     }
     
@@ -29,7 +29,7 @@ func exampleFetchBalances(sdk: SDK) async throws {
     let stringBalances = try sdk.identities.fetchBalances(ids: dataIds)
     
     for (id, balance) in stringBalances {
-        print("Identity \(id.toHexString()) has balance: \(balance)")
+        print("Identity \((id as Data).toHexString()) has balance: \(balance)")
     }
 }
 

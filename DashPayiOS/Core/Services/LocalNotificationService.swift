@@ -3,6 +3,7 @@ import UserNotifications
 import os.log
 import SwiftUI
 import UIKit
+import SwiftDashSDK
 import SwiftDashCoreSDK
 
 /// Service for managing local push notifications for transaction events
