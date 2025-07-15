@@ -29,11 +29,15 @@ class AutoSyncService: ObservableObject {
         // Cancel existing timer
         autoSyncTimer?.invalidate()
         
-        // Setup new timer for every 30 minutes
-        autoSyncTimer = Timer.scheduledTimer(withTimeInterval: Self.periodicSyncInterval, repeats: true) { [weak self] _ in
+        // Setup new timer for every 30 minutes - ensure it's scheduled on main thread
+        DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
-            Task {
-                await syncHandler()
+            self.autoSyncTimer = Timer.scheduledTimer(withTimeInterval: Self.periodicSyncInterval, repeats: true) { [weak self] _ in
+                guard let self = self else { return }
+                Task { [weak self] in
+                    guard let self = self else { return }
+                    await syncHandler()
+                }
             }
         }
     }

@@ -117,6 +117,19 @@ final class StorageManager {
     }
     
     func updateTransaction(_ transaction: Transaction) throws {
+        // Ensure the transaction is managed by our context
+        // If it's not already in the context, we need to fetch the existing one and update it
+        if let existingTransaction = try fetchTransaction(by: transaction.txid) {
+            // Update the existing transaction's properties
+            existingTransaction.height = transaction.height
+            existingTransaction.timestamp = transaction.timestamp
+            existingTransaction.amount = transaction.amount
+            existingTransaction.confirmations = transaction.confirmations
+            existingTransaction.isInstantLocked = transaction.isInstantLocked
+        } else {
+            // If transaction doesn't exist, insert it as a new transaction
+            modelContext.insert(transaction)
+        }
         try modelContext.save()
     }
     
