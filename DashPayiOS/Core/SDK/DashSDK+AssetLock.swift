@@ -170,15 +170,38 @@ extension DashSDK {
     // MARK: - Private Helpers
     
     private func generateAssetLockAddressFromWatchedAddresses() async throws -> String {
-        // Generate a proper asset lock address using available addresses from public API
+        // TODO: TEMPORARY IMPLEMENTATION - REQUIRES PROPER P2SH ADDRESS GENERATION
+        //
+        // This is a temporary simplification that returns the first watched address
+        // instead of generating a proper P2SH (Pay-to-Script-Hash) address required
+        // for asset locks according to the Dash Platform specification.
+        //
+        // PROPER IMPLEMENTATION REQUIREMENTS:
+        // 1. Create a redeem script that locks funds until they can be unlocked by Platform
+        // 2. Hash the redeem script using SHA256 followed by RIPEMD160
+        // 3. Encode the hash as a P2SH address with proper version byte and checksum
+        // 4. Ensure the script follows Dash Platform asset lock protocol standards
+        //
+        // CURRENT IMPLICATIONS:
+        // - Asset locks may not be properly recognized by Dash Platform
+        // - Funds sent to regular addresses instead of P2SH may not be unlockable
+        // - This implementation should only be used for testing/development
+        //
+        // REASON FOR TEMPORARY APPROACH:
+        // - Proper P2SH generation requires low-level cryptographic operations
+        // - DashSDK public API may not expose necessary script creation functions
+        // - This allows asset lock workflow testing while proper implementation is developed
+        
         let addresses = Array(watchedAddresses)
         
         guard let firstAddress = addresses.first else {
             throw DashSDKAssetLockError.assetLockGenerationFailed
         }
         
-        // In a real implementation, this would generate a proper P2SH address
-        // For now, use the first watched address as the asset lock destination
+        print("⚠️ WARNING: Using simplified asset lock address generation")
+        print("⚠️ Returning first watched address: \(firstAddress)")
+        print("⚠️ This should be replaced with proper P2SH address generation")
+        
         return firstAddress
     }
 }
