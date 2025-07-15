@@ -637,16 +637,6 @@ class WalletService: ObservableObject {
                     
                     await MainActor.run {
                         self?.syncService.updateProgress(progress)
-                        
-                        // Convert to legacy SyncProgress for compatibility
-                        self?.syncProgress = SyncProgress(
-                            currentHeight: progress.currentHeight,
-                            totalHeight: progress.totalHeight,
-                            progress: progress.percentage / 100.0,
-                            status: self?.mapSyncStageToStatus(progress.stage) ?? .connecting,
-                            estimatedTimeRemaining: progress.estimatedSecondsRemaining > 0 ? TimeInterval(progress.estimatedSecondsRemaining) : nil,
-                            message: progress.stageMessage
-                        )
                     }
                     
                     // Log progress every second to avoid spam
@@ -1027,9 +1017,7 @@ class WalletService: ObservableObject {
                 try? await updateAccountBalance(account)
                 
                 // Trigger a notification to other parts of the app
-                // Convert SDK balance to local Balance type
-                let localBalance = LocalBalance.from(balance)
-                await notifyBalanceUpdate(localBalance)
+                await notifyBalanceUpdate(balance)
             }
         }
     }
@@ -1156,7 +1144,7 @@ class WalletService: ObservableObject {
     }
     
     private func handleSyncProgressUpdated(_ progress: SyncProgress) {
-        self.syncProgress = progress
+        self.syncService.updateProgress(progress)
         logger.info("📊 Sync progress: \(progress.percentageComplete)% - \(progress.status.description)")
     }
     
