@@ -44,16 +44,18 @@ public struct SDK {
     public init() {}
     
     public init(network: DashSDKNetwork) throws {
-        // Mock initialization with network
+        // TODO: Replace mock initialization with actual Platform SDK integration
         self.init()
         
-        // Convert DashSDKNetwork to DashNetwork and store it
+        // Convert DashSDKNetwork to DashNetwork with explicit mapping
         let dashNetwork: DashNetwork
         switch network.rawValue {
         case 0: dashNetwork = .mainnet
         case 1: dashNetwork = .testnet
         case 3: dashNetwork = .devnet
-        default: dashNetwork = .testnet
+        default: 
+            // Handle unexpected values explicitly to avoid hidden bugs
+            throw SDKError.invalidParameter("Unsupported DashSDKNetwork value: \(network.rawValue)")
         }
         var mutableSelf = self
         mutableSelf.setNetwork(dashNetwork)
@@ -67,37 +69,46 @@ public struct SDK {
 public struct IdentitiesAPI {
     public func fetchBalances(ids: [Data]) throws -> [Data: UInt64] {
         // TODO: DEVELOPMENT STUB - Replace with real Platform SDK integration
-        // This method currently returns mock data for development purposes only.
-        // When Platform SDK integration is complete, this should call:
+        // This method needs to be implemented with actual Platform SDK calls:
         // - dash_sdk_get_identity_balance() or equivalent FFI function
         // - Handle proper error cases and network timeouts
-        // - Return actual blockchain balances instead of random values
-        print("⚠️ fetchBalances: Using mock data - replace with Platform SDK integration")
+        // - Return actual blockchain balances
+        #if DEBUG
+        print("⚠️ fetchBalances: Platform SDK integration not implemented")
+        // Return deterministic zero balances for development builds
         return ids.reduce(into: [:]) { result, id in
-            result[id] = UInt64.random(in: 0...1000000)
+            result[id] = 0
         }
+        #else
+        // Fail fast in production to prevent using unimplemented functionality
+        throw SDKError.notImplemented("fetchBalances requires Platform SDK integration")
+        #endif
     }
     
     public func get(id: String) throws -> SDKIdentity? {
         // TODO: DEVELOPMENT STUB - Replace with real Platform SDK integration
-        // This method currently returns mock data for development purposes only.
-        // When Platform SDK integration is complete, this should call:
+        // This method needs to be implemented with actual Platform SDK calls:
         // - dash_sdk_get_identity() or equivalent FFI function
         // - Fetch real identity data from the blockchain
         // - Handle identity not found cases properly
-        print("⚠️ get(id:): Using mock data - replace with Platform SDK integration")
         
         guard let idData = Data(hexString: id) ?? Data.identifier(fromBase58: id),
               idData.count == 32 else {
             throw SDKError.invalidParameter("Invalid identity ID format")
         }
         
-        // Return a mock identity - THIS IS NOT REAL DATA
+        #if DEBUG
+        print("⚠️ get(id:): Platform SDK integration not implemented")
+        // Return deterministic mock identity for development builds
         return SDKIdentity(
             id: idData,
-            balance: UInt64.random(in: 0...1000000),
+            balance: 0,
             publicKeys: []
         )
+        #else
+        // Fail fast in production to prevent using unimplemented functionality
+        throw SDKError.notImplemented("get(id:) requires Platform SDK integration")
+        #endif
     }
 }
 
@@ -116,6 +127,7 @@ public enum SDKError: Error {
     case documentAlreadyExists(String)
     case contractNotFound(String)
     case generalError(String)
+    case notImplemented(String)
 }
 
 @MainActor
@@ -472,25 +484,24 @@ class AppState: ObservableObject {
     
     /// Get fallback token IDs for the current network
     private func getFallbackTokenIds() -> [String] {
-        // Return network-specific fallback token IDs as a last resort
-        // NOTE: These are placeholder/example token IDs - replace with real token IDs when available
+        // TODO: Load real token IDs from secure configuration or token registry
+        #if DEBUG
+        // Return network-specific fallback token IDs for development only
+        // NOTE: These are placeholder IDs for development testing
+        print("⚠️ Using placeholder token IDs - implement real token registry")
         switch currentNetwork {
         case .testnet:
-            return [
-                "AEzd9k8r8P3u8RGU5tGz8kXR9V5hN2J7K3M4P6Q8S1T2", // Testnet placeholder token
-                "BF2e9l9s9Q4v9SGV6uH9l9YS0W6iO3K8L4N5Q7R9T2U3"  // Another testnet placeholder
-            ]
+            return [] // No placeholder tokens in development
         case .mainnet:
-            return [
-                "C3f4g5h6i7j8k9l0m1n2o3p4q5r6s7t8u9v0w1x2y3z4", // Mainnet placeholder token
-                "D4g5h6i7j8k9l0m1n2o3p4q5r6s7t8u9v0w1x2y3z4a5"  // Another mainnet placeholder
-            ]
+            return [] // No placeholder tokens in development
         case .devnet:
-            return [
-                "E5h6i7j8k9l0m1n2o3p4q5r6s7t8u9v0w1x2y3z4a5b6", // Devnet placeholder token
-                "F6i7j8k9l0m1n2o3p4q5r6s7t8u9v0w1x2y3z4a5b6c7"  // Another devnet placeholder
-            ]
+            return [] // No placeholder tokens in development
         }
+        #else
+        // In production, return empty array until real token registry is implemented
+        // This prevents accidentally using placeholder data in production
+        return []
+        #endif
     }
     
     /// Load token balances and information for all identities
