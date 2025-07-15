@@ -6,11 +6,8 @@ import os.log
 class NetworkConfigurationService: ObservableObject {
     private let logger = Logger(subsystem: "com.dash.wallet", category: "NetworkConfigurationService")
     
-    /// Known good testnet peers (verified working in rust-dashcore example app)
-    private static let knownTestnetPeers = NetworkConstants.fallbackTestnetPeers
-    
-    /// Known good mainnet peers (verified working in rust-dashcore example app)
-    private static let knownMainnetPeers = NetworkConstants.fallbackMainnetPeers
+    // Note: Peer discovery is now handled automatically by rust-dashcore SPV client
+    // Legacy peer arrays kept for reference but no longer used
     
     /// Setup SPV configuration for a wallet
     func setupConfiguration(for network: DashNetwork) async throws -> SPVClientConfiguration {
@@ -122,23 +119,10 @@ class NetworkConfigurationService: ObservableObject {
     }
     
     private func configurePublicPeers(config: SPVClientConfiguration, network: DashNetwork) async {
-        logger.info("🌐 Using PUBLIC peers for \(network.rawValue)")
+        logger.info("🌐 Using AUTOMATIC peer discovery for \(network.rawValue)")
+        logger.info("   SPV client will handle DNS seed resolution and peer management")
         
-        if network == .mainnet && config.additionalPeers.isEmpty {
-            // Use our known-good mainnet peers if config doesn't have any
-            config.additionalPeers = Self.knownMainnetPeers
-            logger.info("   Applied known mainnet peers: \(config.additionalPeers.count) peers")
-        } else if network == .testnet && config.additionalPeers.count < 2 {
-            // Discover testnet peers using DNS seeds with fallback to hardcoded peers
-            config.additionalPeers = await NetworkConstants.discoverTestnetPeers()
-            config.maxPeers = 12
-            logger.info("   Applied testnet peers: \(config.additionalPeers.count) peers")
-        }
-        
-        // Log configured peers
-        logger.info("   Configured peers:")
-        for peer in config.additionalPeers {
-            logger.info("     • \(peer)")
-        }
+        // Clear any existing peers to let SPV client handle discovery
+        config.additionalPeers = []
     }
 }

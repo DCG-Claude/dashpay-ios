@@ -55,6 +55,39 @@ public final class SPVConfigurationManager {
         """
     }
     
+    /// Clear SPV data to enable checkpoint sync
+    /// This forces the SPV client to start fresh and use the latest checkpoint
+    public func clearSPVDataForCheckpointSync(network: DashNetwork) throws {
+        logger.info("🔄 Clearing SPV data for checkpoint sync on \(network.rawValue)")
+        
+        guard let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
+            throw NSError(domain: "SPVConfig", code: 1, userInfo: [NSLocalizedDescriptionKey: "Cannot find documents directory"])
+        }
+        
+        let spvDataPath = documentsPath
+            .appendingPathComponent("DashSPV")
+            .appendingPathComponent(network.rawValue)
+        
+        // Check if directory exists
+        if FileManager.default.fileExists(atPath: spvDataPath.path) {
+            logger.info("📁 Found existing SPV data at: \(spvDataPath.path)")
+            
+            // Remove the directory and all its contents
+            try FileManager.default.removeItem(at: spvDataPath)
+            logger.info("✅ Cleared SPV data successfully")
+            
+            // Recreate empty directory
+            try FileManager.default.createDirectory(at: spvDataPath, withIntermediateDirectories: true, attributes: nil)
+            logger.info("📁 Recreated empty SPV data directory")
+        } else {
+            logger.info("ℹ️ No existing SPV data found - checkpoint sync will be used automatically")
+        }
+        
+        // Clear cached configuration to force recreation
+        configurations.removeValue(forKey: network)
+        logger.info("♻️ Cleared cached configuration for \(network.rawValue)")
+    }
+    
     // MARK: - Private Configuration Creation
     
     private func createStandardConfiguration(for network: DashNetwork) throws -> SPVClientConfiguration {
@@ -77,12 +110,13 @@ public final class SPVConfigurationManager {
         config.validationMode = .full
         config.mempoolConfig = .fetchAll(maxTransactions: 5000)
         config.logLevel = "info"
-        config.maxPeers = NetworkConstants.maxPeers
+        // Note: maxPeers is handled by rust-dashcore SPV client (defaults to 3)
         
-        // Add testnet peer if needed
-        if network == .testnet {
-            config.additionalPeers = [NetworkConstants.primaryTestnetPeer]
-        }
+        // Enable checkpoint sync for faster initial synchronization
+        config.enableCheckpointSync()
+        
+        // Note: Peer discovery is now handled automatically by rust-dashcore SPV client
+        // No manual peer configuration needed
         
         // Set data directory
         if let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
