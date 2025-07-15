@@ -11,6 +11,7 @@ struct DashPayApp: App {
     @State private var shouldResetApp = false
     @State private var ffiInitializationFailed = false
     @State private var ffiInitializationError: Error?
+    @State private var showRestartInstructions = false
     // private let notificationDelegate = NotificationDelegate()
     // private let consoleRedirect = ConsoleRedirect()
     
@@ -55,14 +56,19 @@ struct DashPayApp: App {
                                 .multilineTextAlignment(.center)
                         }
                         
-                        Button("Restart App") {
-                            exit(0)
+                        Button("Show Restart Instructions") {
+                            showRestartInstructions = true
                         }
                         .buttonStyle(.borderedProminent)
                         .padding(.top, 20)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(Color(.systemBackground))
+                    .alert("Manual Restart Required", isPresented: $showRestartInstructions) {
+                        Button("OK", role: .cancel) { }
+                    } message: {
+                        Text("Due to a critical initialization failure, please manually close this app and restart it:\n\n1. Double-tap the home button (or swipe up from bottom)\n2. Swipe up on DashPay to close it\n3. Tap the DashPay icon to restart")
+                    }
                 } else if shouldResetApp {
                     // Show a simple loading view while resetting
                     VStack(spacing: 20) {
