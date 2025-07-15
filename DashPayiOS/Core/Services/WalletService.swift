@@ -719,7 +719,8 @@ class WalletService: ObservableObject {
         }
         
         print("🔄 Starting callback-based sync for wallet: \(activeWallet?.name ?? "Unknown")")
-        syncService.isSyncing = true
+        let requestId = UUID()
+        syncService.startSync(requestId: requestId)
         
         try await sdk.syncToTipWithProgress(
             progressCallback: { [weak self] progress in
