@@ -9,6 +9,9 @@ import SwiftDashCoreSDK
 struct DashPayApp: App {
     @StateObject private var unifiedState = UnifiedAppState()
     @State private var shouldResetApp = false
+    @State private var ffiInitializationFailed = false
+    @State private var ffiInitializationError: Error?
+    @State private var showRestartInstructions = false
     // private let notificationDelegate = NotificationDelegate()
     // private let consoleRedirect = ConsoleRedirect()
     
@@ -28,7 +31,45 @@ struct DashPayApp: App {
     var body: some Scene {
         WindowGroup {
             SwiftUI.Group {
-                if shouldResetApp {
+                if ffiInitializationFailed {
+                    // Show error view when FFI initialization fails
+                    VStack(spacing: 20) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.system(size: 60))
+                            .foregroundColor(.red)
+                        
+                        Text("Initialization Failed")
+                            .font(.title)
+                            .fontWeight(.bold)
+                        
+                        Text("Failed to initialize the wallet core library. The app cannot start without this critical component.")
+                            .font(.body)
+                            .multilineTextAlignment(.center)
+                            .foregroundColor(.secondary)
+                            .padding(.horizontal, 20)
+                        
+                        if let error = ffiInitializationError {
+                            Text("Error: \(error.localizedDescription)")
+                                .font(.caption)
+                                .foregroundColor(.red)
+                                .padding(.horizontal, 20)
+                                .multilineTextAlignment(.center)
+                        }
+                        
+                        Button("Show Restart Instructions") {
+                            showRestartInstructions = true
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .padding(.top, 20)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(Color(.systemBackground))
+                    .alert("Manual Restart Required", isPresented: $showRestartInstructions) {
+                        Button("OK", role: .cancel) { }
+                    } message: {
+                        Text("Due to a critical initialization failure, please manually close this app and restart it:\n\n1. Double-tap the home button (or swipe up from bottom)\n2. Swipe up on DashPay to close it\n3. Tap the DashPay icon to restart")
+                    }
+                } else if shouldResetApp {
                     // Show a simple loading view while resetting
                     VStack(spacing: 20) {
                         ProgressView("Resetting app...")
