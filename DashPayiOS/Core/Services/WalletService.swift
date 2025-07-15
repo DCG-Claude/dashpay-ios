@@ -719,7 +719,7 @@ class WalletService: ObservableObject {
         }
         
         print("🔄 Starting callback-based sync for wallet: \(activeWallet?.name ?? "Unknown")")
-        isSyncing = true
+        syncService.isSyncing = true
         
         try await sdk.syncToTipWithProgress(
             progressCallback: { [weak self] progress in
@@ -741,7 +741,11 @@ class WalletService: ObservableObject {
             },
             completionCallback: { [weak self] success, error in
                 Task { @MainActor in
-                    self?.isSyncing = false
+                    if success {
+                        self?.syncService.completeSync()
+                    } else {
+                        self?.syncService.reset()
+                    }
                     
                     if success {
                         print("✅ Sync completed successfully!")
@@ -757,7 +761,6 @@ class WalletService: ObservableObject {
                         }
                     } else {
                         print("❌ Sync failed: \(error ?? "Unknown error")")
-                        self?.detailedSyncProgress = nil
                     }
                 }
             }
