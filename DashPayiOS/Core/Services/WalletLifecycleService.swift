@@ -88,10 +88,9 @@ class WalletLifecycleService: ObservableObject {
         let account = HDAccount(
             accountIndex: index,
             label: label,
-            extendedPublicKey: accountData.xpub
+            extendedPublicKey: accountData.xpub,
+            wallet: wallet
         )
-        
-        account.wallet = wallet
         
         // Generate initial addresses using the background-generated data
         for addressData in accountData.addresses {

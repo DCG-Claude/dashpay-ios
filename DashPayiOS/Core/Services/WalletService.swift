@@ -25,22 +25,24 @@ class WalletService: ObservableObject {
     @Published var activeAccount: HDAccount?
     
     // New focused service dependencies
-    private let connectionService = WalletConnectionService()
+    private let walletConnectionService = WalletConnectionService()
     private let syncServiceNew = WalletSyncService()
     private let transactionService = WalletTransactionService()
     private let diagnosticsService = WalletDiagnosticsService()
     private lazy var eventService = WalletEventService(
-        connectionService: connectionService,
+        connectionService: walletConnectionService,
         transactionService: transactionService,
         syncService: syncServiceNew
     )
     
     // Legacy service dependencies (for backward compatibility during transition)
+    private let connectionService = ConnectionStateService()
     private let watchAddressService = WatchAddressService()
     private let autoSyncService = AutoSyncService()
     private let walletLifecycleService = WalletLifecycleService()
     private let addressManagementService = AddressManagementService()
     private let balanceTransactionService = BalanceTransactionService()
+    private let networkConfigurationService = NetworkConfigurationService()
     
     private var cancellables = Set<AnyCancellable>()
     var modelContext: ModelContext?
@@ -53,7 +55,7 @@ class WalletService: ObservableObject {
     private var pendingWatchAddresses: [String: [(address: String, error: Error)]] = [:]
     
     // Expose service properties for backward compatibility
-    var isConnected: Bool { connectionService.isConnected }
+    var isConnected: Bool { walletConnectionService.isConnected }
     var isSyncing: Bool { syncServiceNew.isSyncing }
     var syncProgress: SyncProgress? { syncServiceNew.syncProgress }
     var detailedSyncProgress: SwiftDashCoreSDK.DetailedSyncProgress? { syncServiceNew.detailedSyncProgress }
@@ -66,7 +68,7 @@ class WalletService: ObservableObject {
     }
     var lastAutoSyncDate: Date? { autoSyncService.lastAutoSyncDate }
     var syncQueue: [HDWallet] { autoSyncService.syncQueue }
-    var sdk: DashSDK? { connectionService.sdk }
+    var sdk: DashSDK? { walletConnectionService.sdk }
     var mempoolTransactionCount: Int { transactionService.mempoolTransactionCount }
     
     // Computed property for sync statistics
@@ -100,6 +102,7 @@ class WalletService: ObservableObject {
     
     func setSharedSDK(_ sdk: DashSDK) {
         logger.info("🔧 WalletService.setSharedSDK() called")
+        walletConnectionService.setSDK(sdk)
         connectionService.sdk = sdk
         logger.info("✅ WalletService configured with shared SDK")
     }
@@ -364,22 +367,22 @@ class WalletService: ObservableObject {
     
     /// Toggle between local and public peers
     func setUseLocalPeers(_ useLocal: Bool) {
-        connectionService.setUseLocalPeers(useLocal)
+        walletConnectionService.setUseLocalPeers(useLocal)
     }
     
     /// Check current peer configuration
     func isUsingLocalPeers() -> Bool {
-        return connectionService.isUsingLocalPeers()
+        return walletConnectionService.isUsingLocalPeers()
     }
     
     /// Set custom local peer host (for development)
     func setLocalPeerHost(_ host: String) {
-        connectionService.setLocalPeerHost(host)
+        walletConnectionService.setLocalPeerHost(host)
     }
     
     /// Get current local peer host
     func getLocalPeerHost() -> String {
-        return connectionService.getLocalPeerHost()
+        return walletConnectionService.getLocalPeerHost()
     }
     
     func connect(wallet: HDWallet, account: HDAccount) async throws {
@@ -405,13 +408,13 @@ class WalletService: ObservableObject {
         }
         
         // Setup configuration
-        let config = try await connectionService.setupConfiguration(wallet: wallet)
+        let config = try await walletConnectionService.setupConfiguration(wallet: wallet)
         
         // Initialize SDK
-        try await connectionService.initializeSDK(with: config)
+        try await walletConnectionService.initializeSDK(with: config)
         
         // Connect to network
-        try await connectionService.connectToNetwork()
+        try await walletConnectionService.connectToNetwork()
         
         // Setup event handling
         setupEventHandling()
@@ -436,7 +439,7 @@ class WalletService: ObservableObject {
         watchAddressService.stopWatchVerification()
         
         // Disconnect using connection service
-        await connectionService.disconnect()
+        await walletConnectionService.disconnect()
         
         // Reset legacy services
         watchAddressService.reset()
@@ -667,7 +670,7 @@ class WalletService: ObservableObject {
             throw WalletError.noActiveWallet
         }
         
-        try await connectionService.retryConnection(wallet: wallet, account: account, maxAttempts: maxAttempts)
+        try await walletConnectionService.retryConnection(wallet: wallet, account: account, maxAttempts: maxAttempts)
         
         // After successful connection, setup additional components
         setupEventHandling()

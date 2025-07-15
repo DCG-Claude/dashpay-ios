@@ -177,10 +177,10 @@ struct EnhancedSyncProgressView: View {
                         }
                     }
                     
-                    // Start timeout task that will cancel the group
+                    // Start timeout task that will throw an error to timeout the sync
                     group.addTask {
                         try await Task.sleep(nanoseconds: 10_000_000_000) // 10 seconds
-                        group.cancelAll()
+                        // Timeout error - this will complete the task group with an error
                         throw NSError(domain: "SyncTimeout", code: 1, userInfo: [NSLocalizedDescriptionKey: "Sync timed out - no progress received after 10 seconds"])
                     }
                     

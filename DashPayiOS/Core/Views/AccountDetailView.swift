@@ -93,7 +93,7 @@ struct AccountDetailView: View {
     }
     
     private func connectWallet() {
-        guard let wallet = account.wallet else { return }
+        let wallet = account.wallet
         
         isConnecting = true
         Task {

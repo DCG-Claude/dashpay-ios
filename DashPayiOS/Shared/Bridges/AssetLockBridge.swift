@@ -235,9 +235,7 @@ actor AssetLockBridge {
     }
     
     private func generateNewAddress(for account: HDAccount, isChange: Bool) throws -> HDWatchedAddress {
-        guard let wallet = account.wallet else {
-            throw AssetLockError.assetLockGenerationFailed
-        }
+        let wallet = account.wallet
         
         let index = isChange ? account.lastUsedInternalIndex + 1 : account.lastUsedExternalIndex + 1
         

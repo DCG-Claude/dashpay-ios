@@ -132,12 +132,14 @@ final class HDAccount: @unchecked Sendable {
         accountIndex: UInt32,
         label: String,
         extendedPublicKey: String,
+        wallet: HDWallet,
         gapLimit: UInt32 = 20
     ) {
         self.id = UUID()
         self.accountIndex = accountIndex
         self.label = label
         self.extendedPublicKey = extendedPublicKey
+        self.wallet = wallet
         self.createdAt = Date()
         self.lastUsedExternalIndex = 0
         self.lastUsedInternalIndex = 0

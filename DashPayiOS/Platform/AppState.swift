@@ -470,26 +470,6 @@ class AppState: ObservableObject {
         */
     }
     
-    /// Load token IDs from configuration file
-    private func loadTokenIdsFromConfiguration() -> [String]? {
-        guard let path = Bundle.main.path(forResource: "tokens", ofType: "json"),
-              let data = try? Data(contentsOf: URL(fileURLWithPath: path)),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            print("🔍 Failed to load tokens.json configuration file")
-            return nil
-        }
-        
-        let networkKey = currentNetwork.rawValue
-        guard let networkTokens = json[networkKey] as? [String: Any],
-              let tokenIds = networkTokens["tokenIds"] as? [String] else {
-            print("🔍 No token IDs found for network: \(networkKey)")
-            return nil
-        }
-        
-        print("🔍 Loaded \(tokenIds.count) token IDs from configuration for network: \(networkKey)")
-        return tokenIds
-    }
-    
     /// Get fallback token IDs for the current network
     private func getFallbackTokenIds() -> [String] {
         // Return network-specific fallback token IDs as a last resort

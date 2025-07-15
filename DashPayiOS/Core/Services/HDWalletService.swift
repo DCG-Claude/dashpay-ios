@@ -239,7 +239,7 @@ class HDWalletService {
         // Compute double SHA-256 hash of version + payload
         let versionAndPayload = decoded[0...20]
         let hash1 = SHA256.hash(data: versionAndPayload)
-        let hash2 = SHA256.hash(data: hash1)
+        let hash2 = SHA256.hash(data: Data(hash1))
         let computedChecksum = Array(hash2.prefix(4))
         
         // Verify checksum

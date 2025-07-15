@@ -10,14 +10,15 @@ class WalletConnectionService: ObservableObject {
     @Published var isConnected: Bool = false
     private(set) var sdk: DashSDK?
     
+    func setSDK(_ sdk: DashSDK) {
+        self.sdk = sdk
+    }
+    
     private let connectionService = ConnectionStateService()
     private let networkConfigurationService = NetworkConfigurationService()
     
-    /// Known good testnet peers (verified working in rust-dashcore example app)
-    private static let knownTestnetPeers = NetworkConstants.fallbackTestnetPeers
-    
-    /// Known good mainnet peers (verified working in rust-dashcore example app)
-    private static let knownMainnetPeers = NetworkConstants.fallbackMainnetPeers
+    // Note: Peer discovery is now handled automatically by rust-dashcore SPV client
+    // No need for hardcoded peer lists - the underlying library handles this
     
     // MARK: - Connection Management
     
@@ -64,24 +65,12 @@ class WalletConnectionService: ObservableObject {
                 logger.info("   Local testnet peer configured: \(localTestnetPeer)")
             }
         } else {
-            // Use public peers - check if we need to override with known-good peers
-            logger.info("🌐 Using PUBLIC peers for \(wallet.network.rawValue)")
-            if wallet.network == .mainnet && config.additionalPeers.isEmpty {
-                // Use our known-good mainnet peers if config doesn't have any
-                config.additionalPeers = Self.knownMainnetPeers
-                logger.info("   Applied known mainnet peers: \(config.additionalPeers.count) peers")
-            } else if wallet.network == .testnet && config.additionalPeers.count < 2 {
-                // Discover testnet peers using DNS seeds with fallback to hardcoded peers
-                config.additionalPeers = await NetworkConstants.discoverTestnetPeers()
-                config.maxPeers = 12
-                logger.info("   Applied testnet peers: \(config.additionalPeers.count) peers")
-            }
-            
-            // Log configured peers
-            logger.info("   Configured peers:")
-            for peer in config.additionalPeers {
-                logger.info("     • \(peer)")
-            }
+            // Use public peers - rust-dashcore will automatically discover and connect to peers
+            logger.info("🌐 Using PUBLIC peer discovery for \(wallet.network.rawValue)")
+            logger.info("   Rust-dashcore will automatically discover peers via DNS seeds")
+            // Clear any additional peers to let the library handle discovery
+            config.additionalPeers = []
+            logger.info("   Peer discovery delegated to rust-dashcore SPV client")
         }
         
         logger.info("📝 Configuration settings:")

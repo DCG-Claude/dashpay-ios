@@ -17,9 +17,7 @@ class AddressManagementService: ObservableObject {
     
     /// Discover addresses for an account
     func discoverAddresses(for account: HDAccount, sdk: DashSDK) async throws {
-        guard let wallet = account.wallet else {
-            throw WalletError.invalidState
-        }
+        let wallet = account.wallet
         
         logger.info("🔍 Starting address discovery for account: \(account.displayName)")
         
@@ -46,9 +44,7 @@ class AddressManagementService: ObservableObject {
     
     /// Generate addresses with gap limit checking
     func generateAddressesWithGapLimit(for account: HDAccount, sdk: DashSDK) async throws {
-        guard let wallet = account.wallet else {
-            throw WalletError.invalidState
-        }
+        let wallet = account.wallet
         
         logger.info("🏗️ Generating addresses with gap limit for account: \(account.displayName)")
         
@@ -82,7 +78,8 @@ class AddressManagementService: ObservableObject {
     
     /// Generate a new address for an account
     func generateNewAddress(for account: HDAccount, isChange: Bool = false) throws -> HDWatchedAddress {
-        guard let wallet = account.wallet, let context = modelContext else {
+        let wallet = account.wallet
+        guard let context = modelContext else {
             throw WalletError.noContext
         }
         
@@ -292,7 +289,8 @@ class AddressManagementService: ObservableObject {
         external: [String],
         internal: [String]
     ) async throws {
-        guard let wallet = account.wallet, let context = modelContext else {
+        let wallet = account.wallet
+        guard let context = modelContext else {
             throw WalletError.noContext
         }
         

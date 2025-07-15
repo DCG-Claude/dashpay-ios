@@ -35,6 +35,16 @@ enum WatchAddressError: Error, LocalizedError, Identifiable {
             return "Unknown error: \(message)"
         }
     }
+    
+    /// Indicates whether this error is recoverable with a retry
+    var isRecoverable: Bool {
+        switch self {
+        case .invalidAddress:
+            return false // Invalid addresses won't become valid on retry
+        case .networkError, .storageFailure, .unknownError:
+            return true // These might be recoverable
+        }
+    }
 }
 
 /// Service responsible for managing watch address functionality
@@ -95,13 +105,17 @@ class WatchAddressService: ObservableObject {
     
     /// Start watch verification timer
     func startWatchVerification(verificationHandler: @escaping () async -> Void) {
-        logger.info("⏰ Starting watch verification timer with interval: \(watchVerificationInterval)s")
-        watchVerificationTimer = Timer.scheduledTimer(withTimeInterval: watchVerificationInterval, repeats: true) { [weak self] _ in
+        let interval = self.watchVerificationInterval
+        logger.info("⏰ Starting watch verification timer with interval: \(interval)s")
+        watchVerificationTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
+            guard let self = self else { return }
             // Cancel any previous verification task before starting a new one
-            self?.currentVerificationTask?.cancel()
-            
-            self?.currentVerificationTask = Task {
-                await verificationHandler()
+            Task { @MainActor in
+                self.currentVerificationTask?.cancel()
+                
+                self.currentVerificationTask = Task {
+                    await verificationHandler()
+                }
             }
         }
     }

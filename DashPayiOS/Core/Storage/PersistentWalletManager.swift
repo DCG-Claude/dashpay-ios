@@ -204,7 +204,7 @@ final class PersistentWalletManager {
             pending: total.pending,
             instantLocked: total.instantLocked,
             mempool: total.mempool,
-            mempoolInstant: total.mempoolInstant ?? 0,
+            mempoolInstant: total.mempoolInstant,
             total: total.total
         )
         
@@ -621,30 +621,17 @@ final class PersistentWalletManager {
     /// Get the private key for a specific UTXO
     private func getPrivateKeyForUTXO(_ utxo: SwiftDashCoreSDK.UTXO) async throws -> Data? {
         // UTXO should contain address information for key derivation
-        // For now, we'll implement a stub that uses HDWalletService
-        guard let walletInfo = currentWalletInfo,
-              let seed = currentSeed else {
-            logger.error("No wallet info or seed available for private key derivation")
-            return nil
-        }
+        // For now, we'll implement a stub that throws an error since wallet info is not available
+        logger.error("Private key derivation not implemented - wallet info and seed management needed")
         
-        // Derive private key using HDWalletService
-        // This is a simplified implementation - in production, we would need to:
-        // 1. Map UTXO to specific derivation path
-        // 2. Use proper key derivation from seed
-        // 3. Cache derived keys securely
+        // TODO: Implement proper private key derivation when wallet context is available
+        // This would require:
+        // 1. Access to wallet seed/mnemonic (securely stored)
+        // 2. Mapping UTXO to specific derivation path
+        // 3. Use HDWalletService for proper key derivation
+        // 4. Cache derived keys securely
         
-        logger.warning("Using stub implementation for private key derivation")
-        
-        // For now, derive a private key using the first account and address index 0
-        // TODO: Implement proper UTXO to derivation path mapping
-        return HDWalletService.derivePrivateKey(
-            seed: seed,
-            network: currentNetwork,
-            account: 0,
-            change: false,
-            index: 0
-        )
+        throw DashSDKError.transactionBuildError("Private key derivation not implemented")
     }
     
     /// Create signature hash for a transaction input
