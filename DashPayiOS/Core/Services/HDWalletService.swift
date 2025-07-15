@@ -28,7 +28,9 @@ class HDWalletService {
             _ = try Mnemonic(phrase: phrase, language: .english)
             return true
         } catch {
+            #if DEBUG
             print("Mnemonic validation failed: \(error)")
+            #endif
             return false
         }
     }
@@ -52,7 +54,9 @@ class HDWalletService {
     
     static func encryptSeed(_ seed: Data, password: String) throws -> Data {
         // Create a symmetric key from the password
-        let passwordData = password.data(using: .utf8)!
+        guard let passwordData = password.data(using: .utf8) else {
+            throw WalletError.encryptionFailed
+        }
         let hash = SHA256.hash(data: passwordData)
         let key = SymmetricKey(data: hash)
         
@@ -69,7 +73,9 @@ class HDWalletService {
     
     static func decryptSeed(_ encryptedSeed: Data, password: String) throws -> Data {
         // Create a symmetric key from the password
-        let passwordData = password.data(using: .utf8)!
+        guard let passwordData = password.data(using: .utf8) else {
+            throw WalletError.decryptionFailed
+        }
         let hash = SHA256.hash(data: passwordData)
         let key = SymmetricKey(data: hash)
         
@@ -128,9 +134,7 @@ class HDWalletService {
         change: Bool,
         index: UInt32
     ) -> String {
-        let coinType: UInt32 = network == .mainnet ? 5 : 1
-        let changeIndex: UInt32 = change ? 1 : 0
-        return "m/44'/\(coinType)'/\(account)'/\(changeIndex)/\(index)"
+        return BIP44.derivationPath(network: network, account: account, change: change, index: index)
     }
     
     static func derivePrivateKey(

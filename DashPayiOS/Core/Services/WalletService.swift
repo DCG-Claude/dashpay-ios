@@ -1704,8 +1704,9 @@ class WalletService: ObservableObject {
     
     /// Cleanup method that invalidates all timers and cancels any ongoing tasks
     nonisolated private func cleanup() {
-        // Invalidate all timers on MainActor
-        Task { @MainActor in
+        // Synchronously invalidate all timers on MainActor
+        // Using assumeIsolated is safe here because we're invalidating timers during cleanup
+        MainActor.assumeIsolated {
             autoSyncTimer?.invalidate()
             autoSyncTimer = nil
             
