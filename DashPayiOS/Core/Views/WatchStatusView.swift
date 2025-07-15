@@ -72,7 +72,7 @@ struct WatchErrorsView: View {
                     }
                 }
                 
-                ForEach(Array(errors.prefix(3).enumerated()), id: \.offset) { _, error in
+                ForEach(Array(errors.prefix(3)), id: \.id) { error in
                     HStack {
                         Image(systemName: "exclamationmark.circle.fill")
                             .foregroundColor(.red)
