@@ -14,10 +14,10 @@ struct BlockExplorerConfig {
             baseURL = "https://insight.dash.org/insight/tx/"
         case .testnet:
             baseURL = "https://testnet-insight.dashevo.org/insight/tx/"
-        case .devnet:
-            baseURL = "https://insight-testnet.dash.org/insight/tx/"
-        case .regtest:
-            baseURL = "https://insight-testnet.dash.org/insight/tx/"
+        case .devnet, .regtest:
+            // No public block explorers exist for devnet and regtest networks
+            // Return nil to force explicit handling rather than misleading with testnet URLs
+            return nil
         @unknown default:
             baseURL = "https://insight.dash.org/insight/tx/"
         }
@@ -148,7 +148,7 @@ struct TransactionDetailView: View {
 // MARK: - Transaction Status Header
 
 struct TransactionStatusHeader: View {
-    let transaction: SwiftDashCoreSDK.Transaction
+    let transaction: DashPay.Transaction
     
     var body: some View {
         VStack(spacing: 12) {
@@ -335,7 +335,8 @@ struct TransactionActionsSection: View {
                 .cornerRadius(8)
             }
             
-            if let height = transaction.height {
+            if let height = transaction.height, 
+               BlockExplorerConfig.url(for: currentNetwork, txid: transaction.txid) != nil {
                 Button(action: openBlockExplorer) {
                     HStack {
                         Image(systemName: "safari")
