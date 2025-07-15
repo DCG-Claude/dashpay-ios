@@ -131,19 +131,58 @@ extension DashSDK {
     
     /// Get transaction confirmations using public API
     internal func getTransactionConfirmations(_ txid: String) async throws -> Int32 {
-        // Note: This is a simplified implementation that would need to be enhanced
-        // to actually query the blockchain for transaction confirmations
-        // For now, we return a default value
-        print("⚠️ getTransactionConfirmations not fully implemented for txid: \(txid)")
-        return 0
+        do {
+            // Use the existing getTransactions method to search for the transaction
+            let transactions = try await getTransactions(limit: 1000)
+            
+            // Find the transaction with matching txid
+            if let transaction = transactions.first(where: { $0.txid == txid }) {
+                return Int32(transaction.confirmations)
+            }
+            
+            // If not found in recent transactions, check through watched addresses
+            for address in watchedAddresses {
+                let addressTransactions = try await getTransactions(for: address, limit: 100)
+                if let transaction = addressTransactions.first(where: { $0.txid == txid }) {
+                    return Int32(transaction.confirmations)
+                }
+            }
+            
+            // Transaction not found, likely not ours or very old
+            print("🔍 Transaction \(txid) not found in wallet history")
+            return 0
+        } catch {
+            print("🔴 Error getting transaction confirmations for \(txid): \(error)")
+            throw DashSDKAssetLockError.transactionNotFound
+        }
     }
     
     /// Check if transaction has InstantSend lock using public API
     internal func isTransactionInstantLocked(_ txid: String) async -> Bool {
-        // Note: This is a simplified implementation that would need to be enhanced
-        // to actually query the blockchain for InstantSend lock status
-        print("⚠️ isTransactionInstantLocked not fully implemented for txid: \(txid)")
-        return false
+        do {
+            // Use the existing getTransactions method to search for the transaction
+            let transactions = try await getTransactions(limit: 1000)
+            
+            // Find the transaction with matching txid
+            if let transaction = transactions.first(where: { $0.txid == txid }) {
+                return transaction.isInstantLocked
+            }
+            
+            // If not found in recent transactions, check through watched addresses
+            for address in watchedAddresses {
+                let addressTransactions = try await getTransactions(for: address, limit: 100)
+                if let transaction = addressTransactions.first(where: { $0.txid == txid }) {
+                    return transaction.isInstantLocked
+                }
+            }
+            
+            // Transaction not found, assume not InstantLocked
+            print("🔍 Transaction \(txid) not found in wallet history for InstantLock check")
+            return false
+        } catch {
+            print("🔴 Error checking InstantLock status for \(txid): \(error)")
+            return false
+        }
     }
     
     /// Wait for InstantSend lock confirmation using public API
