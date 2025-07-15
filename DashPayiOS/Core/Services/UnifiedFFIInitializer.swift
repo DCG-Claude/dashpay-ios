@@ -32,11 +32,8 @@ final class UnifiedSDKInitializer: @unchecked Sendable {
     private init() {}
     
     deinit {
-        // Cleanup will be handled when MainActor releases the instance
-        if isInitialized {
-            dashSDK = nil
-            print("🧹 Unified SDK cleaned up in deinit")
-        }
+        // Use existing cleanup function to ensure consistent teardown behavior
+        cleanup()
     }
     
     /// Initialize the unified SDK with configuration

@@ -110,8 +110,10 @@ public final class SPVConfigurationManager {
         }
         
         // Clear cached configuration to force recreation
-        configurations.removeValue(forKey: network)
-        logger.info("♻️ Cleared cached configuration for \(network.rawValue)")
+        concurrentQueue.async(flags: .barrier) {
+            self.configurations.removeValue(forKey: network)
+            self.logger.info("♻️ Cleared cached configuration for \(network.rawValue)")
+        }
     }
     
     // MARK: - Private Configuration Creation
@@ -133,7 +135,10 @@ public final class SPVConfigurationManager {
         }
         
         // Apply standard settings
-        config.validationMode = .full
+        // For regtest, preserve the original .none validation mode, use .full for other networks
+        if network != .regtest {
+            config.validationMode = .full
+        }
         config.mempoolConfig = .fetchAll(maxTransactions: 5000)
         config.logLevel = "info"
         // Note: maxPeers is handled by rust-dashcore SPV client (defaults to 3)
