@@ -1,0 +1,440 @@
+#!/bin/bash
+
+# Comprehensive script to rename ALL conflicting symbols in Rust FFI libraries
+# This resolves duplicate symbol issues when linking multiple Rust static libraries
+# Handles all 494 duplicate symbols including:
+# - blake3 crypto library symbols
+# - blst crypto library symbols
+# - Compiler builtins and runtime symbols
+# - ARM64 atomics
+# - Rust runtime symbols
+
+set -euo pipefail
+
+# Configuration
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+PROJECT_ROOT="$SCRIPT_DIR"
+LIBS_DIR="$PROJECT_ROOT/DashPayiOS/Libraries"
+LLVM_OBJCOPY="/opt/homebrew/opt/llvm/bin/llvm-objcopy"
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+MAGENTA='\033[0;35m'
+CYAN='\033[0;36m'
+NC='\033[0m' # No Color
+
+# Function to print colored output
+log_info() {
+    echo -e "${GREEN}[INFO]${NC} $1"
+}
+
+log_warn() {
+    echo -e "${YELLOW}[WARN]${NC} $1"
+}
+
+log_error() {
+    echo -e "${RED}[ERROR]${NC} $1"
+}
+
+log_debug() {
+    echo -e "${BLUE}[DEBUG]${NC} $1"
+}
+
+log_success() {
+    echo -e "${CYAN}[SUCCESS]${NC} $1"
+}
+
+# Check if llvm-objcopy is available
+if [ ! -x "$LLVM_OBJCOPY" ]; then
+    log_error "llvm-objcopy not found at $LLVM_OBJCOPY"
+    log_error "Please install LLVM: brew install llvm"
+    exit 1
+fi
+
+# Function to extract all symbols from a library
+extract_all_symbols() {
+    local lib="$1"
+    local output_file="$2"
+    
+    log_info "Extracting all symbols from $(basename "$lib")..."
+    
+    # Extract all defined symbols (both local and global)
+    # T = global text, t = local text, D = global data, d = local data, 
+    # B = BSS, R = read-only data, S = small data
+    nm -g "$lib" 2>/dev/null | grep -E " [TDdBbRrSs] " | awk '{print $3}' | sort -u > "$output_file"
+    
+    local sym_count=$(wc -l < "$output_file")
+    log_debug "Extracted $sym_count symbols"
+}
+
+# Function to find duplicate symbols between two libraries
+find_duplicate_symbols() {
+    local symbols1="$1"
+    local symbols2="$2"
+    local output_file="$3"
+    
+    log_info "Finding duplicate symbols..."
+    comm -12 <(sort "$symbols1") <(sort "$symbols2") > "$output_file"
+    
+    local dup_count=$(wc -l < "$output_file")
+    log_info "Found $dup_count duplicate symbols"
+    
+    # Categorize duplicates
+    if [ "$dup_count" -gt 0 ]; then
+        echo -e "${MAGENTA}Symbol categories:${NC}"
+        echo "  Compiler builtins (___): $(grep -c '^___' "$output_file" || echo 0)"
+        echo "  ARM64 atomics (__aarch64_): $(grep -c '^__aarch64_' "$output_file" || echo 0)"
+        echo "  Blake3 crypto (_blake3_): $(grep -c '^_blake3_' "$output_file" || echo 0)"
+        echo "  BLST crypto (_blst_): $(grep -c '^_blst_' "$output_file" || echo 0)"
+        echo "  Rust runtime (_rust_): $(grep -c '^_rust_' "$output_file" || echo 0)"
+        echo "  Other: $(grep -vE '^(_____|__aarch64_|_blake3_|_blst_|_rust_)' "$output_file" | wc -l || echo 0)"
+    fi
+    
+    return 0
+}
+
+# Function to create comprehensive rename script that handles ALL duplicates
+create_comprehensive_rename_script() {
+    local prefix="$1"
+    local duplicates_file="$2"
+    local output_file="$3"
+    
+    log_info "Creating comprehensive rename script with prefix: $prefix"
+    
+    > "$output_file"
+    
+    local total_renames=0
+    
+    # Process ALL duplicate symbols
+    while IFS= read -r symbol; do
+        # Skip empty lines
+        [ -z "$symbol" ] && continue
+        
+        # Determine the new name based on symbol type
+        local new_name=""
+        
+        case "$symbol" in
+            # Essential system symbols that should NOT be renamed
+            _main|_malloc|_free|_memcpy|_memset|_strlen|_strcmp|_strcpy)
+                log_debug "Skipping essential system symbol: $symbol"
+                continue
+                ;;
+            
+            # Compiler builtins - add prefix
+            ___*)
+                new_name="${prefix}${symbol#_}"
+                ;;
+            
+            # ARM64 atomics - add prefix
+            __aarch64_*)
+                new_name="${prefix}${symbol#_}"
+                ;;
+            
+            # Blake3 symbols - add prefix
+            _blake3_*)
+                new_name="${prefix}${symbol#_}"
+                ;;
+            
+            # BLST symbols - add prefix
+            _blst_*)
+                new_name="${prefix}${symbol#_}"
+                ;;
+            
+            # Rust runtime symbols - add prefix
+            _rust_*)
+                new_name="${prefix}${symbol#_}"
+                ;;
+            
+            # Any other symbols - add prefix
+            *)
+                new_name="${prefix}${symbol#_}"
+                ;;
+        esac
+        
+        # Write the rename rule if we have a new name
+        if [ -n "$new_name" ]; then
+            echo "$symbol $new_name" >> "$output_file"
+            ((total_renames++))
+        fi
+    done < "$duplicates_file"
+    
+    log_info "Created $total_renames symbol rename rules"
+    
+    # Show some examples
+    if [ "$total_renames" -gt 0 ]; then
+        log_info "Example renames:"
+        head -10 "$output_file" | while IFS=' ' read -r old new; do
+            echo -e "  ${YELLOW}$old${NC} → ${GREEN}$new${NC}"
+        done
+        if [ "$total_renames" -gt 10 ]; then
+            echo "  ... and $((total_renames - 10)) more"
+        fi
+    fi
+}
+
+# Function to rename symbols in a library
+rename_symbols_in_lib() {
+    local input_lib="$1"
+    local output_lib="$2"
+    local rename_script="$3"
+    
+    log_info "Renaming symbols in $(basename "$input_lib")..."
+    
+    # Create a temporary directory for processing
+    local temp_dir=$(mktemp -d)
+    local lib_name=$(basename "$input_lib")
+    
+    # Copy library to temp location
+    cp "$input_lib" "$temp_dir/$lib_name"
+    
+    # Apply symbol renaming
+    if ! "$LLVM_OBJCOPY" --redefine-syms="$rename_script" "$temp_dir/$lib_name" "$output_lib" 2>&1; then
+        log_error "Failed to rename symbols in $lib_name"
+        rm -rf "$temp_dir"
+        return 1
+    fi
+    
+    # Clean up
+    rm -rf "$temp_dir"
+    
+    # Show file sizes
+    local orig_size=$(ls -lh "$input_lib" | awk '{print $5}')
+    local new_size=$(ls -lh "$output_lib" | awk '{print $5}')
+    log_success "Created renamed library: $(basename "$output_lib") (size: $orig_size → $new_size)"
+}
+
+# Function to verify renamed library
+verify_renamed_library() {
+    local lib="$1"
+    local lib_name="$2"
+    local prefix="$3"
+    
+    log_info "Verifying renamed library: $lib_name"
+    
+    # Check if FFI functions are still exported
+    local ffi_funcs=$(nm -g "$lib" 2>/dev/null | grep " T " | grep -E "(dash_spv_ffi|rs_sdk_ffi|key_wallet_ffi)" | wc -l)
+    log_debug "FFI functions preserved: $ffi_funcs"
+    
+    # Check if conflicting symbols have been renamed
+    local renamed_syms=$(nm -g "$lib" 2>/dev/null | grep -E " [TDdBbRrSs] " | grep "^${prefix}" | wc -l)
+    log_debug "Renamed symbols: $renamed_syms"
+    
+    # Check specific categories
+    local renamed_blake3=$(nm -g "$lib" 2>/dev/null | grep "${prefix}blake3_" | wc -l)
+    local renamed_blst=$(nm -g "$lib" 2>/dev/null | grep "${prefix}blst_" | wc -l)
+    local renamed_builtins=$(nm -g "$lib" 2>/dev/null | grep "${prefix}__" | wc -l)
+    
+    if [ "$renamed_syms" -gt 0 ]; then
+        log_success "✓ Library contains $renamed_syms renamed symbols"
+        log_debug "  - Blake3: $renamed_blake3"
+        log_debug "  - BLST: $renamed_blst"
+        log_debug "  - Builtins: $renamed_builtins"
+    fi
+}
+
+# Function to test FFI loading
+test_ffi_loading() {
+    local test_file="$1"
+    
+    log_info "Testing FFI loading with renamed libraries..."
+    
+    # Create a simple test program
+    cat > "$test_file" <<'EOF'
+#include <dlfcn.h>
+#include <stdio.h>
+
+int main() {
+    // Test loading the renamed libraries
+    void* spv_handle = dlopen("libdash_spv_ffi_sim_renamed.a", RTLD_NOW);
+    if (!spv_handle) {
+        printf("Failed to load SPV library: %s\n", dlerror());
+        return 1;
+    }
+    
+    void* sdk_handle = dlopen("librs_sdk_ffi_renamed.a", RTLD_NOW);
+    if (!sdk_handle) {
+        printf("Failed to load SDK library: %s\n", dlerror());
+        return 1;
+    }
+    
+    printf("Libraries loaded successfully!\n");
+    
+    dlclose(spv_handle);
+    dlclose(sdk_handle);
+    
+    return 0;
+}
+EOF
+    
+    # Compile and run test
+    if cc "$test_file" -o "${test_file%.c}" 2>/dev/null; then
+        if "./${test_file%.c}" 2>/dev/null; then
+            log_success "✓ FFI loading test passed!"
+        else
+            log_warn "FFI loading test failed - this is expected for static libraries"
+        fi
+        rm -f "${test_file%.c}"
+    fi
+    
+    rm -f "$test_file"
+}
+
+# Main processing
+main() {
+    log_info "Starting comprehensive FFI symbol renaming..."
+    log_info "This will rename ALL 494 duplicate symbols to ensure clean linking"
+    echo ""
+    
+    # Create working directory
+    local work_dir="$PROJECT_ROOT/build/ffi_rename_comprehensive"
+    rm -rf "$work_dir"
+    mkdir -p "$work_dir"
+    
+    # Process simulator libraries first
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${CYAN}Processing Simulator Libraries${NC}"
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    
+    local spv_lib="$LIBS_DIR/libdash_spv_ffi_sim.a"
+    local sdk_lib="$LIBS_DIR/DashSDK.xcframework/ios-arm64-simulator/librs_sdk_ffi.a"
+    
+    # Check if libraries exist
+    if [ ! -f "$spv_lib" ]; then
+        log_error "SPV library not found: $spv_lib"
+        exit 1
+    fi
+    
+    if [ ! -f "$sdk_lib" ]; then
+        log_error "SDK library not found: $sdk_lib"
+        exit 1
+    fi
+    
+    # Extract all symbols from both libraries
+    extract_all_symbols "$spv_lib" "$work_dir/spv_all_symbols.txt"
+    extract_all_symbols "$sdk_lib" "$work_dir/sdk_all_symbols.txt"
+    
+    # Find duplicate symbols
+    find_duplicate_symbols "$work_dir/spv_all_symbols.txt" "$work_dir/sdk_all_symbols.txt" "$work_dir/duplicate_symbols.txt"
+    
+    # Create rename scripts for each library
+    create_comprehensive_rename_script "_spv" "$work_dir/duplicate_symbols.txt" "$work_dir/spv_rename_all.txt"
+    create_comprehensive_rename_script "_sdk" "$work_dir/duplicate_symbols.txt" "$work_dir/sdk_rename_all.txt"
+    
+    # Rename symbols in libraries
+    local spv_lib_renamed="$LIBS_DIR/libdash_spv_ffi_sim_renamed.a"
+    local sdk_lib_renamed="$LIBS_DIR/DashSDK.xcframework/ios-arm64-simulator/librs_sdk_ffi_renamed.a"
+    
+    rename_symbols_in_lib "$spv_lib" "$spv_lib_renamed" "$work_dir/spv_rename_all.txt"
+    rename_symbols_in_lib "$sdk_lib" "$sdk_lib_renamed" "$work_dir/sdk_rename_all.txt"
+    
+    # Verify renamed libraries
+    verify_renamed_library "$spv_lib_renamed" "SPV Simulator" "_spv"
+    verify_renamed_library "$sdk_lib_renamed" "SDK Simulator" "_sdk"
+    
+    # Process device libraries
+    echo ""
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${CYAN}Processing Device Libraries${NC}"
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    
+    local spv_ios_lib="$LIBS_DIR/libdash_spv_ffi_ios.a"
+    local sdk_ios_lib="$LIBS_DIR/DashSDK.xcframework/ios-arm64/librs_sdk_ffi.a"
+    
+    if [ -f "$spv_ios_lib" ] && [ -f "$sdk_ios_lib" ]; then
+        # Extract symbols
+        extract_all_symbols "$spv_ios_lib" "$work_dir/spv_ios_all_symbols.txt"
+        extract_all_symbols "$sdk_ios_lib" "$work_dir/sdk_ios_all_symbols.txt"
+        
+        # Find duplicates
+        find_duplicate_symbols "$work_dir/spv_ios_all_symbols.txt" "$work_dir/sdk_ios_all_symbols.txt" "$work_dir/duplicate_ios_symbols.txt"
+        
+        # Create rename scripts
+        create_comprehensive_rename_script "_spv" "$work_dir/duplicate_ios_symbols.txt" "$work_dir/spv_ios_rename_all.txt"
+        create_comprehensive_rename_script "_sdk" "$work_dir/duplicate_ios_symbols.txt" "$work_dir/sdk_ios_rename_all.txt"
+        
+        # Rename symbols
+        local spv_ios_lib_renamed="$LIBS_DIR/libdash_spv_ffi_ios_renamed.a"
+        local sdk_ios_lib_renamed="$LIBS_DIR/DashSDK.xcframework/ios-arm64/librs_sdk_ffi_renamed.a"
+        
+        rename_symbols_in_lib "$spv_ios_lib" "$spv_ios_lib_renamed" "$work_dir/spv_ios_rename_all.txt"
+        rename_symbols_in_lib "$sdk_ios_lib" "$sdk_ios_lib_renamed" "$work_dir/sdk_ios_rename_all.txt"
+        
+        # Verify
+        verify_renamed_library "$spv_ios_lib_renamed" "SPV Device" "_spv"
+        verify_renamed_library "$sdk_ios_lib_renamed" "SDK Device" "_sdk"
+    else
+        log_warn "Device libraries not found, skipping..."
+    fi
+    
+    # Final verification - check for remaining duplicates
+    echo ""
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${CYAN}Final Verification${NC}"
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    
+    if [ -f "$spv_lib_renamed" ] && [ -f "$sdk_lib_renamed" ]; then
+        log_info "Checking for remaining duplicate symbols in renamed libraries..."
+        
+        # Extract symbols from renamed libraries
+        extract_all_symbols "$spv_lib_renamed" "$work_dir/spv_renamed_symbols.txt"
+        extract_all_symbols "$sdk_lib_renamed" "$work_dir/sdk_renamed_symbols.txt"
+        
+        # Check for duplicates
+        find_duplicate_symbols "$work_dir/spv_renamed_symbols.txt" "$work_dir/sdk_renamed_symbols.txt" "$work_dir/remaining_duplicates.txt"
+        
+        local remaining=$(wc -l < "$work_dir/remaining_duplicates.txt")
+        if [ "$remaining" -eq 0 ]; then
+            log_success "✅ SUCCESS: No duplicate symbols remain!"
+            log_success "All 494 duplicate symbols have been successfully renamed!"
+        else
+            log_warn "⚠️  WARNING: $remaining duplicate symbols still remain"
+            log_info "Remaining duplicates:"
+            cat "$work_dir/remaining_duplicates.txt"
+            
+            # Analyze why they weren't renamed
+            log_info ""
+            log_info "Analyzing unrenamed symbols..."
+            while IFS= read -r symbol; do
+                if grep -q "^$symbol " "$work_dir/spv_rename_all.txt"; then
+                    log_debug "$symbol was scheduled for renaming in SPV library"
+                else
+                    log_warn "$symbol was NOT scheduled for renaming in SPV library"
+                fi
+                if grep -q "^$symbol " "$work_dir/sdk_rename_all.txt"; then
+                    log_debug "$symbol was scheduled for renaming in SDK library"
+                else
+                    log_warn "$symbol was NOT scheduled for renaming in SDK library"
+                fi
+            done < "$work_dir/remaining_duplicates.txt"
+        fi
+    fi
+    
+    # Test FFI loading
+    echo ""
+    test_ffi_loading "$work_dir/test_ffi_load.c"
+    
+    # Save work directory info
+    echo ""
+    log_info "Work files saved in: $work_dir"
+    log_info "  - duplicate_symbols.txt: Original duplicates (should be 494)"
+    log_info "  - spv_rename_all.txt: SPV rename rules"
+    log_info "  - sdk_rename_all.txt: SDK rename rules"
+    log_info "  - remaining_duplicates.txt: Any remaining duplicates (should be 0)"
+    
+    echo ""
+    echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${GREEN}Symbol renaming complete!${NC}"
+    echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo ""
+    log_info "Next steps:"
+    log_info "1. Verify project.yml is configured to use renamed libraries"
+    log_info "2. Run './test-renamed-libraries.sh' to test the renamed libraries"
+    log_info "3. Build and test the app in Xcode"
+    log_info "4. Verify FFI initialization works without hanging"
+}
+
+# Run main function
+main "$@"

@@ -1,0 +1,1090 @@
+import Foundation
+import Combine
+import SwiftData
+import SwiftDashSDK
+import SwiftDashCoreSDK
+import CryptoKit
+import os.log
+import P256K
+
+/// Protocol for UTXO and transaction synchronization
+public protocol UTXOTransactionSyncProtocol: AnyObject {
+    func getUTXOs() async throws -> [SwiftDashCoreSDK.UTXO]
+    func getTransactions(for address: String) async throws -> [SwiftDashCoreSDK.Transaction]
+}
+
+@Observable
+final class PersistentWalletManager {
+    private let client: SwiftDashCoreSDK.SPVClient
+    private let storage: StorageManager
+    private weak var syncDelegate: UTXOTransactionSyncProtocol?
+    private var syncTask: Task<Void, Never>?
+    private let logger = Logger(subsystem: "com.dash.wallet", category: "PersistentWalletManager")
+    
+    // HD Wallet context for proper change address derivation
+    private var currentNetwork: DashNetwork = .testnet
+    private var currentAccountXPub: String?
+    private var nextChangeAddressIndex: UInt32 = 0
+    
+    var watchedAddresses: Set<String> = []
+    var totalBalance: SwiftDashCoreSDK.Balance = SwiftDashCoreSDK.Balance(
+        confirmed: 0,
+        pending: 0,
+        instantLocked: 0,
+        mempool: 0,
+        mempoolInstant: 0,
+        total: 0
+    )
+    
+    init(client: SwiftDashCoreSDK.SPVClient, storage: StorageManager, syncDelegate: UTXOTransactionSyncProtocol? = nil) {
+        self.client = client
+        self.storage = storage
+        self.syncDelegate = syncDelegate
+        
+        Task {
+            await loadPersistedData()
+        }
+    }
+    
+    deinit {
+        syncTask?.cancel()
+    }
+    
+    // MARK: - Configuration Methods
+    
+    /// Set the sync delegate for UTXO and transaction synchronization
+    func setSyncDelegate(_ syncDelegate: UTXOTransactionSyncProtocol) {
+        self.syncDelegate = syncDelegate
+    }
+    
+    /// Configure HD wallet context for proper change address derivation
+    func configureHDWallet(network: DashNetwork, accountXPub: String, nextChangeIndex: UInt32 = 0) {
+        logger.info("Configuring HD wallet context - network: \(network.rawValue), nextChangeIndex: \(nextChangeIndex)")
+        self.currentNetwork = network
+        self.currentAccountXPub = accountXPub
+        self.nextChangeAddressIndex = nextChangeIndex
+    }
+    
+    /// Derive the next change address from HD wallet internal chain
+    private func deriveNextChangeAddress() throws -> String {
+        guard let xpub = currentAccountXPub else {
+            logger.error("Cannot derive change address: no account xpub configured")
+            throw WalletError.invalidState
+        }
+        
+        do {
+            let changeAddress = try HDWalletService.deriveAddress(
+                xpub: xpub,
+                network: currentNetwork,
+                change: true,  // Use internal/change chain
+                index: nextChangeAddressIndex
+            )
+            
+            // Increment the change index for next use
+            nextChangeAddressIndex += 1
+            
+            logger.info("✅ Derived change address: \(changeAddress) (index: \(self.nextChangeAddressIndex - 1))")
+            return changeAddress
+        } catch {
+            logger.error("🔴 Failed to derive change address: \(error)")
+            throw WalletError.derivationFailed
+        }
+    }
+    
+    // MARK: - Public Methods
+    
+    func watchAddress(_ address: String, label: String? = nil) async throws {
+        // Add to SPV client
+        try await client.addWatchItem(type: .address, data: address)
+        
+        // Add to tracked set
+        watchedAddresses.insert(address)
+        
+        // Persist to storage if it's a new address
+        if try storage.fetchWatchedAddress(by: address) == nil {
+            // Find the account this address belongs to (if any)
+            // For now, we'll create a standalone watched address
+            let watchedAddress = HDWatchedAddress(
+                address: address,
+                index: 0,
+                isChange: false,
+                derivationPath: "",
+                label: label ?? "Watched"
+            )
+            try storage.saveWatchedAddress(watchedAddress)
+        }
+        
+        // Start syncing data for this address
+        await syncAddressData(address)
+    }
+    
+    func unwatchAddress(_ address: String) async throws {
+        // Remove from SPV client
+        try await client.removeWatchItem(type: .address, data: address)
+        
+        // Remove from tracked set
+        watchedAddresses.remove(address)
+        
+        // Remove from storage
+        if let watchedAddress = try storage.fetchWatchedAddress(by: address) {
+            try storage.deleteWatchedAddress(watchedAddress)
+        }
+    }
+    
+    func getBalance(for address: String) async throws -> SwiftDashCoreSDK.Balance {
+        // Try to get from storage first
+        if let cachedBalance = try storage.fetchBalance(for: address) {
+            // Check if balance is recent (within last minute)
+            if Date.now.timeIntervalSince(cachedBalance.lastUpdated) < 60 {
+                return SwiftDashCoreSDK.Balance(
+                    confirmed: cachedBalance.confirmed,
+                    pending: cachedBalance.pending,
+                    instantLocked: cachedBalance.instantLocked,
+                    mempool: cachedBalance.mempool,
+                    mempoolInstant: cachedBalance.mempoolInstant,
+                    total: cachedBalance.total,
+                    lastUpdated: cachedBalance.lastUpdated
+                )
+            }
+        }
+        
+        // Fetch fresh balance from SPV client
+        let addressBalance = try await client.getAddressBalance(address)
+        let balance = SwiftDashCoreSDK.Balance(
+            confirmed: addressBalance.confirmed,
+            pending: addressBalance.pending,
+            instantLocked: addressBalance.instantLocked,
+            mempool: 0, // SPV client doesn't provide mempool balance yet
+            mempoolInstant: 0,
+            total: addressBalance.confirmed + addressBalance.pending
+        )
+        
+        // Save to storage
+        let balanceModel = LocalBalance(
+            confirmed: balance.confirmed,
+            pending: balance.pending,
+            instantLocked: balance.instantLocked,
+            mempool: balance.mempool,
+            mempoolInstant: balance.mempoolInstant ?? 0,
+            total: balance.total
+        )
+        try storage.saveBalance(balanceModel, for: address)
+        
+        return balance
+    }
+    
+    func getTotalBalance() async throws -> SwiftDashCoreSDK.Balance {
+        var totalConfirmed: UInt64 = 0
+        var totalPending: UInt64 = 0
+        var totalInstantLocked: UInt64 = 0
+        var totalMempool: UInt64 = 0
+        var totalMempoolInstant: UInt64 = 0
+        
+        for address in watchedAddresses {
+            let balance = try await getBalance(for: address)
+            totalConfirmed += balance.confirmed
+            totalPending += balance.pending
+            totalInstantLocked += balance.instantLocked
+            totalMempool += balance.mempool
+            totalMempoolInstant += balance.mempoolInstant ?? 0
+        }
+        
+        let total = SwiftDashCoreSDK.Balance(
+            confirmed: totalConfirmed,
+            pending: totalPending,
+            instantLocked: totalInstantLocked,
+            mempool: totalMempool,
+            mempoolInstant: totalMempoolInstant,
+            total: totalConfirmed + totalPending + totalMempool
+        )
+        
+        // Update internal state
+        totalBalance = Balance(
+            confirmed: total.confirmed,
+            pending: total.pending,
+            instantLocked: total.instantLocked,
+            mempool: total.mempool,
+            mempoolInstant: total.mempoolInstant ?? 0,
+            total: total.total
+        )
+        
+        return total
+    }
+    
+    func getTransactions(for address: String? = nil, limit: Int = 100) async throws -> [SwiftDashCoreSDK.Transaction] {
+        // For now, fetch from storage
+        let storedTransactions = try storage.fetchTransactions(for: address, limit: limit)
+        
+        // Convert to SDK transactions
+        return storedTransactions.map { tx in
+            SwiftDashCoreSDK.Transaction(
+                txid: tx.txid,
+                height: tx.height,
+                timestamp: tx.timestamp,
+                amount: tx.amount,
+                fee: tx.fee ?? 0,
+                confirmations: tx.confirmations,
+                isInstantLocked: tx.isInstantLocked,
+                raw: tx.raw ?? Data(),
+                size: tx.size ?? 0,
+                version: tx.version ?? 1
+            )
+        }
+    }
+    
+    func getUTXOs(for address: String? = nil) async throws -> [SwiftDashCoreSDK.UTXO] {
+        let storedUTXOs = try storage.fetchUTXOs(for: address)
+        
+        // Convert to SDK UTXOs
+        return storedUTXOs.map { utxo in
+            SwiftDashCoreSDK.UTXO(
+                outpoint: utxo.outpoint,
+                txid: utxo.txid,
+                vout: utxo.vout,
+                address: utxo.address,
+                script: utxo.script,
+                value: utxo.value,
+                height: utxo.height,
+                confirmations: utxo.confirmations,
+                isInstantLocked: utxo.isInstantLocked
+            )
+        }
+    }
+    
+    func getSpendableUTXOs() async throws -> [SwiftDashCoreSDK.UTXO] {
+        let utxos = try await getUTXOs()
+        return utxos.filter { $0.confirmations > 0 }
+    }
+    
+    func createTransaction(
+        to address: String,
+        amount: UInt64,
+        feeRate: UInt64
+    ) async throws -> Data {
+        // TODO: Add support for InstantSend, multiple outputs, and RBF (Replace-By-Fee)
+        logger.info("Creating transaction to \(address) for amount \(amount) with fee rate \(feeRate)")
+        
+        // Get available UTXOs for transaction building
+        let utxos = try await getSpendableUTXOs()
+        
+        guard !utxos.isEmpty else {
+            throw DashSDKError.transactionBuildError("No spendable UTXOs available")
+        }
+        
+        // Select UTXOs for the transaction
+        let selectedUTXOs = try selectUTXOs(
+            from: utxos,
+            targetAmount: amount,
+            feeRate: feeRate
+        )
+        
+        // Calculate fee
+        let fee = calculateTransactionFee(
+            inputs: selectedUTXOs.count,
+            outputs: 2, // destination + change
+            feeRate: feeRate
+        )
+        
+        // Build and sign transaction with private keys
+        let signedTransaction = try await buildAndSignTransaction(
+            inputs: selectedUTXOs,
+            outputs: [
+                TransactionOutput(address: address, amount: amount)
+            ],
+            fee: fee
+        )
+        
+        logger.info("Created and signed transaction with \(selectedUTXOs.count) inputs, fee: \(fee)")
+        
+        return signedTransaction
+    }
+    
+    // MARK: - Private Transaction Building Methods
+    
+    private func selectUTXOs(
+        from utxos: [SwiftDashCoreSDK.UTXO],
+        targetAmount: UInt64,
+        feeRate: UInt64
+    ) throws -> [SwiftDashCoreSDK.UTXO] {
+        var selected: [SwiftDashCoreSDK.UTXO] = []
+        var total: UInt64 = 0
+        
+        // Estimate fee with 2 inputs and 2 outputs initially
+        let estimatedFee = calculateTransactionFee(inputs: 2, outputs: 2, feeRate: feeRate)
+        let requiredAmount = targetAmount + estimatedFee
+        
+        // Sort UTXOs by value (largest first) for efficient selection
+        let sortedUTXOs = utxos.sorted { $0.value > $1.value }
+        
+        for utxo in sortedUTXOs {
+            if total >= requiredAmount {
+                break
+            }
+            selected.append(utxo)
+            total += utxo.value
+        }
+        
+        if total < requiredAmount {
+            throw DashSDKError.insufficientFunds(required: requiredAmount, available: total)
+        }
+        
+        return selected
+    }
+    
+    private func calculateTransactionFee(
+        inputs: Int,
+        outputs: Int,
+        feeRate: UInt64
+    ) -> UInt64 {
+        // Calculate transaction size in bytes
+        let baseSize = 10 // Version (4) + Input count (1) + Output count (1) + Lock time (4)
+        let inputSize = inputs * 148 // Average input size with signature
+        let outputSize = outputs * 34 // Average output size (P2PKH)
+        
+        let totalSize = baseSize + inputSize + outputSize
+        return UInt64(totalSize) * feeRate / 1000
+    }
+    
+    private func buildAndSignTransaction(
+        inputs: [SwiftDashCoreSDK.UTXO],
+        outputs: [TransactionOutput],
+        fee: UInt64
+    ) async throws -> Data {
+        logger.info("Building and signing transaction with \(inputs.count) inputs")
+        
+        // Calculate change amount
+        let inputTotal = inputs.reduce(0) { $0 + $1.value }
+        let outputTotal = outputs.reduce(0) { $0 + $1.amount }
+        let changeAmount = inputTotal - outputTotal - fee
+        
+        // Prepare all outputs (including change if needed)
+        var allOutputs = outputs
+        if changeAmount > 546 { // 546 is dust threshold
+            let changeAddress = try deriveNextChangeAddress()
+            logger.info("Adding change output: \(changeAmount) to \(changeAddress)")
+            allOutputs.append(TransactionOutput(address: changeAddress, amount: changeAmount))
+        }
+        
+        // Build unsigned transaction for signature hash calculation
+        let unsignedTx = try buildUnsignedTransaction(inputs: inputs, outputs: allOutputs)
+        
+        // Sign each input
+        var signedInputs: [(Data, Data)] = [] // (txid, signature+pubkey script)
+        
+        for (index, input) in inputs.enumerated() {
+            logger.debug("Signing input \(index): \(input.txid):\(input.vout)")
+            
+            // Get the private key for this UTXO's address
+            guard let privateKey = try await getPrivateKeyForUTXO(input) else {
+                throw DashSDKError.transactionBuildError("Cannot find private key for UTXO \(input.txid):\(input.vout)")
+            }
+            
+            // Create signature hash for this input
+            let signatureHash = try createSignatureHash(
+                unsignedTx: unsignedTx,
+                inputIndex: index,
+                utxo: input,
+                hashType: 0x01 // SIGHASH_ALL
+            )
+            
+            // Sign the hash
+            let signature = try signTransactionHash(signatureHash, with: privateKey)
+            
+            // Get public key from private key
+            let publicKey = try derivePublicKey(from: privateKey)
+            
+            // Create script sig (signature + public key)
+            let scriptSig = try createScriptSig(signature: signature, publicKey: publicKey)
+            
+            signedInputs.append((Data(hex: input.txid) ?? Data(), scriptSig))
+        }
+        
+        // Build final signed transaction
+        let signedTransaction = try buildSignedTransaction(
+            inputs: inputs,
+            signedInputs: signedInputs,
+            outputs: allOutputs
+        )
+        
+        logger.info("Successfully built and signed transaction")
+        return signedTransaction
+    }
+    
+    private func buildUnsignedTransaction(
+        inputs: [SwiftDashCoreSDK.UTXO],
+        outputs: [TransactionOutput]
+    ) throws -> Data {
+        var rawTx = Data()
+        
+        // Transaction version (4 bytes)
+        let version: UInt32 = 1
+        rawTx.append(contentsOf: withUnsafeBytes(of: version.littleEndian) { Array($0) })
+        
+        // Input count (1 byte for now, assuming < 253)
+        rawTx.append(UInt8(inputs.count))
+        
+        // Add inputs with empty scripts
+        for input in inputs {
+            // Previous transaction hash (32 bytes, reversed)
+            guard let txidData = Data(hex: input.txid) else {
+                throw DashSDKError.transactionBuildError("Invalid transaction ID format: \(input.txid)")
+            }
+            rawTx.append(contentsOf: txidData.reversed())
+            
+            // Output index (4 bytes)
+            rawTx.append(contentsOf: withUnsafeBytes(of: input.vout.littleEndian) { Array($0) })
+            
+            // Script length (1 byte for empty script)
+            rawTx.append(0x00)
+            
+            // Sequence number (4 bytes)
+            rawTx.append(contentsOf: [0xFF, 0xFF, 0xFF, 0xFF])
+        }
+        
+        // Output count
+        rawTx.append(UInt8(outputs.count))
+        
+        // Add outputs
+        for output in outputs {
+            // Amount (8 bytes)
+            rawTx.append(contentsOf: withUnsafeBytes(of: output.amount.littleEndian) { Array($0) })
+            
+            // Script (P2PKH script)
+            let script = try createP2PKHScript(for: output.address)
+            rawTx.append(UInt8(script.count))
+            rawTx.append(script)
+        }
+        
+        // Lock time (4 bytes)
+        rawTx.append(contentsOf: [0x00, 0x00, 0x00, 0x00])
+        
+        return rawTx
+    }
+    
+    private func buildSignedTransaction(
+        inputs: [SwiftDashCoreSDK.UTXO],
+        signedInputs: [(Data, Data)],
+        outputs: [TransactionOutput]
+    ) throws -> Data {
+        var rawTx = Data()
+        
+        // Transaction version (4 bytes)
+        let version: UInt32 = 1
+        rawTx.append(contentsOf: withUnsafeBytes(of: version.littleEndian) { Array($0) })
+        
+        // Input count
+        rawTx.append(UInt8(inputs.count))
+        
+        // Add signed inputs
+        for (index, input) in inputs.enumerated() {
+            // Previous transaction hash (32 bytes, reversed)
+            guard let txidData = Data(hex: input.txid) else {
+                throw DashSDKError.transactionBuildError("Invalid transaction ID format: \(input.txid)")
+            }
+            rawTx.append(contentsOf: txidData.reversed())
+            
+            // Output index (4 bytes)
+            rawTx.append(contentsOf: withUnsafeBytes(of: input.vout.littleEndian) { Array($0) })
+            
+            // Script sig from signed inputs
+            let scriptSig = signedInputs[index].1
+            rawTx.append(UInt8(scriptSig.count))
+            rawTx.append(scriptSig)
+            
+            // Sequence number (4 bytes)
+            rawTx.append(contentsOf: [0xFF, 0xFF, 0xFF, 0xFF])
+        }
+        
+        // Output count
+        rawTx.append(UInt8(outputs.count))
+        
+        // Add outputs
+        for output in outputs {
+            // Amount (8 bytes)
+            rawTx.append(contentsOf: withUnsafeBytes(of: output.amount.littleEndian) { Array($0) })
+            
+            // Script (P2PKH script)
+            let script = try createP2PKHScript(for: output.address)
+            rawTx.append(UInt8(script.count))
+            rawTx.append(script)
+        }
+        
+        // Lock time (4 bytes)
+        rawTx.append(contentsOf: [0x00, 0x00, 0x00, 0x00])
+        
+        return rawTx
+    }
+    
+    private func createP2PKHScript(for address: String) throws -> Data {
+        // Create Pay-to-Public-Key-Hash script
+        logger.debug("Creating P2PKH script for address: \(address)")
+        
+        // Validate and decode the address to extract pubKeyHash
+        guard let pubKeyHash = try decodeAddressToPubKeyHash(address: address) else {
+            throw DashSDKError.invalidAddress("Invalid address format: \(address)")
+        }
+        
+        var script = Data()
+        
+        // OP_DUP
+        script.append(0x76)
+        // OP_HASH160
+        script.append(0xa9)
+        // Push 20 bytes
+        script.append(0x14)
+        // 20-byte hash160 of public key (decoded from address)
+        script.append(pubKeyHash)
+        // OP_EQUALVERIFY
+        script.append(0x88)
+        // OP_CHECKSIG
+        script.append(0xac)
+        
+        return script
+    }
+    
+    /// Decode a Dash address to extract the pubKeyHash
+    /// - Parameter address: The Base58-encoded Dash address
+    /// - Returns: The 20-byte pubKeyHash if valid, nil otherwise
+    private func decodeAddressToPubKeyHash(address: String) throws -> Data? {
+        // Validate basic address format
+        guard !address.isEmpty, address.count >= 26, address.count <= 35 else {
+            logger.warning("Address has invalid length: \(address.count)")
+            return nil
+        }
+        
+        // Validate network-specific address prefix
+        let firstChar = address.first!
+        let expectedVersionByte: UInt8
+        
+        switch currentNetwork {
+        case .mainnet:
+            guard firstChar == "X" || firstChar == "7" else {
+                logger.warning("Invalid mainnet address prefix: \(firstChar)")
+                return nil
+            }
+            expectedVersionByte = 0x4c // Dash mainnet P2PKH version
+        case .testnet, .devnet, .regtest:
+            guard firstChar == "y" || firstChar == "8" || firstChar == "9" else {
+                logger.warning("Invalid testnet/devnet address prefix: \(firstChar)")
+                return nil
+            }
+            expectedVersionByte = 0x8c // Dash testnet P2PKH version
+        }
+        
+        // Decode the Base58 address
+        guard let decodedData = address.base58DecodedData else {
+            logger.warning("Failed to decode Base58 address: \(address)")
+            return nil
+        }
+        
+        // Validate decoded data length (1 version byte + 20 pubKeyHash bytes + 4 checksum bytes = 25 total)
+        guard decodedData.count == 25 else {
+            logger.warning("Decoded address has invalid length: \(decodedData.count), expected 25")
+            return nil
+        }
+        
+        // Extract components
+        let versionByte = decodedData[0]
+        let pubKeyHash = decodedData[1..<21]
+        let checksum = decodedData[21..<25]
+        
+        // Verify version byte matches network
+        guard versionByte == expectedVersionByte else {
+            logger.warning("Address version byte mismatch. Expected: \(String(format: "0x%02x", expectedVersionByte)), got: \(String(format: "0x%02x", versionByte))")
+            return nil
+        }
+        
+        // Verify checksum
+        let payload = decodedData[0..<21] // version + pubKeyHash
+        let computedChecksum = try computeDoubleSHA256Checksum(payload)
+        
+        guard checksum.elementsEqual(computedChecksum) else {
+            logger.warning("Address checksum verification failed")
+            return nil
+        }
+        
+        logger.debug("Successfully decoded address pubKeyHash: \(pubKeyHash.hexString)")
+        return Data(pubKeyHash)
+    }
+    
+    /// Compute double SHA256 checksum for address validation
+    /// - Parameter data: The payload data (version + pubKeyHash)
+    /// - Returns: First 4 bytes of SHA256(SHA256(data))
+    private func computeDoubleSHA256Checksum(_ data: Data) throws -> Data {
+        let firstHash = SHA256.hash(data: data)
+        let secondHash = SHA256.hash(data: Data(firstHash))
+        return Data(secondHash.prefix(4))
+    }
+    
+    // MARK: - Transaction Signing Methods
+    
+    /// Get the private key for a specific UTXO
+    private func getPrivateKeyForUTXO(_ utxo: SwiftDashCoreSDK.UTXO) async throws -> Data? {
+        // UTXO should contain address information for key derivation
+        // For now, we'll implement a stub that uses HDWalletService
+        guard let walletInfo = currentWalletInfo,
+              let seed = currentSeed else {
+            logger.error("No wallet info or seed available for private key derivation")
+            return nil
+        }
+        
+        // Derive private key using HDWalletService
+        // This is a simplified implementation - in production, we would need to:
+        // 1. Map UTXO to specific derivation path
+        // 2. Use proper key derivation from seed
+        // 3. Cache derived keys securely
+        
+        logger.warning("Using stub implementation for private key derivation")
+        
+        // For now, derive a private key using the first account and address index 0
+        // TODO: Implement proper UTXO to derivation path mapping
+        return HDWalletService.derivePrivateKey(
+            seed: seed,
+            network: currentNetwork,
+            account: 0,
+            change: false,
+            index: 0
+        )
+    }
+    
+    /// Create signature hash for a transaction input
+    private func createSignatureHash(
+        unsignedTx: Data,
+        inputIndex: Int,
+        utxo: SwiftDashCoreSDK.UTXO,
+        hashType: UInt8
+    ) throws -> Data {
+        // For Bitcoin/Dash SIGHASH_ALL signing, we need to:
+        // 1. Replace the input script at inputIndex with the UTXO's scriptPubKey
+        // 2. Clear all other input scripts
+        // 3. Append the hash type
+        // 4. Double SHA256 the result
+        
+        logger.debug("Creating signature hash for input \(inputIndex)")
+        
+        // This is a simplified implementation
+        // TODO: Implement proper transaction hash calculation according to Bitcoin/Dash protocol
+        
+        var hashData = unsignedTx
+        hashData.append(hashType)
+        
+        // Double SHA256
+        let firstHash = SHA256.hash(data: hashData)
+        let secondHash = SHA256.hash(data: Data(firstHash))
+        
+        return Data(secondHash)
+    }
+    
+    /// Sign a transaction hash with a private key
+    private func signTransactionHash(_ hash: Data, with privateKey: Data) throws -> Data {
+        // Use ECDSA signing with secp256k1 (Bitcoin/Dash standard)
+        // This integrates with the existing KeychainSigner approach
+        
+        do {
+            // Create secp256k1 private key
+            let signingKey = try P256K.Signing.PrivateKey(dataRepresentation: privateKey)
+            
+            // Sign the hash
+            let signature = try signingKey.signature(for: hash)
+            
+            // Return DER-encoded signature
+            return try signature.derRepresentation
+        } catch {
+            logger.error("Failed to sign transaction hash: \(error)")
+            throw DashSDKError.transactionBuildError("Transaction signing failed: \(error)")
+        }
+    }
+    
+    /// Derive public key from private key
+    private func derivePublicKey(from privateKey: Data) throws -> Data {
+        do {
+            let signingKey = try P256K.Signing.PrivateKey(dataRepresentation: privateKey)
+            return signingKey.publicKey.dataRepresentation
+        } catch {
+            logger.error("Failed to derive public key: \(error)")
+            throw DashSDKError.transactionBuildError("Public key derivation failed: \(error)")
+        }
+    }
+    
+    /// Create script sig (signature + public key) for P2PKH input
+    private func createScriptSig(signature: Data, publicKey: Data) throws -> Data {
+        var scriptSig = Data()
+        
+        // Add signature with SIGHASH_ALL (0x01) appended
+        var sigWithHashType = signature
+        sigWithHashType.append(0x01) // SIGHASH_ALL
+        
+        // Push signature
+        scriptSig.append(UInt8(sigWithHashType.count))
+        scriptSig.append(sigWithHashType)
+        
+        // Push public key
+        scriptSig.append(UInt8(publicKey.count))
+        scriptSig.append(publicKey)
+        
+        return scriptSig
+    }
+    
+    private struct TransactionOutput {
+        let address: String
+        let amount: UInt64
+    }
+}
+
+// MARK: - Data Extensions
+
+extension Data {
+    init?(hex: String) {
+        let len = hex.count / 2
+        var data = Data(capacity: len)
+        for i in 0..<len {
+            let j = hex.index(hex.startIndex, offsetBy: i*2)
+            let k = hex.index(j, offsetBy: 2)
+            let bytes = hex[j..<k]
+            if var num = UInt8(bytes, radix: 16) {
+                data.append(&num, count: 1)
+            } else {
+                return nil
+            }
+        }
+        self = data
+    }
+}
+
+// MARK: - Persistence Methods - Back to PersistentWalletManager
+
+extension PersistentWalletManager {
+    
+    private func loadPersistedData() async {
+        do {
+            // Load watched addresses
+            let addresses = try storage.fetchWatchedAddresses()
+            
+            watchedAddresses = Set(addresses.map { $0.address })
+            
+            // Re-watch addresses in SPV client if connected
+            if client.isConnected {
+                var watchErrors: [Error] = []
+                
+                for address in addresses {
+                    do {
+                        try await client.addWatchItem(type: .address, data: address.address)
+                        logger.debug("Re-watched address: \(address.address)")
+                    } catch {
+                        logger.error("Failed to re-watch address \(address.address): \(error)")
+                        watchErrors.append(error)
+                    }
+                }
+                
+                // If any addresses failed to watch, log but continue
+                if !watchErrors.isEmpty {
+                    logger.warning("Failed to re-watch \(watchErrors.count) addresses")
+                }
+            }
+            
+            // Load total balance
+            await updateTotalBalance()
+        } catch {
+            logger.error("Failed to load persisted data: \(error)")
+        }
+    }
+    
+    private func syncAddressData(_ address: String) async {
+        do {
+            // Sync balance
+            _ = try await getBalance(for: address)
+            
+            // MARK: - UTXO and Transaction Sync Limitation
+            // NOTE: Direct UTXO and transaction synchronization is currently not available
+            // due to type visibility constraints in SwiftDashCoreSDK. The getUTXOs() and
+            // getTransactions() methods are commented out in SPVClientProtocol because
+            // UTXO and Transaction types are internal to the SDK.
+            //
+            // FUTURE WORK:
+            // 1. Work with SDK team to expose public types for UTXOs and Transactions
+            // 2. Implement alternative data fetching through DAPI or other available APIs
+            // 3. Consider using mempool tracking and event-based updates as interim solution
+            // 4. Explore using broadcastTransaction events to track outgoing transactions
+            //
+            // Current approach: Relying on balance updates and event-driven notifications
+            // from the SPV client for transaction and UTXO changes.
+            
+            // Sync UTXOs - Currently disabled due to SDK type constraints
+            do {
+                // TODO: Implement alternative UTXO fetching when SDK types become available
+                // or when alternative data sources are identified
+                let utxos: [UTXO] = [] // Placeholder - no UTXOs fetched
+                let localUTXOs = utxos.map { LocalUTXO(from: $0) }
+                try await storage.saveUTXOs(localUTXOs)
+                logger.debug("UTXO sync skipped - SDK constraints (0 UTXOs synced for address: \(address))")
+            } catch {
+                logger.error("Failed to sync UTXOs for address \(address): \(error)")
+            }
+            
+            // Sync transactions - Currently disabled due to SDK type constraints
+            do {
+                // TODO: Implement alternative transaction fetching when SDK types become available
+                // Consider using DAPI endpoints or event-based transaction tracking
+                let transactions: [SwiftDashCoreSDK.Transaction] = [] // Placeholder - no transactions fetched
+                let localTransactions = transactions.map { Transaction(from: $0) }
+                try await storage.saveTransactions(localTransactions)
+                logger.debug("Transaction sync skipped - SDK constraints (0 transactions synced for address: \(address))")
+            } catch {
+                logger.error("Failed to sync transactions for address \(address): \(error)")
+            }
+            
+            // Update activity timestamp
+            if let watchedAddress = try storage.fetchWatchedAddress(by: address) {
+                watchedAddress.lastActivityTimestamp = Date()
+                try storage.saveWatchedAddress(watchedAddress)
+            }
+        } catch {
+            logger.error("Failed to sync address data: \(error)")
+        }
+    }
+    
+    private func updateTotalBalance() async {
+        do {
+            _ = try await getTotalBalance()
+        } catch {
+            logger.error("Failed to update total balance: \(error)")
+        }
+    }
+    
+    // MARK: - Public Persistence Methods
+    
+    func startPeriodicSync(interval: TimeInterval = 30) {
+        syncTask?.cancel()
+        
+        syncTask = Task {
+            while !Task.isCancelled {
+                await syncAllData()
+                
+                try? await Task.sleep(nanoseconds: UInt64(interval * 1_000_000_000))
+            }
+        }
+    }
+    
+    func stopPeriodicSync() {
+        syncTask?.cancel()
+        syncTask = nil
+    }
+    
+    func syncAllData() async {
+        for address in watchedAddresses {
+            await syncAddressData(address)
+        }
+        
+        await updateTotalBalance()
+    }
+    
+    func getStorageStatistics() throws -> StorageStatistics {
+        return try storage.getStorageStatistics()
+    }
+    
+    func clearAllData() throws {
+        try storage.deleteAllData()
+        watchedAddresses.removeAll()
+        totalBalance = Balance(
+            confirmed: 0,
+            pending: 0,
+            instantLocked: 0,
+            mempool: 0,
+            mempoolInstant: 0,
+            total: 0
+        )
+    }
+    
+    func exportWalletData() throws -> WalletExportData {
+        let addresses = try storage.fetchWatchedAddresses()
+        let transactions = try storage.fetchTransactions()
+        let utxos = try storage.fetchUTXOs()
+        
+        // Convert to export format
+        let exportedAddresses = addresses.map { address in
+            WalletExportData.ExportedAddress(
+                address: address.address,
+                label: address.label,
+                createdAt: Date(),
+                isActive: !address.transactionIds.isEmpty,
+                balance: address.balance.map { balance in
+                    WalletExportData.ExportedBalance(
+                        confirmed: balance.confirmed,
+                        pending: balance.pending,
+                        instantLocked: balance.instantLocked,
+                        total: balance.total
+                    )
+                }
+            )
+        }
+        
+        let exportedTransactions = transactions.map { tx in
+            WalletExportData.ExportedTransaction(
+                txid: tx.txid,
+                height: tx.height,
+                timestamp: tx.timestamp,
+                amount: tx.amount,
+                fee: tx.fee ?? 0,
+                confirmations: tx.confirmations,
+                isInstantLocked: tx.isInstantLocked,
+                size: tx.size ?? 0,
+                version: tx.version ?? 1
+            )
+        }
+        
+        let exportedUTXOs = utxos.map { utxo in
+            WalletExportData.ExportedUTXO(
+                txid: utxo.txid,
+                vout: utxo.vout,
+                address: utxo.address,
+                value: utxo.value,
+                height: utxo.height,
+                confirmations: utxo.confirmations,
+                isInstantLocked: utxo.isInstantLocked
+            )
+        }
+        
+        return WalletExportData(
+            addresses: exportedAddresses,
+            transactions: exportedTransactions,
+            utxos: exportedUTXOs,
+            exportDate: .now
+        )
+    }
+    
+    func importWalletData(_ data: WalletExportData) async throws {
+        // Clear existing data
+        try clearAllData()
+        
+        // Import addresses
+        for exportedAddress in data.addresses {
+            let address = HDWatchedAddress(
+                address: exportedAddress.address,
+                index: 0,
+                isChange: false,
+                derivationPath: "",
+                label: exportedAddress.label ?? "Imported"
+            )
+            
+            // Create balance if present
+            if let exportedBalance = exportedAddress.balance {
+                let balance = LocalBalance(
+                    confirmed: exportedBalance.confirmed,
+                    pending: exportedBalance.pending,
+                    instantLocked: exportedBalance.instantLocked,
+                    mempool: 0,
+                    mempoolInstant: 0,
+                    total: exportedBalance.total
+                )
+                address.balance = balance
+            }
+            
+            try storage.saveWatchedAddress(address)
+            watchedAddresses.insert(address.address)
+        }
+        
+        // Import transactions
+        let transactions = data.transactions.map { exportedTx in
+            Transaction(
+                txid: exportedTx.txid,
+                height: exportedTx.height,
+                timestamp: exportedTx.timestamp,
+                amount: exportedTx.amount,
+                fee: exportedTx.fee,
+                confirmations: exportedTx.confirmations,
+                isInstantLocked: exportedTx.isInstantLocked,
+                size: exportedTx.size,
+                version: exportedTx.version
+            )
+        }
+        try await storage.saveTransactions(transactions)
+        
+        // Import UTXOs
+        let utxos = data.utxos.map { exportedUTXO in
+            let outpoint = "\(exportedUTXO.txid):\(exportedUTXO.vout)"
+            return LocalUTXO(
+                outpoint: outpoint,
+                txid: exportedUTXO.txid,
+                vout: exportedUTXO.vout,
+                address: exportedUTXO.address,
+                script: Data(), // Empty script for imported UTXOs
+                value: exportedUTXO.value,
+                height: exportedUTXO.height ?? 0,
+                confirmations: exportedUTXO.confirmations,
+                isInstantLocked: exportedUTXO.isInstantLocked,
+                isSpent: false
+            )
+        }
+        try await storage.saveUTXOs(utxos)
+        
+        // Update balances
+        await updateTotalBalance()
+    }
+}
+
+// MARK: - Wallet Export Data
+
+struct WalletExportData: Codable {
+    struct ExportedAddress: Codable {
+        let address: String
+        let label: String?
+        let createdAt: Date
+        let isActive: Bool
+        let balance: ExportedBalance?
+    }
+    
+    struct ExportedBalance: Codable {
+        let confirmed: UInt64
+        let pending: UInt64
+        let instantLocked: UInt64
+        let total: UInt64
+    }
+    
+    struct ExportedTransaction: Codable {
+        let txid: String
+        let height: UInt32?
+        let timestamp: Date
+        let amount: Int64
+        let fee: UInt64
+        let confirmations: UInt32
+        let isInstantLocked: Bool
+        let size: UInt32
+        let version: UInt32
+    }
+    
+    struct ExportedUTXO: Codable {
+        let txid: String
+        let vout: UInt32
+        let address: String
+        let value: UInt64
+        let height: UInt32?
+        let confirmations: UInt32
+        let isInstantLocked: Bool
+    }
+    
+    let addresses: [ExportedAddress]
+    let transactions: [ExportedTransaction]
+    let utxos: [ExportedUTXO]
+    let exportDate: Date
+    
+    var formattedSize: String {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .prettyPrinted
+        
+        if let data = try? encoder.encode(self) {
+            return ByteCountFormatter.string(fromByteCount: Int64(data.count), countStyle: .binary)
+        }
+        
+        return "Unknown"
+    }
+}
+
+
+// MARK: - Data Extensions
+
+extension Data {
+    /// Convert Data to hexadecimal string representation
+    var hexString: String {
+        return map { String(format: "%02hhx", $0) }.joined()
+    }
+}
