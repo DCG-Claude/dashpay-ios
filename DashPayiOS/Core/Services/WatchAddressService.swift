@@ -3,6 +3,40 @@ import Combine
 import os.log
 import SwiftDashCoreSDK
 
+/// Errors that can occur when watching addresses
+enum WatchAddressError: Error, LocalizedError, Identifiable {
+    case invalidAddress(String)
+    case networkError(String)
+    case storageFailure(String)
+    case unknownError(String)
+    
+    var id: String {
+        switch self {
+        case .invalidAddress(let address):
+            return "invalid_\(address.hashValue)"
+        case .networkError(let message):
+            return "network_\(message.hashValue)"
+        case .storageFailure(let message):
+            return "storage_\(message.hashValue)"
+        case .unknownError(let message):
+            return "unknown_\(message.hashValue)"
+        }
+    }
+    
+    var errorDescription: String? {
+        switch self {
+        case .invalidAddress(let address):
+            return "Invalid address: \(address)"
+        case .networkError(let message):
+            return "Network error: \(message)"
+        case .storageFailure(let message):
+            return "Storage failure: \(message)"
+        case .unknownError(let message):
+            return "Unknown error: \(message)"
+        }
+    }
+}
+
 /// Service responsible for managing watch address functionality
 @MainActor
 class WatchAddressService: ObservableObject {
