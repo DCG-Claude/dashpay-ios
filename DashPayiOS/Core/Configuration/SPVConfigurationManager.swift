@@ -5,7 +5,6 @@ import SwiftDashCoreSDK
 
 /// Singleton manager for SPVClientConfiguration instances
 /// Ensures each network configuration is created only once
-@MainActor
 public final class SPVConfigurationManager {
     public static let shared = SPVConfigurationManager()
     

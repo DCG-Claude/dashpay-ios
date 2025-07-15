@@ -1,5 +1,6 @@
 import Foundation
 import SwiftData
+import SwiftDashCoreSDK
 import os.log
 
 /// Service responsible for wallet lifecycle management (creation, deletion, account management)
@@ -134,7 +135,7 @@ class WalletLifecycleService: ObservableObject {
         let seed = try HDWalletService.decryptSeed(encryptedSeed, password: password)
         
         // Derive account xpub
-        let xpub = HDWalletService.deriveExtendedPublicKey(
+        let xpub = try HDWalletService.deriveExtendedPublicKey(
             seed: seed,
             network: network,
             account: accountIndex
@@ -147,7 +148,7 @@ class WalletLifecycleService: ObservableObject {
         
         // Generate receive addresses
         for i in 0..<initialReceiveCount {
-            let address = HDWalletService.deriveAddress(
+            let address = try HDWalletService.deriveAddress(
                 xpub: xpub,
                 network: network,
                 change: false,
@@ -172,7 +173,7 @@ class WalletLifecycleService: ObservableObject {
         
         // Generate change address
         for i in 0..<initialChangeCount {
-            let address = HDWalletService.deriveAddress(
+            let address = try HDWalletService.deriveAddress(
                 xpub: xpub,
                 network: network,
                 change: true,

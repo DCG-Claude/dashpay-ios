@@ -113,7 +113,7 @@ class SyncStateService: ObservableObject {
     }
     
     // Helper to map sync stage to legacy status
-    private func mapSyncStageToStatus(_ stage: SyncStage) -> SyncStatus {
+    private func mapSyncStageToStatus(_ stage: SyncStage) -> SwiftDashCoreSDK.SyncStatus {
         switch stage {
         case .connecting:
             return .connecting

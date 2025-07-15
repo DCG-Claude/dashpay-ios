@@ -164,6 +164,27 @@ class HDWalletService {
             return address.first == "y" || address.first == "8" || address.first == "9"
         }
     }
+    
+    // MARK: - BIP44 Derivation Path Utilities
+    struct BIP44 {
+        static func derivationPath(
+            network: DashNetwork,
+            account: UInt32,
+            change: Bool,
+            index: UInt32
+        ) -> String {
+            let coinType: String
+            switch network {
+            case .mainnet:
+                coinType = "5"   // Dash mainnet coin type
+            case .testnet, .devnet, .regtest:
+                coinType = "1"   // Testnet coin type
+            }
+            
+            let changeValue = change ? "1" : "0"
+            return "m/44'/\(coinType)'/\(account)'/\(changeValue)/\(index)"
+        }
+    }
 }
 
 // MARK: - DashNetwork Extension for KeyWalletFFI

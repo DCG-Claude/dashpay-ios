@@ -16,33 +16,33 @@ struct SyncProgressView: View {
     var body: some View {
         NavigationView {
             VStack(spacing: 20) {
-                if let progress = walletService.syncProgress {
+                if let progress = walletService.detailedSyncProgress {
                     // Progress Info
                     VStack(spacing: 16) {
                         // Status Icon
-                        Image(systemName: progress.status.icon)
+                        Image(systemName: progress.stage.icon)
                             .font(.system(size: 60))
-                            .foregroundColor(progress.status.color)
-                            .symbolEffect(.pulse, isActive: progress.status.isActive)
+                            .foregroundColor(.blue)
+                            .symbolEffect(.pulse, isActive: progress.stage.isActive)
                         
                         // Status Text
-                        Text(progress.status.description)
+                        Text(progress.stage.description)
                             .font(.title2)
                             .fontWeight(.medium)
                         
                         // Progress Bar
                         VStack(alignment: .leading, spacing: 8) {
-                            ProgressView(value: progress.progress)
+                            ProgressView(value: progress.percentage / 100.0)
                                 .progressViewStyle(.linear)
                             
                             HStack {
-                                Text("\(progress.percentageComplete)%")
+                                Text(progress.formattedPercentage)
                                     .monospacedDigit()
                                 
                                 Spacer()
                                 
-                                if let eta = progress.formattedTimeRemaining {
-                                    Text("ETA: \(eta)")
+                                if progress.estimatedSecondsRemaining > 0 {
+                                    Text("ETA: \(progress.formattedTimeRemaining)")
                                 }
                             }
                             .font(.caption)
@@ -54,12 +54,12 @@ struct SyncProgressView: View {
                         BlockProgressView(
                             current: progress.currentHeight,
                             total: progress.totalHeight,
-                            remaining: progress.blocksRemaining
+                            remaining: progress.totalHeight - progress.currentHeight
                         )
                         
                         // Message
-                        if let message = progress.message {
-                            Text(message)
+                        if !progress.stageMessage.isEmpty {
+                            Text(progress.stageMessage)
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                                 .multilineTextAlignment(.center)

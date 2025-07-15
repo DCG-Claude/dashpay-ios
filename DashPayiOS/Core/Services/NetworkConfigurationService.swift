@@ -3,7 +3,6 @@ import SwiftDashCoreSDK
 import os.log
 
 /// Service responsible for network configuration and peer management
-@MainActor
 class NetworkConfigurationService: ObservableObject {
     private let logger = Logger(subsystem: "com.dash.wallet", category: "NetworkConfigurationService")
     
@@ -14,7 +13,7 @@ class NetworkConfigurationService: ObservableObject {
     private static let knownMainnetPeers = NetworkConstants.fallbackMainnetPeers
     
     /// Setup SPV configuration for a wallet
-    func setupConfiguration(for network: DashNetwork) async throws -> SPVConfiguration {
+    func setupConfiguration(for network: DashNetwork) async throws -> SPVClientConfiguration {
         logger.info("🔧 Getting SPV configuration for network: \(network.rawValue)")
         let config = try SPVConfigurationManager.shared.configuration(for: network)
         logger.info("📁 SPV data directory: \(config.dataDirectory?.path ?? "nil")")
@@ -104,7 +103,7 @@ class NetworkConfigurationService: ObservableObject {
     
     // MARK: - Private Helper Methods
     
-    private func configureLocalPeers(config: SPVConfiguration, network: DashNetwork) async {
+    private func configureLocalPeers(config: SPVClientConfiguration, network: DashNetwork) async {
         logger.info("🔧 Configuring LOCAL peers for \(network.rawValue)")
         
         // Get custom local peer from UserDefaults or use localhost as fallback
@@ -122,7 +121,7 @@ class NetworkConfigurationService: ObservableObject {
         }
     }
     
-    private func configurePublicPeers(config: SPVConfiguration, network: DashNetwork) async {
+    private func configurePublicPeers(config: SPVClientConfiguration, network: DashNetwork) async {
         logger.info("🌐 Using PUBLIC peers for \(network.rawValue)")
         
         if network == .mainnet && config.additionalPeers.isEmpty {
