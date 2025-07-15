@@ -1,5 +1,6 @@
 import Foundation
 import CryptoKit
+import CommonCrypto
 import SwiftDashCoreSDK
 import SwiftDashSDK
 import KeyWalletFFISwift
@@ -52,35 +53,85 @@ class HDWalletService {
     
     // MARK: - Encryption
     
+    private static func deriveKeyFromPassword(password: Data, salt: Data, iterations: Int) throws -> Data {
+        // Use PBKDF2 with SHA256 to derive a 32-byte key
+        let keyLength = 32
+        var derivedKey = Data(count: keyLength)
+        
+        let result = derivedKey.withUnsafeMutableBytes { derivedKeyBytes in
+            salt.withUnsafeBytes { saltBytes in
+                password.withUnsafeBytes { passwordBytes in
+                    CCKeyDerivationPBKDF(
+                        CCPBKDFAlgorithm(kCCPBKDF2),
+                        passwordBytes.bindMemory(to: Int8.self).baseAddress,
+                        password.count,
+                        saltBytes.bindMemory(to: UInt8.self).baseAddress,
+                        salt.count,
+                        CCPseudoRandomAlgorithm(kCCPRFHmacAlgSHA256),
+                        UInt32(iterations),
+                        derivedKeyBytes.bindMemory(to: UInt8.self).baseAddress,
+                        keyLength
+                    )
+                }
+            }
+        }
+        
+        guard result == kCCSuccess else {
+            throw WalletError.encryptionFailed
+        }
+        
+        return derivedKey
+    }
+    
     static func encryptSeed(_ seed: Data, password: String) throws -> Data {
-        // Create a symmetric key from the password
+        // Create a symmetric key from the password using PBKDF2
         guard let passwordData = password.data(using: .utf8) else {
             throw WalletError.encryptionFailed
         }
-        let hash = SHA256.hash(data: passwordData)
-        let key = SymmetricKey(data: hash)
+        
+        // Generate a random salt
+        let salt = Data((0..<32).map { _ in UInt8.random(in: 0...255) })
+        
+        // Derive key using PBKDF2 with sufficient iterations
+        let derivedKey = try deriveKeyFromPassword(password: passwordData, salt: salt, iterations: 100_000)
+        let key = SymmetricKey(data: derivedKey)
         
         // Encrypt the seed
         let sealedBox = try AES.GCM.seal(seed, using: key)
         
-        // Return combined nonce + ciphertext + tag
+        // Return salt + combined nonce + ciphertext + tag
         guard let combined = sealedBox.combined else {
             throw WalletError.encryptionFailed
         }
         
-        return combined
+        // Prepend salt to the encrypted data
+        var result = Data()
+        result.append(salt)
+        result.append(combined)
+        
+        return result
     }
     
     static func decryptSeed(_ encryptedSeed: Data, password: String) throws -> Data {
-        // Create a symmetric key from the password
+        // Create a symmetric key from the password using PBKDF2
         guard let passwordData = password.data(using: .utf8) else {
             throw WalletError.decryptionFailed
         }
-        let hash = SHA256.hash(data: passwordData)
-        let key = SymmetricKey(data: hash)
+        
+        // Extract salt from the beginning of the encrypted data
+        guard encryptedSeed.count > 32 else {
+            throw WalletError.decryptionFailed
+        }
+        
+        let salt = encryptedSeed.prefix(32)
+        let encryptedData = encryptedSeed.dropFirst(32)
+        
+        // Derive key using PBKDF2 with the same parameters
+        let derivedKey = try deriveKeyFromPassword(password: passwordData, salt: Data(salt), iterations: 100_000)
+        let key = SymmetricKey(data: derivedKey)
         
         // Decrypt the seed
-        let sealedBox = try AES.GCM.SealedBox(combined: encryptedSeed)
+        let sealedBox = try AES.GCM.SealedBox(combined: Data(encryptedData))
         let decryptedData = try AES.GCM.open(sealedBox, using: key)
         
         return decryptedData
@@ -152,21 +203,113 @@ class HDWalletService {
     // MARK: - Address Validation
     
     static func isValidAddress(_ address: String, network: DashNetwork) -> Bool {
-        // Basic Dash address validation
-        // Mainnet addresses start with 'X' (P2PKH) or '7' (P2SH)
-        // Testnet addresses start with 'y' (P2PKH) or '8'/'9' (P2SH)
-        
         guard !address.isEmpty else { return false }
         
-        // Check length (typical Dash address is 34 characters)
-        guard address.count >= 26 && address.count <= 35 else { return false }
+        // Try Base58Check validation first
+        if isValidBase58CheckAddress(address, network: network) {
+            return true
+        }
         
+        // TODO: Add Bech32 SegWit address validation when needed
+        // For now, Dash primarily uses Base58Check addresses
+        
+        return false
+    }
+    
+    private static func isValidBase58CheckAddress(_ address: String, network: DashNetwork) -> Bool {
+        // Decode Base58 address
+        guard let decoded = base58CheckDecode(address) else {
+            return false
+        }
+        
+        // Address must be exactly 25 bytes (1 version + 20 payload + 4 checksum)
+        guard decoded.count == 25 else {
+            return false
+        }
+        
+        let versionByte = decoded[0]
+        let payload = decoded[1...20]
+        let providedChecksum = decoded[21...24]
+        
+        // Verify version byte matches network
+        guard isValidVersionByte(versionByte, for: network) else {
+            return false
+        }
+        
+        // Compute double SHA-256 hash of version + payload
+        let versionAndPayload = decoded[0...20]
+        let hash1 = SHA256.hash(data: versionAndPayload)
+        let hash2 = SHA256.hash(data: hash1)
+        let computedChecksum = Array(hash2.prefix(4))
+        
+        // Verify checksum
+        return Array(providedChecksum) == computedChecksum
+    }
+    
+    private static func isValidVersionByte(_ version: UInt8, for network: DashNetwork) -> Bool {
         switch network {
         case .mainnet:
-            return address.first == "X" || address.first == "7"
+            // Dash mainnet: P2PKH = 76 (0x4C, starts with 'X'), P2SH = 16 (0x10, starts with '7')
+            return version == 0x4C || version == 0x10
         case .testnet, .devnet, .regtest:
-            return address.first == "y" || address.first == "8" || address.first == "9"
+            // Dash testnet: P2PKH = 140 (0x8C, starts with 'y'), P2SH = 19 (0x13, starts with '8' or '9')
+            return version == 0x8C || version == 0x13
         }
+    }
+    
+    private static func base58CheckDecode(_ string: String) -> [UInt8]? {
+        // Base58 alphabet for Bitcoin/Dash
+        let base58Alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+        let base = UInt64(58)
+        
+        // Create character to value mapping
+        var charToValue: [Character: UInt8] = [:]
+        for (index, char) in base58Alphabet.enumerated() {
+            charToValue[char] = UInt8(index)
+        }
+        
+        // Count leading zeros
+        var leadingZeros = 0
+        for char in string {
+            if char == "1" {
+                leadingZeros += 1
+            } else {
+                break
+            }
+        }
+        
+        // Convert from Base58
+        var result: UInt64 = 0
+        for char in string {
+            guard let value = charToValue[char] else {
+                return nil // Invalid character
+            }
+            
+            // Check for overflow
+            let (newResult, overflow) = result.multipliedReportingOverflow(by: base)
+            if overflow {
+                return nil
+            }
+            
+            let (finalResult, addOverflow) = newResult.addingReportingOverflow(UInt64(value))
+            if addOverflow {
+                return nil
+            }
+            
+            result = finalResult
+        }
+        
+        // Convert to bytes (big-endian)
+        var bytes: [UInt8] = []
+        var temp = result
+        while temp > 0 {
+            bytes.insert(UInt8(temp % 256), at: 0)
+            temp /= 256
+        }
+        
+        // Add leading zeros
+        let leadingZeroBytes = Array(repeating: UInt8(0), count: leadingZeros)
+        return leadingZeroBytes + bytes
     }
     
     // MARK: - BIP44 Derivation Path Utilities
@@ -225,6 +368,7 @@ enum WalletError: LocalizedError {
     case connectionFailed
     case invalidAddress(String)
     case fileSystemError(String)
+    case aggregateError([Error])
     
     var errorDescription: String? {
         switch self {
@@ -256,6 +400,9 @@ enum WalletError: LocalizedError {
             return "Invalid address: \(message)"
         case .fileSystemError(let message):
             return "File system error: \(message)"
+        case .aggregateError(let errors):
+            let errorMessages = errors.map { $0.localizedDescription }.joined(separator: "; ")
+            return "Multiple errors occurred: \(errorMessages)"
         }
     }
 }
