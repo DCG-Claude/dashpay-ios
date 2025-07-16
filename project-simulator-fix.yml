@@ -1,0 +1,61 @@
+name: DashPayiOS
+options:
+  bundleIdPrefix: com.dashpay
+  deploymentTarget:
+    iOS: 17.0
+targets:
+  DashPayiOS:
+    type: application
+    platform: iOS
+    sources:
+      - DashPayiOS
+    dependencies:
+      - framework: DashPayiOS/Libraries/DashSDK.xcframework
+    settings:
+      PRODUCT_BUNDLE_IDENTIFIER: com.dashpay.ios
+      PRODUCT_NAME: DashPay
+      INFOPLIST_FILE: DashPayiOS/Info.plist
+      SWIFT_VERSION: 5.0
+      LIBRARY_SEARCH_PATHS: 
+        - $(inherited)
+        - $(PROJECT_DIR)/DashPayiOS/Libraries
+        - $(BUILT_PRODUCTS_DIR)
+      HEADER_SEARCH_PATHS:
+        - $(inherited)
+        - $(PROJECT_DIR)/DashPayiOS/Libraries
+        - $(PROJECT_DIR)/DashPayiOS/Libraries/DashSPVFFI
+        - $(PROJECT_DIR)/DashPayiOS/KeyWalletFFI
+      OTHER_LDFLAGS:
+        - $(inherited)
+        - -lc++
+        - -ObjC
+      "OTHER_LDFLAGS[sdk=iphonesimulator*]":
+        - $(inherited)
+        - -lc++
+        - -ObjC
+        - $(BUILT_PRODUCTS_DIR)/libdash_spv_ffi.a
+        - $(BUILT_PRODUCTS_DIR)/libkey_wallet_ffi.a
+        - -lrs_sdk_ffi
+      "OTHER_LDFLAGS[sdk=iphoneos*]":
+        - $(inherited)
+        - -lc++
+        - -ObjC
+        - $(PROJECT_DIR)/DashPayiOS/Libraries/libdash_spv_ffi_ios.a
+        - $(PROJECT_DIR)/DashPayiOS/Libraries/libkey_wallet_ffi_ios.a
+        - -lrs_sdk_ffi
+    preBuildScripts:
+      - name: "Copy FFI Libraries"
+        outputFiles:
+          - $(BUILT_PRODUCTS_DIR)/libdash_spv_ffi.a
+          - $(BUILT_PRODUCTS_DIR)/libkey_wallet_ffi.a
+        script: |
+          # Select appropriate library for simulator/device
+          if [ "${PLATFORM_NAME}" == "iphonesimulator" ]; then
+              echo "Copying simulator libraries..."
+              cp "${PROJECT_DIR}/DashPayiOS/Libraries/libdash_spv_ffi_sim.a" "${BUILT_PRODUCTS_DIR}/libdash_spv_ffi.a"
+              cp "${PROJECT_DIR}/DashPayiOS/Libraries/libkey_wallet_ffi_sim.a" "${BUILT_PRODUCTS_DIR}/libkey_wallet_ffi.a"
+          else
+              echo "Copying device libraries..."
+              cp "${PROJECT_DIR}/DashPayiOS/Libraries/libdash_spv_ffi_ios.a" "${BUILT_PRODUCTS_DIR}/libdash_spv_ffi.a"
+              cp "${PROJECT_DIR}/DashPayiOS/Libraries/libkey_wallet_ffi_ios.a" "${BUILT_PRODUCTS_DIR}/libkey_wallet_ffi.a"
+          fi

@@ -1,0 +1,23 @@
+# Cargo configuration for iOS builds
+# SDK paths are dynamically resolved by build scripts using environment variables
+
+[target.aarch64-apple-ios-sim]
+linker = "clang"
+rustflags = [
+    "-C", "link-arg=-target",
+    "-C", "link-arg=aarch64-apple-ios14.0-simulator",
+    "-C", "link-arg=-isysroot",
+    "-C", "link-arg=${IPHONESIMULATOR_SDK_PATH}",
+]
+
+[target.aarch64-apple-ios]
+linker = "clang"
+rustflags = [
+    "-C", "link-arg=-target",
+    "-C", "link-arg=aarch64-apple-ios14.0",
+    "-C", "link-arg=-isysroot",
+    "-C", "link-arg=${IPHONEOS_SDK_PATH}",
+]
+
+[env]
+IPHONEOS_DEPLOYMENT_TARGET = "14.0"

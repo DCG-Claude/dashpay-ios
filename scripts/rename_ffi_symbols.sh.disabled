@@ -1,0 +1,225 @@
+#!/bin/bash
+
+# Script to rename conflicting symbols in Rust FFI libraries
+# This resolves duplicate symbol issues when linking multiple Rust static libraries
+
+set -euo pipefail
+
+# Configuration
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+LIBS_DIR="$PROJECT_ROOT/DashPayiOS/Libraries"
+LLVM_OBJCOPY="/opt/homebrew/opt/llvm/bin/llvm-objcopy"
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+# Function to print colored output
+log_info() {
+    echo -e "${GREEN}[INFO]${NC} $1"
+}
+
+log_warn() {
+    echo -e "${YELLOW}[WARN]${NC} $1"
+}
+
+log_error() {
+    echo -e "${RED}[ERROR]${NC} $1"
+}
+
+# Check if llvm-objcopy is available
+if [ ! -x "$LLVM_OBJCOPY" ]; then
+    log_error "llvm-objcopy not found at $LLVM_OBJCOPY"
+    log_error "Please install LLVM: brew install llvm"
+    exit 1
+fi
+
+# Function to extract symbols from a library
+extract_symbols() {
+    local lib="$1"
+    local output_file="$2"
+    
+    log_info "Extracting symbols from $(basename "$lib")..."
+    nm -g "$lib" | grep " T " | awk '{print $3}' | sort -u > "$output_file"
+}
+
+# Function to create symbol renaming script
+create_rename_script() {
+    local prefix="$1"
+    local symbols_file="$2"
+    local output_file="$3"
+    
+    log_info "Creating rename script with prefix: $prefix"
+    
+    > "$output_file"
+    
+    # Rename compiler builtins and runtime symbols
+    while IFS= read -r symbol; do
+        case "$symbol" in
+            ___*)
+                # Compiler builtins - add prefix
+                echo "$symbol ${prefix}${symbol}" >> "$output_file"
+                ;;
+            __aarch64_*)
+                # ARM64 atomics - add prefix
+                echo "$symbol ${prefix}${symbol}" >> "$output_file"
+                ;;
+            _rust_*)
+                # Rust runtime symbols - add prefix
+                echo "$symbol ${prefix}${symbol}" >> "$output_file"
+                ;;
+        esac
+    done < "$symbols_file"
+    
+    log_info "Created $(wc -l < "$output_file") symbol rename rules"
+}
+
+# Function to rename symbols in a library
+rename_symbols_in_lib() {
+    local input_lib="$1"
+    local output_lib="$2"
+    local rename_script="$3"
+    
+    log_info "Renaming symbols in $(basename "$input_lib")..."
+    
+    # Create a temporary directory for processing
+    local temp_dir=$(mktemp -d)
+    local lib_name=$(basename "$input_lib")
+    
+    # Copy library to temp location
+    cp "$input_lib" "$temp_dir/$lib_name"
+    
+    # Apply symbol renaming
+    "$LLVM_OBJCOPY" --redefine-syms="$rename_script" "$temp_dir/$lib_name" "$output_lib"
+    
+    # Clean up
+    rm -rf "$temp_dir"
+    
+    log_info "Created renamed library: $(basename "$output_lib")"
+}
+
+# Main processing
+main() {
+    log_info "Starting FFI symbol renaming process..."
+    
+    # Create working directory
+    local work_dir="$PROJECT_ROOT/build/ffi_rename"
+    mkdir -p "$work_dir"
+    
+    # Process libdash_spv_ffi_sim.a
+    local spv_lib="$LIBS_DIR/libdash_spv_ffi_sim.a"
+    local spv_lib_renamed="$LIBS_DIR/libdash_spv_ffi_sim_renamed.a"
+    
+    if [ -f "$spv_lib" ]; then
+        log_info "Processing SPV FFI library..."
+        
+        # Extract symbols
+        extract_symbols "$spv_lib" "$work_dir/spv_symbols.txt"
+        
+        # Create rename script for SPV library (prefix with _spv_)
+        create_rename_script "_spv" "$work_dir/spv_symbols.txt" "$work_dir/spv_rename.txt"
+        
+        # Rename symbols
+        rename_symbols_in_lib "$spv_lib" "$spv_lib_renamed" "$work_dir/spv_rename.txt"
+    else
+        log_warn "SPV FFI library not found: $spv_lib"
+    fi
+    
+    # Process librs_sdk_ffi.a (simulator version)
+    local sdk_lib="$LIBS_DIR/DashSDK.xcframework/ios-arm64-simulator/librs_sdk_ffi.a"
+    local sdk_lib_renamed="$LIBS_DIR/DashSDK.xcframework/ios-arm64-simulator/librs_sdk_ffi_renamed.a"
+    
+    if [ -f "$sdk_lib" ]; then
+        log_info "Processing SDK FFI library (simulator)..."
+        
+        # Extract symbols
+        extract_symbols "$sdk_lib" "$work_dir/sdk_symbols.txt"
+        
+        # Create rename script for SDK library (prefix with _sdk_)
+        create_rename_script "_sdk" "$work_dir/sdk_symbols.txt" "$work_dir/sdk_rename.txt"
+        
+        # Rename symbols
+        rename_symbols_in_lib "$sdk_lib" "$sdk_lib_renamed" "$work_dir/sdk_rename.txt"
+    else
+        log_warn "SDK FFI library not found: $sdk_lib"
+    fi
+    
+    # Find common symbols
+    if [ -f "$work_dir/spv_symbols.txt" ] && [ -f "$work_dir/sdk_symbols.txt" ]; then
+        log_info "Finding common symbols..."
+        comm -12 "$work_dir/spv_symbols.txt" "$work_dir/sdk_symbols.txt" > "$work_dir/common_symbols.txt"
+        
+        local common_count=$(wc -l < "$work_dir/common_symbols.txt")
+        log_info "Found $common_count common symbols"
+        
+        if [ "$common_count" -gt 0 ]; then
+            log_info "Common symbols:"
+            head -20 "$work_dir/common_symbols.txt"
+            if [ "$common_count" -gt 20 ]; then
+                log_info "... and $((common_count - 20)) more"
+            fi
+        fi
+    fi
+    
+    # Process device libraries
+    log_info ""
+    log_info "Processing device libraries..."
+    
+    # Process libdash_spv_ffi_ios.a
+    local spv_ios_lib="$LIBS_DIR/libdash_spv_ffi_ios.a"
+    local spv_ios_lib_renamed="$LIBS_DIR/libdash_spv_ffi_ios_renamed.a"
+    
+    if [ -f "$spv_ios_lib" ]; then
+        log_info "Processing SPV FFI library (device)..."
+        
+        # Extract symbols
+        extract_symbols "$spv_ios_lib" "$work_dir/spv_ios_symbols.txt"
+        
+        # Create rename script for SPV library (prefix with _spv_)
+        create_rename_script "_spv" "$work_dir/spv_ios_symbols.txt" "$work_dir/spv_ios_rename.txt"
+        
+        # Rename symbols
+        rename_symbols_in_lib "$spv_ios_lib" "$spv_ios_lib_renamed" "$work_dir/spv_ios_rename.txt"
+    else
+        log_warn "SPV FFI device library not found: $spv_ios_lib"
+    fi
+    
+    # Process SDK device library
+    local sdk_ios_lib="$LIBS_DIR/DashSDK.xcframework/ios-arm64/librs_sdk_ffi.a"
+    local sdk_ios_lib_renamed="$LIBS_DIR/DashSDK.xcframework/ios-arm64/librs_sdk_ffi_renamed.a"
+    
+    if [ -f "$sdk_ios_lib" ]; then
+        log_info "Processing SDK FFI library (device)..."
+        
+        # Extract symbols
+        extract_symbols "$sdk_ios_lib" "$work_dir/sdk_ios_symbols.txt"
+        
+        # Create rename script for SDK library (prefix with _sdk_)
+        create_rename_script "_sdk" "$work_dir/sdk_ios_symbols.txt" "$work_dir/sdk_ios_rename.txt"
+        
+        # Rename symbols
+        rename_symbols_in_lib "$sdk_ios_lib" "$sdk_ios_lib_renamed" "$work_dir/sdk_ios_rename.txt"
+    else
+        log_warn "SDK FFI device library not found: $sdk_ios_lib"
+    fi
+    
+    log_info "Symbol renaming complete!"
+    log_info "Renamed libraries created:"
+    log_info "  Simulator:"
+    log_info "  - $spv_lib_renamed"
+    log_info "  - $sdk_lib_renamed"
+    log_info "  Device:"
+    log_info "  - $spv_ios_lib_renamed"
+    log_info "  - $sdk_ios_lib_renamed"
+    log_info ""
+    log_info "Next steps:"
+    log_info "1. Update project.yml to use renamed libraries"
+    log_info "2. Test the app with renamed libraries"
+    log_info "3. Verify both simulator and device builds work"
+}
+
+# Run main function
+main "$@"
