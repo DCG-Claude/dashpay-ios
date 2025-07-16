@@ -14,7 +14,6 @@ class LocalNotificationService: ObservableObject {
     @Published var isEnabled = false
     
     private let logger = Logger(subsystem: "com.dash.wallet", category: "LocalNotificationService")
-    private let notificationQueue = DispatchQueue(label: "com.dash.wallet.notifications", qos: .background)
     private let notificationOperationQueue: OperationQueue = {
         let queue = OperationQueue()
         queue.name = "com.dash.wallet.notifications.operations"
